@@ -1,0 +1,39 @@
+# cargo-about configuration for the native sidecars.
+#
+# Every platform Bestie ships a sidecar for is listed, so one generated bundle
+# covers them all: a crate that only links on Windows still has to be
+# credited in the archive a macOS user receives, because the same notice
+# file ships everywhere.
+
+targets = [
+    "x86_64-pc-windows-msvc",
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+]
+
+# Licences we are prepared to redistribute. A crate carrying anything else
+# fails the run rather than shipping unnoticed.
+accepted = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    "NCSA",
+    "OpenSSL",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Unlicense",
+    "WTFPL",
+    "Zlib",
+]
+
+workarounds = ["ring"]

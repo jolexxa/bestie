@@ -1,0 +1,27 @@
+name: sandbox_windows
+description: Windows (AppContainer) implementation of bestie's sandbox contract.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  file: ^7.0.1
+  isolate_worker:
+    path: ../isolate_worker
+  process_host:
+    path: ../process_host
+  process_host_windows:
+    path: ../process_host_windows
+  sandbox:
+    path: ../sandbox
+  win32_dart:
+    path: ../../ffi/win32_dart
+
+dev_dependencies:
+  mocktail: ^1.0.5
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

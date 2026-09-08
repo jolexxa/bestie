@@ -1,0 +1,19 @@
+name: bestie_platform_abstractions
+description: Bestie platform abstractions.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  file: ^7.0.1
+  intentions: ^0.1.0
+  path: ^1.9.1
+
+dev_dependencies:
+  mocktail: ^1.0.4
+  test: ^1.25.8
+  very_good_analysis: ^10.0.0

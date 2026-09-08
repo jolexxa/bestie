@@ -1,0 +1,31 @@
+name: bestie_palette_view
+description: Command palette feature — view + view model over the command catalog.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  bestie_commands_use_case:
+    path: ../../use_cases/bestie_commands_use_case
+  bestie_ui:
+    path: ../bestie_ui
+  blocterm:
+    path: ../../infra/blocterm
+  command_protocol:
+    path: ../../infra/command_protocol
+  fuzzy: ^0.5.1
+  intentions: ^0.1.0
+  logic_bloc_adapter:
+    path: ../../infra/logic_bloc_adapter
+  logic_blocks: ^1.0.0
+  meta: ^1.18.0
+  nocterm: ^0.6.0
+
+dev_dependencies:
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

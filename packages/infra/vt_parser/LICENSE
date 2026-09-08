@@ -1,0 +1,15 @@
+vt_parser is dual-licensed under either of:
+
+  * Apache License, Version 2.0 — see LICENSE-APACHE
+  * MIT License                  — see LICENSE-MIT
+
+at your option. Recipients may choose either. This mirrors the dual
+licensing of alacritty/vte, the project from which vt_parser's state
+machine, parameter list, and state enum are ported.
+
+Copyright (c) 2026 Joanna and the agentic_terminal contributors
+
+Unless you explicitly state otherwise, any contribution intentionally
+submitted for inclusion in this project by you, as defined in the
+Apache-2.0 license, shall be dual-licensed as above, without any
+additional terms or conditions.

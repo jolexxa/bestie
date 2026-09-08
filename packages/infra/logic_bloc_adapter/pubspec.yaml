@@ -1,0 +1,17 @@
+name: logic_bloc_adapter
+description: A BlocBase adapter that runs a LogicBlock as a bloc, for nocterm.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  bloc: ^8.1.4
+  logic_blocks: ^1.0.0
+
+dev_dependencies:
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

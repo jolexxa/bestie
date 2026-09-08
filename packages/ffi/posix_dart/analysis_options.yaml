@@ -1,0 +1,12 @@
+include: package:very_good_analysis/analysis_options.yaml
+
+analyzer:
+  exclude:
+    - lib/src/bindings/**
+
+linter:
+  rules:
+    # FFI wrappers are exhaustive but obvious — naming follows POSIX
+    # man pages, which gives plenty of context. Skip the doc-comment
+    # nag the way packages/bestie does.
+    public_member_api_docs: false

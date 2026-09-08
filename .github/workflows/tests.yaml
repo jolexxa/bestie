@@ -1,0 +1,84 @@
+name: 🧪 Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# Superseded runs for the same branch or PR are cancelled.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: 🔍 Analyze
+    runs-on: ubuntu-latest
+    # Only run the workflow if it's not a PR or if it's a PR from a fork.
+    # This prevents duplicate workflows from running on PR's that originate
+    # from the repository itself.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.event.pull_request.base.repo.full_name
+    steps:
+      - name: 🧾 Checkout
+        uses: actions/checkout@v7
+
+      - name: 💽 Setup Dart
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: 📦 Install dependencies
+        run: dart pub get
+
+      - name: 🔖 Check version placeholder
+        run: dart tool/set_version.dart --check
+
+      - name: 🧹 Check formatting
+        run: dart run melos run format:check --no-select
+
+      - name: 🔍 Analyze
+        run: dart run melos run analyze --no-select
+
+  test:
+    name: 🧪 Test (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    # Skipped along with analyze on same-repo PRs, and never runs on a red analyze.
+    needs: analyze
+    timeout-minutes: 90
+    strategy:
+      # Don't cancel other runners if one fails.
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos_arm64
+            runner: macos-latest
+            asset_os: macos
+          - platform: linux_x64
+            runner: ubuntu-latest
+            asset_os: linux
+          - platform: windows_x64
+            runner: windows-latest
+            asset_os: windows
+    defaults:
+      run:
+        # Use bash shells on all platforms.
+        shell: bash
+    steps:
+      - name: 🧾 Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: 🛠 Setup
+        uses: ./.github/actions/setup
+        with:
+          os: ${{ matrix.asset_os }}
+
+      - name: 🧪 Run tests
+        run: dart run melos run test --no-select
+
+      - name: 🦀 Check bestie_edit
+        run: dart run melos run checks:edit --no-select
+
+      - name: 🦀 Check bestie_guard
+        run: dart run melos run checks:guard --no-select

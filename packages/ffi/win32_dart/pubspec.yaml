@@ -1,0 +1,21 @@
+name: win32_dart
+description: >-
+  Dart FFI bindings to the Win32 and UCRT surface bestie needs.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  ffi: ^2.1.0
+  meta: ^1.16.0
+
+dev_dependencies:
+  ffigen: ^18.0.0
+  mocktail: ^1.0.4
+  path: ^1.9.1
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

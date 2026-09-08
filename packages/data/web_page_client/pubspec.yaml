@@ -1,0 +1,18 @@
+name: web_page_client
+description: Fetches a web page and extracts its readable content.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  http: ^1.1.0
+  intentions: ^0.1.0
+  trafilatura: ^1.0.1
+
+dev_dependencies:
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

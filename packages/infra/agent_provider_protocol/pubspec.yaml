@@ -1,0 +1,24 @@
+name: agent_provider_protocol
+description: Direct-method server facade for bestie agent runtimes.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  characters: ^1.4.0
+  dart_mappable: ^4.3.0
+  prompt_builder:
+    path: ../prompt_builder
+  tool_protocol:
+    path: ../tool_protocol
+  uuid: ^4.5.3
+
+dev_dependencies:
+  build_runner: ^2.4.12
+  dart_mappable_builder: ^4.3.0
+  test: ^1.31.1
+  very_good_analysis: ^10.2.0

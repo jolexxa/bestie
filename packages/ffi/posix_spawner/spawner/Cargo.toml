@@ -1,0 +1,33 @@
+[package]
+name = "spawner"
+version = "0.1.0"
+edition = "2021"
+description = "Tiny PTY-controlling-tty bootstrap helper for bestie's posix_dart."
+
+# Why this exists: bestie's Dart-side `PosixSpawn` does the
+# fork+setsid+TIOCSCTTY+tcsetattr+dup2+execve dance manually. That's
+# fragile when run from a multithreaded Dart VM — the JIT inherited
+# in the forked child can crash mid-setup (silent BUS_ADRALN), and
+# even in AOT there's a residual kernel-level race that occasionally
+# leaves the slave's termios with ISIG cleared. `spawner` does the
+# same dance in pure native Rust, so the Dart side can `posix_spawn`
+# it (kernel-level vfork-style — no Dart in the child) and rely on
+# this binary to set up the pty correctly before exec'ing the real
+# target. Same trick node-pty's `spawn-helper` uses.
+
+[[bin]]
+name = "spawner"
+path = "src/main.rs"
+
+[dependencies]
+libc = "0.2"
+bestie_guard = { path = "../bestie_guard" }
+
+[profile.release]
+# Optimize for tiny binary size; this is a 100-line bootstrap, no
+# need for LTO unrolling.
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

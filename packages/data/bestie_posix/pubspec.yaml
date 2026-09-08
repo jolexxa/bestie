@@ -1,0 +1,25 @@
+name: bestie_posix
+description: >
+  Shared POSIX implementation of Bestie's platform ports. macOS and Linux both
+  route their terminal-environment work through here; the platform-specific
+  packages carry only what genuinely differs.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  bestie_platform_abstractions:
+    path: ../bestie_platform_abstractions
+  file: ^7.0.1
+  intentions: ^0.1.0
+  posix_dart:
+    path: ../../ffi/posix_dart
+
+dev_dependencies:
+  mocktail: ^1.0.5
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

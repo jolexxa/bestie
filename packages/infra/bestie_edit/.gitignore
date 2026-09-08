@@ -1,0 +1,13 @@
+# See https://www.dartlang.org/guides/libraries/private-files
+
+# Files and directories created by pub
+.dart_tool/
+.packages
+build/
+pubspec.lock
+
+# Built editor (use `dart tool/build_sidecar.dart edit`)
+assets/native/**
+
+# Rust crate build output; Cargo.lock is committed so releases build --locked
+**/target/

@@ -1,0 +1,17 @@
+name: calculator_tools
+description: The expression calculator Bestie offers a model.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  eval_ex: ^1.1.8
+  intentions: ^0.1.0
+
+dev_dependencies:
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

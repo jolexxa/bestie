@@ -1,0 +1,4 @@
+enum ConfigEffect {
+  live,
+  onCommit,
+}

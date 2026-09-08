@@ -1,0 +1,12 @@
+include: package:very_good_analysis/analysis_options.yaml
+
+analyzer:
+  exclude:
+    - lib/src/bindings/**
+
+linter:
+  rules:
+    # FFI wrappers are exhaustive but obvious — naming follows the Win32
+    # API reference, which gives plenty of context. Skip the doc-comment
+    # nag the way packages/bestie and posix_dart do.
+    public_member_api_docs: false

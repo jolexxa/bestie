@@ -1,0 +1,18 @@
+name: bestie_commands_use_case
+description: Commands feature use case — aggregates every feature's palette commands.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  command_protocol:
+    path: ../../infra/command_protocol
+  intentions: ^0.1.0
+
+dev_dependencies:
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

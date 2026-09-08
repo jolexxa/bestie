@@ -1,0 +1,15 @@
+[package]
+name = "bestie_guard"
+version = "0.1.0"
+edition = "2021"
+description = "bestie's process-confinement backend: a thin, capability-shaped adapter over Seatbelt (macOS) and Landlock (Linux)."
+
+[lib]
+name = "bestie_guard"
+path = "src/lib.rs"
+
+[dependencies]
+libc = "0.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+landlock = "0.4"

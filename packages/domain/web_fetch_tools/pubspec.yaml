@@ -1,0 +1,22 @@
+name: web_fetch_tools
+description: The web page fetch tool Bestie offers a model.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  files_data_source:
+    path: ../../data/files_data_source
+  intentions: ^0.1.0
+  web_page_client:
+    path: ../../data/web_page_client
+
+dev_dependencies:
+  file: ^7.0.1
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

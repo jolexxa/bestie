@@ -1,0 +1,204 @@
+name: MacosPosixBindings
+description: |
+  POSIX (libc) + Darwin (mach, sysctl) bindings for macOS, generated
+  by ffigen against the Xcode SDK headers.
+
+  Regenerate via `dart run melos run ffigen_posix_macos` after editing
+  this config or after a major SDK bump.
+
+output: '../lib/src/bindings/macos_bindings.dart'
+
+headers:
+  entry-points:
+    # POSIX surface
+    - '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/spawn.h'
+    - '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/stdlib.h'
+    - '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/unistd.h'
+    - '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/fcntl.h'
+    - '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/termios.h'
+    - '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/signal.h'
+    - '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/string.h'
+    - '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/ioctl.h'
+    - '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/statvfs.h'
+    - '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/wait.h'
+    - '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/ttycom.h'
+    # Darwin-specific
+    - '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/sys/sysctl.h'
+    - '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/mach/mach_host.h'
+    - '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include/mach/host_info.h'
+
+exclude-all-by-default: true
+
+functions:
+  include:
+    # PTY allocation
+    - posix_openpt
+    - grantpt
+    - unlockpt
+    - ptsname
+    # posix_spawn family
+    - posix_spawnp
+    - posix_spawn
+    - posix_spawn_file_actions_init
+    - posix_spawn_file_actions_destroy
+    - posix_spawn_file_actions_adddup2
+    - posix_spawn_file_actions_addclose
+    - posix_spawnattr_init
+    - posix_spawnattr_destroy
+    # signals
+    - kill
+    # termios
+    - tcgetattr
+    - tcsetattr
+    # ioctl (variadic — see variadic-arguments below)
+    - ioctl
+    # process / fd
+    - waitpid
+    - read
+    - write
+    - close
+    - open
+    - dup
+    - dup2
+    - pipe
+    - chdir
+    - fcntl
+    - usleep
+    # error formatting
+    - strerror
+    # filesystem
+    - statvfs
+    # Darwin
+    - sysctlbyname
+    - mach_host_self
+    - host_statistics64
+  rename:
+    '_exit': 'exitImmediate'
+  variadic-arguments:
+    ioctl:
+      - types: ['WinSize*']
+        postfix: 'WinSize'
+      - types: ['int']
+        postfix: 'Int'
+    open:
+      - types: ['int']
+        postfix: 'Mode'
+    fcntl:
+      - types: ['int']
+        postfix: 'Int'
+
+macros:
+  include:
+    # open / fcntl flags
+    - O_RDWR
+    - O_RDONLY
+    - O_WRONLY
+    - O_CREAT
+    - O_APPEND
+    - O_TRUNC
+    - O_NOCTTY
+    - O_NONBLOCK
+    # fcntl commands and flags
+    - F_GETFD
+    - F_SETFD
+    - F_GETFL
+    - F_SETFL
+    - FD_CLOEXEC
+    # ioctl / tty
+    - TIOCSWINSZ
+    - TIOCGWINSZ
+    - TIOCSCTTY
+    # waitpid
+    - WNOHANG
+    # termios bits we manipulate elsewhere in bestie
+    - ECHO
+    - ECHOE
+    - ECHOK
+    - ECHOKE
+    - ECHOCTL
+    - PENDIN
+    - ICANON
+    - ISIG
+    - IEXTEN
+    - IXON
+    - IXANY
+    - ICRNL
+    - INPCK
+    - ISTRIP
+    - IMAXBEL
+    - BRKINT
+    - IUTF8
+    - OPOST
+    - ONLCR
+    - CREAD
+    - CS8
+    - HUPCL
+    # special control chars (c_cc indices)
+    - VEOF
+    - VEOL
+    - VEOL2
+    - VERASE
+    - VWERASE
+    - VKILL
+    - VREPRINT
+    - VINTR
+    - VQUIT
+    - VSUSP
+    - VDSUSP
+    - VSTART
+    - VSTOP
+    - VLNEXT
+    - VDISCARD
+    - VMIN
+    - VTIME
+    - VSTATUS
+    # baud rate
+    - B38400
+    # tcsetattr action
+    - TCSANOW
+    - TCSAFLUSH
+    # mach host_info flavors
+    - HOST_VM_INFO64
+    - HOST_VM_INFO64_COUNT
+
+structs:
+  include:
+    - winsize
+    - termios
+    - statvfs
+    - vm_statistics64
+    - sigaction
+  rename:
+    'winsize': 'WinSize'
+    # Disambiguate from the same-named function so ffigen doesn't mangle
+    # the symbol to `statvfs$1`; lets wrappers call `bindings.statvfs(...)`.
+    'statvfs': 'Statvfs'
+
+unions:
+  include: []
+
+enums:
+  include: []
+
+typedefs:
+  include:
+    - posix_spawnattr_t
+    - posix_spawn_file_actions_t
+    - sigset_t
+
+ignore-source-errors: true
+
+silence-enum-warning: true
+
+preamble: |
+  // ignore_for_file: non_constant_identifier_names
+  // ignore_for_file: camel_case_types
+  // ignore_for_file: public_member_api_docs
+  // ignore_for_file: constant_identifier_names
+  // ignore_for_file: unused_element
+  // ignore_for_file: unused_field
+  // ignore_for_file: unused_import
+  // ignore_for_file: type=lint
+  //
+  // GENERATED by ffigen — do not edit by hand.
+  // See tool/ffigen_macos.yaml to change what's generated.

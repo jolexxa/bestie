@@ -1,0 +1,35 @@
+name: shell_repository
+description: >
+  Bestie's shell domain — the installed shell userland (bundled brush + coreutils)
+  and the lifecycle of running shell sessions.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  agentic_terminal:
+    path: ../../infra/agentic_terminal
+  bestie_platform_abstractions:
+    path: ../../data/bestie_platform_abstractions
+  byte_codec:
+    path: ../../infra/byte_codec
+  file: ^7.0.1
+  files_data_source:
+    path: ../../data/files_data_source
+  intentions: ^0.1.0
+  logic_blocks: ^1.0.0
+  process_host:
+    path: ../../infra/process_host
+  terminal_screen:
+    path: ../../infra/terminal_screen
+  vt_parser:
+    path: ../../infra/vt_parser
+
+dev_dependencies:
+  mocktail: ^1.0.5
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

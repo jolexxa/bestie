@@ -1,0 +1,30 @@
+name: provider_repository
+description: Hosted inference provider session repository.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  agent_provider_protocol:
+    path: ../../infra/agent_provider_protocol
+  dart_mappable: ^4.3.0
+  inference_protocol:
+    path: ../../infra/inference_protocol
+  intentions: ^0.1.0
+  logic_blocks: ^1.0.0
+  meta: ^1.18.0
+  provider_protocol:
+    path: ../../infra/provider_protocol
+  rxdart: ^0.28.0
+
+dev_dependencies:
+  build_runner: ^2.4.12
+  coverage: ^1.9.0
+  dart_mappable_builder: ^4.3.0
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

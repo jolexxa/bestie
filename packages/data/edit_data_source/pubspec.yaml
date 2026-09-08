@@ -1,0 +1,21 @@
+name: edit_data_source
+description: File edits for Bestie, performed by the bestie_edit sidecar.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  bestie_edit:
+    path: ../../infra/bestie_edit
+  intentions: ^0.1.0
+  process_host:
+    path: ../../infra/process_host
+
+dev_dependencies:
+  mocktail: ^1.0.5
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

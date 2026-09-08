@@ -1,0 +1,22 @@
+name: sandbox_grant_store
+description: >
+  Persists Windows sandbox grants — the shared read capability's applied state
+  and one entry per workspace.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  dart_mappable: ^4.3.0
+  file: ^7.0.1
+  intentions: ^0.1.0
+
+dev_dependencies:
+  build_runner: ^2.4.12
+  dart_mappable_builder: ^4.3.0
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

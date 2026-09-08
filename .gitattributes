@@ -1,0 +1,9 @@
+# Line endings are normalised to LF in the repository and converted back
+# on checkout, so a clone on Windows does not read as wholly modified.
+* text=auto
+
+# A raw capture of the bytes a child wrote to its tty, compared byte for
+# byte against the parser's output.
+*.bin -text
+
+*.dylib filter=lfs diff=lfs merge=lfs -text

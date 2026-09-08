@@ -1,0 +1,3 @@
+[submodule "packages/ffi/curl_impersonate_dart/third_party/curl-impersonate"]
+	path = packages/ffi/curl_impersonate_dart/third_party/curl-impersonate
+	url = https://github.com/lexiforest/curl-impersonate.git

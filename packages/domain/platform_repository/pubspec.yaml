@@ -1,0 +1,19 @@
+name: platform_repository
+description: Domain-layer facade over platform-specific external systems.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  bestie_platform_abstractions:
+    path: ../../data/bestie_platform_abstractions
+  intentions: ^0.1.0
+
+dev_dependencies:
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

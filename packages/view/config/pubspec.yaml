@@ -1,0 +1,58 @@
+name: bestie_config_view
+description: Config feature — view + view model (cubit + logic block) + the settings schema (pages, entries, config keys).
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  bestie_chat_use_case:
+    path: ../../use_cases/bestie_chat_use_case
+  bestie_config_use_case:
+    path: ../../use_cases/bestie_config_use_case
+  bestie_mascot_use_case:
+    path: ../../use_cases/bestie_mascot_use_case
+  bestie_platform_abstractions:
+    path: ../../data/bestie_platform_abstractions
+  bestie_provider_use_case:
+    path: ../../use_cases/bestie_provider_use_case
+  bestie_sandbox_use_case:
+    path: ../../use_cases/bestie_sandbox_use_case
+  bestie_shell_use_case:
+    path: ../../use_cases/bestie_shell_use_case
+  bestie_tools_use_case:
+    path: ../../use_cases/bestie_tools_use_case
+  bestie_ui:
+    path: ../bestie_ui
+  blocterm:
+    path: ../../infra/blocterm
+  config_protocol:
+    path: ../../infra/config_protocol
+  config_repository:
+    path: ../../domain/config_repository
+  intentions: ^0.1.0
+  logic_bloc_adapter:
+    path: ../../infra/logic_bloc_adapter
+  logic_blocks: ^1.0.0
+  markdown_highlighted:
+    path: ../../infra/markdown_highlighted
+  meta: ^1.18.0
+  nocterm: ^0.6.0
+  platform_repository:
+    path: ../../domain/platform_repository
+  provider_protocol:
+    path: ../../infra/provider_protocol
+  provider_repository:
+    path: ../../domain/provider_repository
+  tool_protocol:
+    path: ../../infra/tool_protocol
+
+dev_dependencies:
+  bestie_config:
+    path: ../../data/bestie_config
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

@@ -1,0 +1,30 @@
+name: agentic_terminal
+description: >-
+  High-level API for driving interactive TUI programs from an
+  agent. Composes process_host, vt_parser, and terminal_screen into
+  a single AgentTerminal handle. Platform-free: the terminal
+  mechanism arrives as an injected ProcessHost.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  process_host:
+    path: ../process_host
+  terminal_screen:
+    path: ../terminal_screen
+  vt_parser:
+    path: ../vt_parser
+
+dev_dependencies:
+  mocktail: ^1.0.4
+  posix_spawner:
+    path: ../../ffi/posix_spawner
+  process_host_posix:
+    path: ../process_host_posix
+  test: ^1.25.0
+  very_good_analysis: ^10.0.0

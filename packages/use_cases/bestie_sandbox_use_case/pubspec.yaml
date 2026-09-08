@@ -1,0 +1,34 @@
+name: bestie_sandbox_use_case
+description: Sandbox feature use case.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  command_protocol:
+    path: ../../infra/command_protocol
+  config_protocol:
+    path: ../../infra/config_protocol
+  config_repository:
+    path: ../../domain/config_repository
+  intentions: ^0.1.0
+  meta: ^1.18.0
+  path: ^1.9.1
+  rxdart: ^0.28.0
+  sandbox:
+    path: ../../infra/sandbox
+  sandbox_repository:
+    path: ../../domain/sandbox_repository
+  tool_protocol:
+    path: ../../infra/tool_protocol
+
+dev_dependencies:
+  mocktail: ^1.0.4
+  process_host:
+    path: ../../infra/process_host
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

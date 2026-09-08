@@ -1,0 +1,224 @@
+@startuml
+
+package "bestie" {
+  package "AgentRepository" as _AgentRepository {
+    class AgentRepository << repository >>
+    class AgentJournal << repository >>
+    AgentRepository +-- AgentJournal
+    class PendingToolCalls << repository >>
+    AgentRepository +-- PendingToolCalls
+  }
+  package "AgentShellCubit" as _AgentShellCubit {
+    class AgentShellCubit << viewModel >>
+    class AgentShellLogic << viewModel >>
+    AgentShellCubit +-- AgentShellLogic
+  }
+  class AppShellUseCase << useCase >>
+  class AppTerminalEnvironmentUseCase << useCase >>
+  class ArxivSearchClient << dataSource >>
+  class ArxivTools << repository >>
+  class Calculator << repository >>
+  package "ChatCubit" as _ChatCubit {
+    class ChatCubit << viewModel >>
+    class ChatLogic << viewModel >>
+    ChatCubit +-- ChatLogic
+  }
+  class ChatUseCase << useCase >>
+  class ClipboardDataSource << dataSource >>
+  class CommandsUseCase << useCase >>
+  package "ConfigCubit" as _ConfigCubit {
+    class ConfigCubit << viewModel >>
+    class ConfigLogic << viewModel >>
+    ConfigCubit +-- ConfigLogic
+  }
+  class ConfigDataSource << dataSource >>
+  class ConfigRepository << repository >>
+  package "ConfigUseCase" as _ConfigUseCase {
+    class ConfigUseCase << useCase >>
+    class ConfigSession << useCase >>
+    ConfigUseCase +-- ConfigSession
+  }
+  class ConversationStore << dataSource >>
+  class DateTimeTools << repository >>
+  class DiskSpaceDataSource << dataSource >>
+  class EditDataSource << dataSource >>
+  class ExecutableLinkDataSource << dataSource >>
+  class FilesDataSource << dataSource >>
+  class FsTools << repository >>
+  class InteractiveTerminalView << view >>
+  class MascotUseCase << useCase >>
+  class MetasearchClient << dataSource >>
+  class OSPlatformRepository << repository >>
+  class PaletteCubit << viewModel >>
+  class ProviderRepository << repository >>
+  class ProviderUseCase << useCase >>
+  package "RouterCubit" as _RouterCubit {
+    class RouterCubit << viewModel >>
+    class RouterLogic << viewModel >>
+    RouterCubit +-- RouterLogic
+  }
+  class SandboxGrantStore << dataSource >>
+  package "SandboxRepository" as _SandboxRepository {
+    class SandboxRepository << repository >>
+    class SandboxReadinessLogic << repository >>
+    SandboxRepository +-- SandboxReadinessLogic
+  }
+  class SandboxRepositoryForWindows << repository >>
+  package "SandboxUseCase" as _SandboxUseCase {
+    class SandboxUseCase << useCase >>
+    class WriteAccessQueue << useCase >>
+    SandboxUseCase +-- WriteAccessQueue
+  }
+  package "ShellPaneCubit" as _ShellPaneCubit {
+    class ShellPaneCubit << viewModel >>
+    class ShellPaneLogic << viewModel >>
+    ShellPaneCubit +-- ShellPaneLogic
+  }
+  package "ShellRepository" as _ShellRepository {
+    class ShellRepository << repository >>
+    class SessionTranscript << repository >>
+    ShellRepository +-- SessionTranscript
+    class TrackedSession << repository >>
+    ShellRepository +-- TrackedSession
+  }
+  package "ShellUseCase" as _ShellUseCase {
+    class ShellUseCase << useCase >>
+    class ShellCallIndex << useCase >>
+    ShellUseCase +-- ShellCallIndex
+  }
+  class ShellUserlandRepository << repository >>
+  class ShellWorkspace << view >>
+  package "ShellWorkspaceCubit" as _ShellWorkspaceCubit {
+    class ShellWorkspaceCubit << viewModel >>
+    class ShellWorkspaceLogic << viewModel >>
+    ShellWorkspaceCubit +-- ShellWorkspaceLogic
+  }
+  package "StatusBarCubit" as _StatusBarCubit {
+    class StatusBarCubit << viewModel >>
+    class StatusBarLogic << viewModel >>
+    StatusBarCubit +-- StatusBarLogic
+  }
+  class SystemInfoDataSource << dataSource >>
+  class TerminalEnvironmentDataSource << dataSource >>
+  package "ToolsUseCase" as _ToolsUseCase {
+    class ToolsUseCase << useCase >>
+    class JobManager << useCase >>
+    ToolsUseCase +-- JobManager
+    class JobReporter << useCase >>
+    ToolsUseCase +-- JobReporter
+    class Settlement << useCase >>
+    ToolsUseCase +-- Settlement
+    class ToolRouter << useCase >>
+    ToolsUseCase +-- ToolRouter
+  }
+  package "UtilityToolsUseCase" as _UtilityToolsUseCase {
+    class UtilityToolsUseCase << useCase >>
+    class ToolCommandHandler << useCase >>
+    UtilityToolsUseCase +-- ToolCommandHandler
+    class ToolIsolateWorker << useCase >>
+    UtilityToolsUseCase +-- ToolIsolateWorker
+    class ToolWorkRequest << useCase >>
+    UtilityToolsUseCase +-- ToolWorkRequest
+    class ToolWorker << useCase >>
+    UtilityToolsUseCase +-- ToolWorker
+    class ToolWorkerCreated << useCase >>
+    UtilityToolsUseCase +-- ToolWorkerCreated
+    class ToolWorkerPool << useCase >>
+    UtilityToolsUseCase +-- ToolWorkerPool
+    class Toolbox << useCase >>
+    UtilityToolsUseCase +-- Toolbox
+  }
+  class WebFetchTools << repository >>
+  class WebPageClient << dataSource >>
+  class WebSearchTools << repository >>
+  class WikimediaClient << dataSource >>
+  class WikipediaTools << repository >>
+
+  AgentJournal --> ConversationStore
+  AgentRepository --> ConversationStore
+  AgentShellCubit --> AgentShellLogic
+  AgentShellLogic --> ShellUseCase
+  AppTerminalEnvironmentUseCase --> OSPlatformRepository
+  ArxivTools --> ArxivSearchClient
+  ArxivTools --> FilesDataSource
+  ChatCubit --> ChatLogic
+  ChatCubit --> ChatUseCase
+  ChatLogic --> ChatUseCase
+  ChatLogic --> ProviderUseCase
+  ChatLogic --> SandboxUseCase
+  ChatLogic --> ToolsUseCase
+  ChatUseCase --> AgentRepository
+  ChatUseCase --> ConfigRepository
+  ChatUseCase --> ProviderRepository
+  ConfigCubit --> ConfigUseCase
+  ConfigLogic --> ConfigUseCase
+  ConfigRepository --> ConfigDataSource
+  ConfigSession --> ConfigRepository
+  ConfigUseCase --> ConfigRepository
+  ConfigUseCase --> ConfigSession
+  FsTools --> EditDataSource
+  InteractiveTerminalView --> ShellPaneCubit
+  MascotUseCase --> ConfigRepository
+  OSPlatformRepository --> ClipboardDataSource
+  OSPlatformRepository --> DiskSpaceDataSource
+  OSPlatformRepository --> SystemInfoDataSource
+  OSPlatformRepository --> TerminalEnvironmentDataSource
+  PaletteCubit --> CommandsUseCase
+  PendingToolCalls --> ConversationStore
+  ProviderUseCase --> AgentRepository
+  ProviderUseCase --> ConfigRepository
+  ProviderUseCase --> ProviderRepository
+  RouterCubit --> AppShellUseCase
+  RouterLogic --> AppShellUseCase
+  SandboxRepository --> SandboxReadinessLogic
+  SandboxRepositoryForWindows --> SandboxGrantStore
+  SandboxUseCase --> ConfigRepository
+  SandboxUseCase --> SandboxRepository
+  SandboxUseCase --> WriteAccessQueue
+  Settlement --> JobReporter
+  ShellCallIndex --> ShellRepository
+  ShellPaneCubit --> ShellPaneLogic
+  ShellRepository --> FilesDataSource
+  ShellRepository --> SessionTranscript
+  ShellRepository --> TrackedSession
+  ShellUseCase --> SandboxRepository
+  ShellUseCase --> ShellCallIndex
+  ShellUseCase --> ShellRepository
+  ShellUserlandRepository --> ExecutableLinkDataSource
+  ShellWorkspace --> ShellWorkspaceCubit
+  ShellWorkspaceCubit --> ShellWorkspaceLogic
+  ShellWorkspaceLogic --> ShellUseCase
+  StatusBarCubit --> ChatUseCase
+  StatusBarCubit --> ProviderUseCase
+  StatusBarCubit --> SandboxUseCase
+  StatusBarLogic --> ChatUseCase
+  StatusBarLogic --> ProviderUseCase
+  StatusBarLogic --> SandboxUseCase
+  ToolCommandHandler --> Toolbox
+  ToolIsolateWorker --> ToolWorkRequest
+  ToolRouter --> JobManager
+  ToolRouter --> JobReporter
+  ToolRouter --> Settlement
+  ToolWorkerCreated --> ToolWorker
+  ToolWorkerPool --> ToolWorker
+  Toolbox --> ArxivTools
+  Toolbox --> Calculator
+  Toolbox --> DateTimeTools
+  Toolbox --> FsTools
+  Toolbox --> WebFetchTools
+  Toolbox --> WebSearchTools
+  Toolbox --> WikipediaTools
+  ToolsUseCase --> ToolRouter
+  UtilityToolsUseCase --> ConfigRepository
+  UtilityToolsUseCase --> SandboxRepository
+  UtilityToolsUseCase --> ToolWorkerPool
+  WebFetchTools --> FilesDataSource
+  WebFetchTools --> WebPageClient
+  WebSearchTools --> FilesDataSource
+  WebSearchTools --> MetasearchClient
+  WikipediaTools --> FilesDataSource
+  WikipediaTools --> WikimediaClient
+}
+
+@enduml
+

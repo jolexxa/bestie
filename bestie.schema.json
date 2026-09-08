@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jolexxa/bestie/bestie.schema.json",
+  "title": "Bestie Config",
+  "description": "Configuration for bestie (~/.bestie/bestie.json). Every field is optional; omitted fields use built-in defaults.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema reference."
+    },
+    "provider": {
+      "$ref": "#/$defs/ProviderConfig"
+    },
+    "systemPromptOverride": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "User-edited system prompt (the static portion). When omitted or null, the hardcoded default is used instead. The dynamic portion (date, cwd) is appended at inference time regardless."
+    },
+    "compaction": {
+      "$ref": "#/$defs/CompactionConfig"
+    },
+    "tools": {
+      "$ref": "#/$defs/ToolsConfig"
+    },
+    "app": {
+      "$ref": "#/$defs/AppConfig"
+    }
+  },
+  "$defs": {
+    "ProviderConfig": {
+      "type": "object",
+      "description": "The hosted inference provider bestie chats through. Changing any field reconnects.",
+      "additionalProperties": false,
+      "properties": {
+        "openrouter": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "apiKey": {
+              "type": "string",
+              "description": "Your OpenRouter API key."
+            }
+          }
+        },
+        "fireworks": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "apiKey": {
+              "type": "string",
+              "description": "Your Fireworks AI API key."
+            }
+          }
+        },
+        "custom": {
+          "type": "object",
+          "description": "Any OpenAI-compatible server, such as a local llama.cpp server.",
+          "additionalProperties": false,
+          "properties": {
+            "baseUrl": {
+              "type": "string",
+              "description": "OpenAI-compatible base URL including the version segment, e.g. \"http://localhost:8080/v1\"."
+            },
+            "apiKey": {
+              "type": "string",
+              "description": "Bearer token for the custom endpoint, if it wants one."
+            },
+            "contextWindow": {
+              "type": "integer",
+              "minimum": 1024,
+              "default": 32768,
+              "description": "Tokens to assume the endpoint can attend to when it does not report a context window."
+            }
+          }
+        },
+        "model": {
+          "type": "string",
+          "default": "openrouter:openai/gpt-4o-mini",
+          "description": "The model to chat with as \"provider:model\", e.g. \"openrouter:anthropic/claude-sonnet-4\" or \"fireworks:accounts/fireworks/models/kimi-k2-instruct\". Chat stays disabled until the model's provider is set up."
+        },
+        "maxAgents": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8,
+          "default": 3,
+          "description": "How many agents (the primary plus subagents) may run at once."
+        },
+        "sampling": {
+          "type": "object",
+          "description": "OpenAI-compatible sampling parameters sent with every completion.",
+          "additionalProperties": false,
+          "properties": {
+            "temperature": {
+              "type": "number",
+              "default": 0.7
+            },
+            "topP": {
+              "type": "number",
+              "default": 1
+            },
+            "frequencyPenalty": {
+              "type": "number",
+              "default": 0
+            },
+            "presencePenalty": {
+              "type": "number",
+              "default": 0
+            },
+            "seed": {
+              "type": "integer",
+              "default": 0,
+              "description": "0 leaves sampling unseeded."
+            }
+          }
+        }
+      }
+    },
+    "CompactionConfig": {
+      "type": "object",
+      "description": "The compaction memory layer, which summarizes conversation history when context usage grows.",
+      "additionalProperties": false,
+      "properties": {
+        "compactionRatio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Fraction of the context window at which an agent compacts its history."
+        }
+      }
+    },
+    "ToolsConfig": {
+      "type": "object",
+      "description": "Tool execution limits.",
+      "additionalProperties": false,
+      "properties": {
+        "concurrent": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How many tool calls may run at the same time."
+        },
+        "cacheCharacters": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Characters of tool output kept cached per call."
+        },
+        "maxCallCharacters": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Characters of tool output handed back to the model per call."
+        }
+      }
+    },
+    "AppConfig": {
+      "type": "object",
+      "description": "App-wide UI and sandbox settings. Apply live.",
+      "additionalProperties": false,
+      "properties": {
+        "themeName": {
+          "type": "string",
+          "description": "Selected theme name. Omitted falls back to the app's default theme."
+        },
+        "themeEffects": {
+          "type": "boolean",
+          "description": "Whether theme-specific overlay effects (matrix rain, snow, wind) render. Omitted falls back to the app default (true)."
+        },
+        "mathColors": {
+          "type": "boolean",
+          "description": "Color each variable in rendered equations. Omitted falls back to the app default (true)."
+        },
+        "mascot": {
+          "type": "string",
+          "enum": [
+            "cow",
+            "dino"
+          ],
+          "default": "cow",
+          "description": "The mascot that lives in the corner of the app."
+        },
+        "shellScrollbackMb": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Scrollback kept per embedded shell session, in megabytes."
+        },
+        "sandboxAgentShell": {
+          "type": "boolean",
+          "description": "Whether the agent's shell runs inside the platform sandbox."
+        },
+        "sandboxFailClosed": {
+          "type": "boolean",
+          "description": "Refuse to run the agent shell when the sandbox cannot be set up."
+        },
+        "sandboxNetworkTier": {
+          "type": "string",
+          "description": "Network access granted to the sandboxed agent shell.",
+          "enum": [
+            "none",
+            "local",
+            "all"
+          ]
+        },
+        "sandboxWriteGrants": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Directories beyond the working directory that the user allowed the agent's programs to write to."
+        }
+      }
+    }
+  }
+}

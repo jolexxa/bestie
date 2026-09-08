@@ -1,0 +1,13 @@
+name: diagnostics
+description: Bestie session logging.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dev_dependencies:
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

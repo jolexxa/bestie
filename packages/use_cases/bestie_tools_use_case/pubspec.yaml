@@ -1,0 +1,53 @@
+name: bestie_tools_use_case
+description: Tools feature use case — the view-facing surface of the tool system.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  arxiv_tools:
+    path: ../../domain/arxiv_tools
+  bestie_platform_abstractions:
+    path: ../../data/bestie_platform_abstractions
+  calculator_tools:
+    path: ../../domain/calculator_tools
+  command_protocol:
+    path: ../../infra/command_protocol
+  config_protocol:
+    path: ../../infra/config_protocol
+  config_repository:
+    path: ../../domain/config_repository
+  date_time_tools:
+    path: ../../domain/date_time_tools
+  files_data_source:
+    path: ../../data/files_data_source
+  fs_tools:
+    path: ../../domain/fs_tools
+  intentions: ^0.1.0
+  isolate_worker:
+    path: ../../infra/isolate_worker
+  path: ^1.9.1
+  process_host:
+    path: ../../infra/process_host
+  sandbox:
+    path: ../../infra/sandbox
+  sandbox_repository:
+    path: ../../domain/sandbox_repository
+  tool_protocol:
+    path: ../../infra/tool_protocol
+  web_fetch_tools:
+    path: ../../domain/web_fetch_tools
+  web_search_tools:
+    path: ../../domain/web_search_tools
+  wikipedia_tools:
+    path: ../../domain/wikipedia_tools
+
+dev_dependencies:
+  clock: ^1.1.1
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

@@ -1,0 +1,25 @@
+name: posix_dart
+description: >-
+  Dart FFI bindings to POSIX libc (and Darwin/Linux specifics) that
+  bestie uses end-to-end. Replaces hand-rolled `DynamicLibrary.process()
+  .lookupFunction<...>` calls scattered across bestie_platform_* and
+  terminal-hosting code.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  code_assets: ^1.0.0
+  ffi: ^2.1.0
+  hooks: ^1.0.0
+  path: ^1.9.1
+
+dev_dependencies:
+  ffigen: ^18.0.0
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

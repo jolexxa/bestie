@@ -1,0 +1,180 @@
+name: 📦 Release Binaries
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type"
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    name: Bump Version
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Determine next version
+        id: bump
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest=$(git tag -l 'v*' --sort=-v:refname | head -n1)
+          if [ -z "$latest" ]; then
+            latest="v0.0.0"
+          fi
+
+          # Strip the v prefix and split
+          version="${latest#v}"
+          IFS='.' read -r major minor patch <<< "$version"
+
+          case "${{ inputs.bump }}" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+          esac
+
+          tag="v${major}.${minor}.${patch}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "Bumping ${latest} -> ${tag}"
+
+      - name: Create and push tag
+        run: |
+          git tag "${{ steps.bump.outputs.tag }}"
+          git push origin "${{ steps.bump.outputs.tag }}"
+
+  build:
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    needs: version
+    if: always() && (needs.version.result == 'success' || needs.version.result == 'skipped')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos_arm64
+            runner: macos-latest
+            asset_os: macos
+            asset_arch: arm64
+            archive: zip
+          - platform: linux_x64
+            runner: ubuntu-latest
+            asset_os: linux
+            asset_arch: x64
+            archive: tar.gz
+          - platform: windows_x64
+            runner: windows-latest
+            asset_os: windows
+            asset_arch: x64
+            archive: zip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup
+        uses: ./.github/actions/setup
+        with:
+          os: ${{ matrix.asset_os }}
+
+      - name: Check bestie_edit
+        run: dart run melos run checks:edit --no-select
+
+      - name: Build bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          platform="${{ matrix.platform }}"
+          bundle_dir="build/cli/${platform}/bundle"
+
+          rm -rf "${bundle_dir}"
+
+          tag="${{ needs.version.outputs.tag || github.ref_name }}"
+          version="${tag#v}"
+
+          # `dart build cli` doesn't accept --define, so we write the version
+          # into bestie_version.dart and the bestie pubspec before compiling.
+          dart tool/set_version.dart "$version"
+
+          cd packages/bestie
+          dart build cli -o "../../build/cli/${platform}"
+          cd ../..
+
+          # `dart build cli` only bundles the hook-driven code assets (the
+          # native libraries). Stage every other shipped asset (cacert.pem,
+          # shell/bin, spawner, bestie_edit, CREDITS.md) from the platform's
+          # `bundleAssets` manifest; this also verifies each landed.
+          rm -f "${bundle_dir}/lib/.gitkeep"
+          dart tool/bundle_assets.dart --os "${{ matrix.asset_os }}" "${bundle_dir}"
+
+          # License + third-party attribution (not runtime app assets).
+          dart tool/build_licenses.dart
+          cp LICENSE.md build/THIRD_PARTY_LICENSES.txt "${bundle_dir}/"
+
+      - name: Package artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          platform="${{ matrix.platform }}"
+          archive="${{ matrix.archive }}"
+          bundle="build/cli/${platform}/bundle"
+          mkdir -p dist
+          out="${PWD}/dist/bestie-${platform}.${archive}"
+
+          if [ "$archive" = "tar.gz" ]; then
+            tar -czf "$out" -C "$bundle" .
+          elif [ "${{ matrix.asset_os }}" = "windows" ]; then
+            # Git Bash on the Windows runner ships no `zip`.
+            (cd "$bundle" && 7z a -tzip "$(cygpath -w "$out")" . > /dev/null)
+          else
+            (cd "$bundle" && zip -r "$out" .)
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: bestie-${{ matrix.platform }}
+          path: dist/bestie-${{ matrix.platform }}.${{ matrix.archive }}
+          if-no-files-found: error
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [version, build]
+    if: always() && needs.build.result == 'success' && (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: dist
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${{ needs.version.outputs.tag || github.ref_name }}"
+          gh release create "$tag" dist/**/bestie-*.* \
+            --repo "${{ github.repository }}" \
+            --generate-notes

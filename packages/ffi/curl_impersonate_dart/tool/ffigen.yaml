@@ -1,0 +1,55 @@
+name: CurlImpersonateBindings
+description: Generated bindings for curl-impersonate.
+output: ../lib/src/bindings/curl_impersonate_bindings.dart
+headers:
+  entry-points:
+    - ../third_party/curl-headers/curl/curl.h
+compiler-opts:
+  - -I../third_party/curl-headers
+silence-enum-warning: true
+exclude-all-by-default: true
+functions:
+  include:
+    - curl_global_init
+    - curl_global_cleanup
+    - curl_easy_init
+    - curl_easy_cleanup
+    - curl_easy_perform
+    - curl_easy_setopt
+    - curl_easy_getinfo
+    - curl_easy_strerror
+    - curl_easy_impersonate
+    - curl_slist_append
+    - curl_slist_free_all
+  variadic-arguments:
+    curl_easy_setopt:
+      - types: [long]
+        postfix: Long
+      - types: [char*]
+        postfix: String
+      - types: [void*]
+        postfix: Ptr
+    curl_easy_getinfo:
+      - types: [long*]
+        postfix: Long
+      - types: [char**]
+        postfix: String
+enums:
+  include:
+    - CURLoption
+    - CURLcode
+    - CURLINFO
+macros:
+  include:
+    - CURL_GLOBAL_.*
+structs:
+  include:
+    - curl_slist
+preamble: |
+  // ignore_for_file: non_constant_identifier_names
+  // ignore_for_file: camel_case_types
+  // ignore_for_file: public_member_api_docs
+  // ignore_for_file: constant_identifier_names
+  // ignore_for_file: unused_element
+  // ignore_for_file: unused_field
+  // ignore_for_file: unused_import

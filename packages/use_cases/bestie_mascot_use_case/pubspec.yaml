@@ -1,0 +1,21 @@
+name: bestie_mascot_use_case
+description: Mascot feature use case — the mascot choice and its config contribution.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  config_protocol:
+    path: ../../infra/config_protocol
+  config_repository:
+    path: ../../domain/config_repository
+  intentions: ^0.1.0
+
+dev_dependencies:
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

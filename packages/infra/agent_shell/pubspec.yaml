@@ -1,0 +1,12 @@
+name: agent_shell
+description: >-
+  The confined agent's shell userland — brush + uutils coreutils — as native
+  assets. This package holds only the built binaries under
+  `assets/native/<os>/<arch>/shell/bin/`.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0

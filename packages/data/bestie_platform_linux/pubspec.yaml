@@ -1,0 +1,29 @@
+name: bestie_platform_linux
+description: Linux platform implementation for Bestie.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  bestie_platform_abstractions:
+    path: ../bestie_platform_abstractions
+  bestie_posix:
+    path: ../bestie_posix
+  file: ^7.0.1
+  intentions: ^0.1.0
+  path: ^1.9.1
+  platform: ^3.1.5
+  posix_dart:
+    path: ../../ffi/posix_dart
+  process_host:
+    path: ../../infra/process_host
+  system_info2: ^4.0.0
+
+dev_dependencies:
+  mocktail: ^1.0.5
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

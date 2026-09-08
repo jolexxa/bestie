@@ -1,0 +1,41 @@
+name: bestie_shell_use_case
+description: Shell feature use case — opens user and agent shell sessions.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  command_protocol:
+    path: ../../infra/command_protocol
+  config_protocol:
+    path: ../../infra/config_protocol
+  config_repository:
+    path: ../../domain/config_repository
+  files_data_source:
+    path: ../../data/files_data_source
+  intentions: ^0.1.0
+  process_host:
+    path: ../../infra/process_host
+  rxdart: ^0.28.0
+  sandbox:
+    path: ../../infra/sandbox
+  sandbox_repository:
+    path: ../../domain/sandbox_repository
+  shell_repository:
+    path: ../../domain/shell_repository
+  tool_protocol:
+    path: ../../infra/tool_protocol
+
+dev_dependencies:
+  agentic_terminal:
+    path: ../../infra/agentic_terminal
+  bestie_platform_abstractions:
+    path: ../../data/bestie_platform_abstractions
+  fake_async: ^1.3.2
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

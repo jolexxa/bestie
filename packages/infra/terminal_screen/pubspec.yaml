@@ -1,0 +1,30 @@
+name: terminal_screen
+description: >-
+  Live cell grid + snapshot/diff/waitFor agent API for the
+  agentic_terminal stack. Consumes vt_parser events and exposes an
+  observable 2-D view of what a human would see on screen.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  byte_codec:
+    path: ../byte_codec
+  characters: ^1.3.0
+  meta: ^1.15.0
+  termunicode:
+    git:
+      url: https://github.com/hobbyfarm-ai/termkit.git
+      ref: patches
+      path: packages/termunicode
+  vt_parser:
+    path: ../vt_parser
+
+dev_dependencies:
+  coverage: ^1.9.0
+  test: ^1.25.0
+  very_good_analysis: ^10.0.0

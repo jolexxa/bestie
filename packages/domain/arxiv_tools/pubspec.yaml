@@ -1,0 +1,22 @@
+name: arxiv_tools
+description: The arXiv search tool Bestie offers a model.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  arxiv_client:
+    path: ../../data/arxiv_client
+  files_data_source:
+    path: ../../data/files_data_source
+  intentions: ^0.1.0
+
+dev_dependencies:
+  file: ^7.0.1
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

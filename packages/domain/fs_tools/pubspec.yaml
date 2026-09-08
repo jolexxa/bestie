@@ -1,0 +1,25 @@
+name: fs_tools
+description: The filesystem tool Bestie offers a model — editing a file in place.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  bestie_edit:
+    path: ../../infra/bestie_edit
+  edit_data_source:
+    path: ../../data/edit_data_source
+  intentions: ^0.1.0
+  process_host:
+    path: ../../infra/process_host
+  tool_protocol:
+    path: ../../infra/tool_protocol
+
+dev_dependencies:
+  mocktail: ^1.0.5
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

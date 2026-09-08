@@ -1,0 +1,17 @@
+name: config_protocol
+description: Config vocabulary, presentation schema, and contribution protocol for Bestie.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  meta: ^1.18.0
+
+dev_dependencies:
+  mocktail: ^1.0.5
+  test: ^1.31.1
+  very_good_analysis: ^10.2.0

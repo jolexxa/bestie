@@ -1,0 +1,25 @@
+name: process_host_posix
+description: >-
+  The POSIX implementation of bestie's `process_host` contract.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  meta: ^1.15.0
+  posix_dart:
+    path: ../../ffi/posix_dart
+  posix_spawner:
+    path: ../../ffi/posix_spawner
+  process_host:
+    path: ../process_host
+
+dev_dependencies:
+  coverage: ^1.9.0
+  mocktail: ^1.0.4
+  test: ^1.25.0
+  very_good_analysis: ^10.0.0

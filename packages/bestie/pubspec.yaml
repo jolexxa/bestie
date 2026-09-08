@@ -1,0 +1,178 @@
+name: bestie
+description: 🥺 Bestie is just an humble AI in your terminal.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  agent_provider_remote:
+    path: ../infra/agent_provider_remote
+  agent_repository:
+    path: ../domain/agent_repository
+  agentic_terminal:
+    path: ../infra/agentic_terminal
+  app_shell_use_case:
+    path: ../use_cases/app_shell_use_case
+  app_terminal_environment_use_case:
+    path: ../use_cases/app_terminal_environment_use_case
+  arxiv_client:
+    path: ../data/arxiv_client
+  arxiv_tools:
+    path: ../domain/arxiv_tools
+  bestie_chat_use_case:
+    path: ../use_cases/bestie_chat_use_case
+  bestie_chat_view:
+    path: ../view/chat
+  bestie_commands_use_case:
+    path: ../use_cases/bestie_commands_use_case
+  bestie_config:
+    path: ../data/bestie_config
+  bestie_config_use_case:
+    path: ../use_cases/bestie_config_use_case
+  bestie_config_view:
+    path: ../view/config
+  bestie_edit:
+    path: ../infra/bestie_edit
+  bestie_mascot_use_case:
+    path: ../use_cases/bestie_mascot_use_case
+  bestie_palette_view:
+    path: ../view/palette
+  bestie_platform_abstractions:
+    path: ../data/bestie_platform_abstractions
+  bestie_platform_linux:
+    path: ../data/bestie_platform_linux
+  bestie_platform_macos:
+    path: ../data/bestie_platform_macos
+  bestie_platform_windows:
+    path: ../data/bestie_platform_windows
+  bestie_posix:
+    path: ../data/bestie_posix
+  bestie_provider_use_case:
+    path: ../use_cases/bestie_provider_use_case
+  bestie_sandbox_use_case:
+    path: ../use_cases/bestie_sandbox_use_case
+  bestie_shell_use_case:
+    path: ../use_cases/bestie_shell_use_case
+  bestie_tools_use_case:
+    path: ../use_cases/bestie_tools_use_case
+  bestie_ui:
+    path: ../view/bestie_ui
+  bloc: ^8.1.4
+  blocterm:
+    path: ../infra/blocterm
+  calculator_tools:
+    path: ../domain/calculator_tools
+  clock: ^1.1.1
+  command_protocol:
+    path: ../infra/command_protocol
+  config_protocol:
+    path: ../infra/config_protocol
+  config_repository:
+    path: ../domain/config_repository
+  curl_impersonate_dart:
+    path: ../ffi/curl_impersonate_dart
+  date_time_tools:
+    path: ../domain/date_time_tools
+  diagnostics:
+    path: ../infra/diagnostics
+  edit_data_source:
+    path: ../data/edit_data_source
+  file: ^7.0.1
+  files_data_source:
+    path: ../data/files_data_source
+  fs_tools:
+    path: ../domain/fs_tools
+  good_intentions: ^0.8.0
+  http: ^1.2.2
+  humanizer: ^3.0.1
+  inference_openai_compat:
+    path: ../data/inference_openai_compat
+  inference_protocol:
+    path: ../infra/inference_protocol
+  intentions: ^0.1.0
+  io: ^1.0.4
+  logger: ^2.4.0
+  logic_bloc_adapter:
+    path: ../infra/logic_bloc_adapter
+  logic_blocks: ^1.0.0
+  markdown_highlighted:
+    path: ../infra/markdown_highlighted
+  meta: ^1.18.0
+  metasearch_client:
+    path: ../data/metasearch_client
+  model_catalog_modelsdev:
+    path: ../data/model_catalog_modelsdev
+  nocterm: ^0.6.0
+  openrouter_sdk: ^0.0.8
+  path: ^1.9.1
+  platform: ^3.1.5
+  platform_repository:
+    path: ../domain/platform_repository
+  process_host:
+    path: ../infra/process_host
+  process_host_posix:
+    path: ../infra/process_host_posix
+  process_host_windows:
+    path: ../infra/process_host_windows
+  prompt_builder:
+    path: ../infra/prompt_builder
+  provider_fireworks:
+    path: ../data/provider_fireworks
+  provider_openai_compat:
+    path: ../data/provider_openai_compat
+  provider_openrouter:
+    path: ../data/provider_openrouter
+  provider_protocol:
+    path: ../infra/provider_protocol
+  provider_repository:
+    path: ../domain/provider_repository
+  quectocolors: ^1.1.0
+  rxdart: ^0.28.0
+  sandbox:
+    path: ../infra/sandbox
+  sandbox_grant_store:
+    path: ../data/sandbox_grant_store
+  sandbox_linux:
+    path: ../infra/sandbox_linux
+  sandbox_macos:
+    path: ../infra/sandbox_macos
+  sandbox_repository:
+    path: ../domain/sandbox_repository
+  sandbox_windows:
+    path: ../infra/sandbox_windows
+  shell_repository:
+    path: ../domain/shell_repository
+  terminal_screen:
+    path: ../infra/terminal_screen
+  tool_protocol:
+    path: ../infra/tool_protocol
+  web_fetch_tools:
+    path: ../domain/web_fetch_tools
+  web_page_client:
+    path: ../data/web_page_client
+  web_search_tools:
+    path: ../domain/web_search_tools
+  wikimedia_client:
+    path: ../data/wikimedia_client
+  wikipedia_tools:
+    path: ../domain/wikipedia_tools
+  win32_dart:
+    path: ../ffi/win32_dart
+
+dev_dependencies:
+  agent_provider_protocol:
+    path: ../infra/agent_provider_protocol
+  build_runner: ^2.8.0
+  build_verify: ^3.1.1
+  fake_async: ^1.3.2
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0
+  vt_parser:
+    path: ../infra/vt_parser
+executables:
+  bestie:

@@ -1,0 +1,16 @@
+name: command_protocol
+description: Command vocabulary, parameter schema, and contribution protocol for Bestie.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  meta: ^1.18.0
+
+dev_dependencies:
+  test: ^1.31.1
+  very_good_analysis: ^10.2.0

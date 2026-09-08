@@ -1,0 +1,29 @@
+Mozilla CA Certificate Store (cacert.pem)
+
+Bestie bundles a copy of the Mozilla root CA certificate store so that its
+HTTPS client (curl-impersonate) verifies TLS peers consistently across all
+platforms. The bundle is the set of root certificates trusted by Mozilla,
+extracted and published in PEM format by the curl project as "cacert.pem".
+
+Certificate data (c) Mozilla Foundation and contributors.
+
+Sources:
+  - Bundle (cacert.pem): https://curl.se/ca/cacert.pem
+  - Extraction docs:     https://curl.se/docs/caextract.html
+  - Upstream data:       Mozilla NSS certdata.txt
+  - Root store info:     https://wiki.mozilla.org/CA/Included_Certificates
+
+This certificate data is made available under two licenses:
+
+  1. The Mozilla Public License, version 2.0, as declared in the header of
+     the Mozilla NSS certdata.txt file from which the bundle is derived.
+     Full text: see MPL-2.0.txt in this directory, or https://mozilla.org/MPL/2.0/.
+
+  2. The Community Data License Agreement - Permissive, Version 2.0, per the
+     CCADB Data Usage Terms (https://www.ccadb.org/rootstores/usage). Those
+     terms require attribution to the Common CA Database (CCADB) when the data
+     is redistributed. Full text: see CDLA-Permissive-2.0.txt in this directory.
+
+Attribution to the Common CA Database (CCADB) is provided in accordance with
+the CCADB Data Usage Terms. The names and trademarks of the CCADB or any
+contributors are not used to endorse or promote Bestie.

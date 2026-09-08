@@ -1,0 +1,183 @@
+name: bestie_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+workspace:
+  - packages/*
+  - packages/*/*
+
+dependencies:
+  archive: ^4.0.7
+  args: ^2.7.0
+  bestie:
+    path: packages/bestie
+  bestie_platform_abstractions:
+    path: packages/data/bestie_platform_abstractions
+  crypto: ^3.0.6
+  file: ^7.0.1
+  path: ^1.9.1
+
+dev_dependencies:
+  chalkdart: ^3.1.0
+  coverage: ^1.15.0
+  melos: ^7.8.1
+
+dependency_overrides:
+  ddgs:
+    git:
+      url: https://github.com/hobbyfarm-ai/ddgs.git
+      ref: fix/client-injection
+  intl: ^0.20.0
+  nocterm:
+    git:
+      url: https://github.com/hobbyfarm-ai/nocterm.git
+      ref: patches
+
+melos:
+  useRootAsPackage: false
+
+  scripts:
+    graph:
+      description: Print the local package dependency graph.
+      run: dart run melos list --graph
+
+    graph:dot:
+      description: Print the local package dependency graph as Graphviz DOT.
+      run: dart run melos list --gviz
+
+    cycles:
+      description: Check the local package dependency graph for cycles.
+      run: dart run melos list --cycles
+
+    format:
+      description: Format root tools and all workspace packages.
+      run: dart format tool && dart run melos exec --ignore=bestie_workspace -- dart format .
+
+    format:check:
+      description: Check formatting for root tools and all workspace packages.
+      run: dart format --set-exit-if-changed --output=none tool && dart run melos exec --ignore=bestie_workspace -- dart format --set-exit-if-changed --output=none .
+
+    analyze:
+      description: Analyze root tools and all workspace packages with fatal infos.
+      run: dart analyze --fatal-infos tool && dart run melos exec --ignore=bestie_workspace --fail-fast -- dart analyze --fatal-infos
+
+    test:
+      description: Run Dart tests for packages with test directories.
+      run: dart run melos exec --dir-exists=test --fail-fast -- dart test
+
+    codegen:
+      description: Run build_runner in packages that depend on it.
+      run: dart run melos exec --depends-on=build_runner --order-dependents --fail-fast -- dart run build_runner build --delete-conflicting-outputs
+
+    ffigen:
+      description: Run ffigen in packages with a standard tool/ffigen.yaml.
+      run: dart run melos exec --depends-on=ffigen --file-exists=tool/ffigen.yaml --fail-fast -- dart run ffigen --config tool/ffigen.yaml
+
+    ffigen_posix_macos:
+      description: Regenerate macOS POSIX bindings.
+      run: dart run melos exec --scope=posix_dart -- dart run ffigen --config tool/ffigen_macos.yaml
+
+    ffigen_posix_linux:
+      description: Regenerate Linux POSIX bindings on a Linux host.
+      run: dart run melos exec --scope=posix_dart -- dart run ffigen --config tool/ffigen_linux.yaml
+
+    ffigen_windows:
+      description: Regenerate Win32/UCRT bindings on a Windows host with the VS Build Tools C++ workload and Windows SDK.
+      run: dart run melos exec --scope=win32_dart -- dart run ffigen --config tool/ffigen_windows.yaml
+
+    coverage:
+      description: Run 100% coverage checks for packages with tests.
+      run: dart run melos exec --dir-exists=test --fail-fast -- dart "$MELOS_ROOT_PATH/tool/coverage_package.dart"
+
+    coverage:report:
+      description: Generate coverage reports for packages with tests.
+      run: dart --packages=.dart_tool/package_config.json tool/coverage_report.dart
+
+    build:spawner:
+      description: Build the spawner PTY helper.
+      run: dart tool/build_spawner.dart
+
+    build:brush:
+      description: Build the brush agent shell (msvc + crt-static on Windows).
+      run: dart tool/build_sidecar.dart brush
+
+    build:coreutils:
+      description: Build the uutils coreutils multicall (msvc + crt-static on Windows).
+      run: dart tool/build_sidecar.dart coreutils
+
+    build:ripgrep:
+      description: Build ripgrep (`rg`) for the agent shell.
+      run: dart tool/build_sidecar.dart ripgrep
+
+    build:findutils:
+      description: Build uutils findutils (`find`, `xargs`) for the agent shell.
+      run: dart tool/build_sidecar.dart findutils
+
+    build:sed:
+      description: Build uutils sed for the agent shell.
+      run: dart tool/build_sidecar.dart sed
+
+    build:edit:
+      description: Build bestie_edit, the program behind the `edit` tool.
+      run: dart tool/build_sidecar.dart edit
+
+    build:sidecars:
+      description: Build every Rust sidecar (brush, coreutils, ripgrep, findutils, sed, bestie_edit).
+      run: dart tool/build_sidecar.dart --all
+
+    licenses:shell:
+      description: Regenerate the Rust sidecars' third-party licence bundles.
+      run: dart tool/build_shell_licenses.dart
+
+    assets:certs:
+      description: Download the Mozilla CA certificate bundle for curl-impersonate.
+      run: dart tool/download_cert_assets.dart
+
+    assets:openconsole:
+      description: Download Microsoft's redistributable ConPTY (conpty.dll + OpenConsole.exe).
+      run: dart tool/download_openconsole_assets.dart
+
+    clean:assets:
+      description: Delete generated/downloaded native assets so setup can regenerate them.
+      run: dart tool/clean_assets.dart
+
+    assets:
+      description: Download all native assets (curl-impersonate, CA certs, console host).
+      run: >
+        dart tool/download_curl_assets.dart &&
+        dart tool/download_cert_assets.dart &&
+        dart tool/download_openconsole_assets.dart
+
+    setup:
+      description: Full fresh-clone setup — submodules, deps, native assets, sidecars, codegen.
+      run: dart tool/setup.dart
+
+    checks:edit:
+      description: Format, lint, and test the bestie_edit crate.
+      run: cargo fmt --manifest-path packages/infra/bestie_edit/bestie_edit/Cargo.toml --check && cargo clippy --manifest-path packages/infra/bestie_edit/bestie_edit/Cargo.toml -- -D warnings && cargo test --manifest-path packages/infra/bestie_edit/bestie_edit/Cargo.toml
+
+    checks:guard:
+      description: Format, lint, and test the bestie_guard crate.
+      run: cargo fmt --manifest-path packages/ffi/posix_spawner/bestie_guard/Cargo.toml --check && cargo clippy --manifest-path packages/ffi/posix_spawner/bestie_guard/Cargo.toml --tests -- -D warnings && cargo test --manifest-path packages/ffi/posix_spawner/bestie_guard/Cargo.toml
+
+    checks:
+      description: Run the full CI-equivalent check sequence.
+      run: dart tool/set_version.dart --check && dart run melos run format:check --no-select && dart run melos run analyze --no-select && dart run melos run test --no-select && dart run melos run coverage --no-select && dart run melos run checks:edit --no-select && dart run melos run checks:guard --no-select
+
+    clean:
+      description: Remove all .dart_tool directories (clears platform-specific caches that break across OSes).
+      run: find "$MELOS_ROOT_PATH" -name .dart_tool -type d -prune -exec rm -rf {} +
+
+    credits:
+      description: Regenerate CREDITS.md from the app's shipped dependencies.
+      run: dart "$MELOS_ROOT_PATH/tool/credits.dart"
+
+    cloc:
+      description: Count lines of Dart code per package (lib only).
+      run: dart "$MELOS_ROOT_PATH/tool/cloc.dart"
+
+    cloc:tests:
+      description: Count lines of Dart code per package, including test directories.
+      run: dart "$MELOS_ROOT_PATH/tool/cloc.dart" --tests

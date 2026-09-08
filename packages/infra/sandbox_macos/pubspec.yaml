@@ -1,0 +1,25 @@
+name: sandbox_macos
+description: macOS (Seatbelt) implementation of bestie's sandbox contract.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  file: ^7.0.1
+  process_host:
+    path: ../process_host
+  process_host_posix:
+    path: ../process_host_posix
+  sandbox:
+    path: ../sandbox
+
+dev_dependencies:
+  mocktail: ^1.0.5
+  posix_spawner:
+    path: ../../ffi/posix_spawner
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

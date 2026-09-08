@@ -1,0 +1,24 @@
+name: app_terminal_environment_use_case
+description: >-
+  App terminal-environment use case: stderr redirect, window title, input capture.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  bestie_platform_abstractions:
+    path: ../../data/bestie_platform_abstractions
+  command_protocol:
+    path: ../../infra/command_protocol
+  intentions: ^0.1.0
+  platform_repository:
+    path: ../../domain/platform_repository
+
+dev_dependencies:
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

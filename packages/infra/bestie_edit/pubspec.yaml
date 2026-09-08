@@ -1,0 +1,25 @@
+name: bestie_edit
+description: >-
+  Bestie's file editor: the `bestie_edit` sidecar, its wire protocol, and a
+  typed client that runs it through a process host.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  dart_mappable: ^4.3.0
+  process_host:
+    path: ../process_host
+  tool_protocol:
+    path: ../tool_protocol
+
+dev_dependencies:
+  build_runner: ^2.4.12
+  dart_mappable_builder: ^4.3.0
+  mocktail: ^1.0.5
+  test: ^1.31.1
+  very_good_analysis: ^10.2.0

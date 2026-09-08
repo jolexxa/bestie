@@ -1,0 +1,19 @@
+name: inference_protocol
+description: >-
+  The provider-free remote inference contract for bestie: chat completions,
+  streamed events, and model listings.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  meta: ^1.15.0
+
+dev_dependencies:
+  coverage: ^1.9.0
+  test: ^1.25.0
+  very_good_analysis: ^10.0.0

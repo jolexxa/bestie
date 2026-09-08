@@ -1,0 +1,15 @@
+# See https://www.dartlang.org/guides/libraries/private-files
+
+# Files and directories created by pub
+.dart_tool/
+.packages
+build/
+pubspec.lock
+
+# Downloaded native binaries (use tool/download_curl_assets.dart)
+assets/native/**
+!assets/native/**/.gitkeep
+
+# Downloaded CA certificate bundle (use tool/download_cert_assets.dart)
+assets/cacert.pem
+assets/certs/

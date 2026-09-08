@@ -1,0 +1,57 @@
+name: 🛠 Setup
+description: >
+  Bootstrap a fresh checkout for the host platform: Dart workspace
+  dependencies, downloaded native assets, and Rust sidecars. Mirrors `dart run melos run setup` step for step.
+
+inputs:
+  os:
+    description: "Asset OS for tool/ scripts (macos, linux, windows)"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: 💽 Setup Dart
+      uses: dart-lang/setup-dart@v1
+      with:
+        sdk: stable
+        problem-matcher: false
+
+    - name: 🏷 Fetch curl-impersonate tags
+      shell: bash
+      run: git -C packages/ffi/curl_impersonate_dart/third_party/curl-impersonate fetch --tags
+
+    - name: 📦 Install dependencies
+      shell: bash
+      run: dart pub get
+
+    - name: ⬇️ Download curl-impersonate assets
+      shell: bash
+      run: dart tool/download_curl_assets.dart --os ${{ inputs.os }}
+
+    - name: ⬇️ Download CA certificate bundle
+      shell: bash
+      run: dart tool/download_cert_assets.dart
+
+    - name: ⬇️ Download the Windows console host
+      if: inputs.os == 'windows'
+      shell: bash
+      run: dart tool/download_openconsole_assets.dart
+
+    - name: 🦀 Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: 💾 Cache cargo builds
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: packages/infra/bestie_edit/bestie_edit -> ../../../../build/cargo-target
+        cache-targets: true
+
+    - name: 🔨 Build spawner
+      if: inputs.os != 'windows'
+      shell: bash
+      run: dart tool/build_spawner.dart
+
+    - name: 🔨 Build Rust sidecars
+      shell: bash
+      run: dart tool/build_sidecar.dart --all
