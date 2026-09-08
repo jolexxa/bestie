@@ -4,6 +4,8 @@
 
 Bestie is a native terminal coding agent harness that gives you total visibility into what it's doing. Bestie can't sneak anything past you.
 
+https://github.com/user-attachments/assets/11e6ffce-0eb2-46d5-a97b-fa9d3fbb1ef9
+
 Bestie supports Windows x64, Apple Silicon, and Linux x64.
 
 🦾 Bestie is for people who want total power over robots.
