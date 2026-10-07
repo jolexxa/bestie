@@ -655,7 +655,7 @@ packages:
     description:
       path: "."
       ref: patches
-      resolved-ref: ef24fb342554be4f58556e2d7457fa1109047136
+      resolved-ref: "31e00e0ecb4bc576351482f093bb7b857fb52e10"
       url: "https://github.com/hobbyfarm-ai/nocterm.git"
     source: git
     version: "0.8.0"
