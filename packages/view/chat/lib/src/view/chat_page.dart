@@ -386,20 +386,6 @@ class _ChatPageState extends State<ChatPage> {
         onActivate: _insertNewline,
       ),
       ..._pageActions(state),
-      KeyAction(
-        label: 'Select',
-        key: LogicalKey.arrowUp,
-        shift: true,
-        visible: false,
-        onActivate: _chatCubit.moveSelectionUp,
-      ),
-      KeyAction(
-        label: 'Select',
-        key: LogicalKey.arrowDown,
-        shift: true,
-        visible: false,
-        onActivate: _chatCubit.moveSelectionDown,
-      ),
       // ── Agent column ──────────────────────────────
       // Esc stops something when there is something to stop: the highlighted
       // subagent while the zone sits on one, otherwise the primary turn. A

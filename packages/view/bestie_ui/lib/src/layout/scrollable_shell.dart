@@ -9,7 +9,7 @@ import 'package:nocterm/nocterm.dart';
 /// pane can scroll a lazy list or a single document without either one
 /// re-deriving what a scrolling pane looks like.
 @view
-class ScrollableShell extends StatelessComponent {
+class ScrollableShell extends StatefulComponent {
   const ScrollableShell({
     required this.controller,
     required this.child,
@@ -31,11 +31,23 @@ class ScrollableShell extends StatelessComponent {
   /// Whether the rail stays drawn when the content fits without scrolling.
   final bool showRailWhenEmpty;
 
-  /// A click that never became a drag completes an empty selection; passing
-  /// it on would wipe the clipboard.
+  @override
+  State<ScrollableShell> createState() => _ScrollableShellState();
+}
+
+class _ScrollableShellState extends State<ScrollableShell> {
+  final SelectionController _selection = SelectionController();
+
+  @override
+  void dispose() {
+    _selection.dispose();
+    super.dispose();
+  }
+
+  /// A click that never became a drag completes an empty selection.
   void _onSelectionCompleted(String text) {
-    if (text.isEmpty) return;
-    onSelectionCompleted?.call(text);
+    if (text.isNotEmpty) component.onSelectionCompleted?.call(text);
+    _selection.clear();
   }
 
   @override
@@ -44,19 +56,20 @@ class ScrollableShell extends StatelessComponent {
     return Container(
       color: theme.background,
       child: AppScrollbar(
-        controller: controller,
+        controller: component.controller,
         thumbVisibility: true,
-        showRailWhenEmpty: showRailWhenEmpty,
-        trackColor: trackColor,
-        thumbColor: thumbColor,
+        showRailWhenEmpty: component.showRailWhenEmpty,
+        trackColor: component.trackColor,
+        thumbColor: component.thumbColor,
         child: Padding(
           padding: const EdgeInsets.only(right: 1),
-          child: enableSelection
+          child: component.enableSelection
               ? SelectionArea(
+                  controller: _selection,
                   onSelectionCompleted: _onSelectionCompleted,
-                  child: child,
+                  child: component.child,
                 )
-              : child,
+              : component.child,
         ),
       ),
     );

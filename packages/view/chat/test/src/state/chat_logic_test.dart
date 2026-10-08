@@ -1379,43 +1379,6 @@ void main() {
       selectionLogic.dispose();
     });
 
-    test('MoveSelectionUp moves the selection up', () {
-      state.handleInput(const MoveSelectionUp());
-      expect(
-        selectionLogic.value.position,
-        equals(const SelectionPosition(itemIndex: 0, subIndex: 0)),
-      );
-      expect(ctx.outputs.whereType<StateUpdated>(), isNotEmpty);
-      // Scrolling rides on the bound PositionChanged, not the handler.
-      expect(ctx.outputs.whereType<CursorMoved>(), isEmpty);
-    });
-
-    // Pressing past the last slot must not scroll a tall tail message back
-    // to its top.
-    test('MoveSelectionDown at the tail leaves the viewport alone', () {
-      state.handleInput(const MoveSelectionDown());
-      expect(
-        selectionLogic.value.position,
-        equals(const SelectionPosition(itemIndex: 1, subIndex: 0)),
-      );
-      expect(ctx.outputs.whereType<CursorMoved>(), isEmpty);
-    });
-
-    test('MoveSelectionDown moves the selection down', () {
-      selectionLogic.input(const MoveUp()); // → (0, 0)
-      expect(
-        selectionLogic.value.position,
-        equals(const SelectionPosition(itemIndex: 0, subIndex: 0)),
-      );
-
-      state.handleInput(const MoveSelectionDown());
-
-      expect(
-        selectionLogic.value.position,
-        equals(const SelectionPosition(itemIndex: 1, subIndex: 0)),
-      );
-    });
-
     test('SelectTimelineItem jumps to the item', () {
       state.handleInput(const SelectTimelineItem(0));
 
@@ -1483,16 +1446,6 @@ void main() {
     });
 
     group('ItemSelected marks deliberate selection only', () {
-      test('MoveSelectionUp announces it', () {
-        state.handleInput(const MoveSelectionUp());
-        expect(ctx.outputs.whereType<ItemSelected>(), isNotEmpty);
-      });
-
-      test('MoveSelectionDown announces it', () {
-        state.handleInput(const MoveSelectionDown());
-        expect(ctx.outputs.whereType<ItemSelected>(), isNotEmpty);
-      });
-
       test('SelectTimelineItem announces it', () {
         state.handleInput(const SelectTimelineItem(0));
         expect(ctx.outputs.whereType<ItemSelected>(), isNotEmpty);

@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:bestie_chat_view/src/state/chat_logic.dart';
 import 'package:bestie_chat_view/src/state/models/chat_phase.dart';
 import 'package:bestie_ui/bestie_ui.dart';
 import 'package:blocterm/blocterm.dart';
 import 'package:intentions/intentions.dart';
 import 'package:nocterm/nocterm.dart';
+import 'package:platform_repository/platform_repository.dart';
 
 @view
 class ChatInputRow extends StatelessComponent {
@@ -26,9 +29,17 @@ class ChatInputRow extends StatelessComponent {
   /// hands pseudo-focus to the subagent zone.
   final VoidCallback onEnterZone;
 
+  void _copy(OSPlatformRepository platform, String text) {
+    unawaited(platform.copyToClipboard(text));
+    textController.selection = TextSelection.collapsed(
+      offset: textController.selection.extentOffset,
+    );
+  }
+
   @override
   Component build(BuildContext context) {
     final theme = AppTheme.of(context);
+    final platform = RepositoryProvider.of<OSPlatformRepository>(context);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -49,6 +60,7 @@ class ChatInputRow extends StatelessComponent {
               maxLines: 6,
               placeholder: _inputPlaceholder,
               placeholderStyle: TextStyle(color: theme.muted),
+              onCopy: (text) => _copy(platform, text),
               onSubmitted: (_) => onSubmitted(),
               onKeyEvent: (event) {
                 // ↓ at the end of the text (with subagents present) hands
