@@ -1,10 +1,11 @@
-//! The replacement itself: read, match, write atomically, describe.
+//! The replacement itself: lock, read, match, write atomically, describe.
 
 use std::fs;
 use std::path::Path;
 
 use crate::diff::diff;
 use crate::disk::{refused, write_atomically, Failure};
+use crate::lock;
 use crate::wire::Reply;
 
 /// Numbered lines shown either side of the edited region.
@@ -12,6 +13,13 @@ const SNIPPET_CONTEXT: usize = 4;
 
 pub fn edit(path: &str, old: &str, new: &str, replace_all: bool) -> Result<Reply, Failure> {
     let path = Path::new(path);
+    if path.file_name().is_none() {
+        return Ok(Reply::PathMissing);
+    }
+    let _lock = match lock::hold(path) {
+        Ok(lock) => lock,
+        Err(error) => return refused(error, path),
+    };
     let metadata = match fs::metadata(path) {
         Ok(metadata) => metadata,
         Err(error) => return refused(error, path),
@@ -106,6 +114,21 @@ mod tests {
         assert_eq!(snippet, "     1\tone\n     2\t2\n     3\tthree");
         assert_eq!((diff.added, diff.removed), (1, 1));
         assert_eq!(diff.hunks[0].lines[1].kind, DiffLineKind::Removed);
+    }
+
+    #[test]
+    fn the_lock_file_is_gone_once_the_edit_is_answered() {
+        let file = ScratchFile::with(b"one\n");
+        let lock_path = crate::disk::sibling(&file.0, ".bestie-edit.lock");
+        edit(&file.path(), "one", "1", false).unwrap();
+        assert!(!lock_path.exists());
+        edit(&file.path(), "zero", "0", false).unwrap();
+        assert!(!lock_path.exists());
+    }
+
+    #[test]
+    fn a_path_without_a_name_is_missing() {
+        assert_eq!(edit("", "a", "b", false).unwrap(), Reply::PathMissing);
     }
 
     #[test]

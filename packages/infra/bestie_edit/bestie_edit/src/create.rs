@@ -5,11 +5,12 @@ use std::io::{self, ErrorKind};
 use std::path::Path;
 
 use crate::disk::{refused, write_atomically, Failure};
+use crate::lock;
 use crate::wire::Reply;
 
 pub fn create(path: &str, contents: &str) -> Result<Reply, Failure> {
     let path = Path::new(path);
-    if fs::symlink_metadata(path).is_ok() {
+    if path.file_name().is_none() {
         return Ok(Reply::PathExists);
     }
     if let Some(parent) = path
@@ -20,16 +21,26 @@ pub fn create(path: &str, contents: &str) -> Result<Reply, Failure> {
             return refused(error, path);
         }
     }
+    let _lock = match lock::hold(path) {
+        Ok(lock) => lock,
+        Err(error) => return refused_under_parents(error, path),
+    };
+    if fs::symlink_metadata(path).is_ok() {
+        return Ok(Reply::PathExists);
+    }
     match write_atomically(path, contents, None) {
         Ok(()) => Ok(Reply::Created),
-        // The parents were just made, so a not-found here is a component in
-        // the way (Windows phrases a file-as-parent this way), not a missing
-        // target.
-        Err(error) if error.kind() == ErrorKind::NotFound => {
-            Err(Failure(format!("{}: {error}", path.display())))
-        }
-        Err(error) => refused(error, path),
+        Err(error) => refused_under_parents(error, path),
     }
+}
+
+/// The parents were just made, so a not-found here is a component in the way
+/// (Windows phrases a file-as-parent this way), not a missing target.
+fn refused_under_parents(error: io::Error, path: &Path) -> Result<Reply, Failure> {
+    if error.kind() == ErrorKind::NotFound {
+        return Err(Failure(format!("{}: {error}", path.display())));
+    }
+    refused(error, path)
 }
 
 /// A parent that is already there is left alone, however the operating
@@ -76,6 +87,37 @@ mod tests {
 
         assert!(answered.is_err());
         assert_eq!(file.read(), b"in the way\n");
+    }
+
+    #[test]
+    fn concurrent_creates_of_one_path_elect_one_winner() {
+        use std::thread;
+        let dir = ScratchDir::new();
+        let path = dir.join("contested.txt");
+        let replies: Vec<Reply> = ["one", "two"]
+            .map(|contents| {
+                let path = path.clone();
+                thread::spawn(move || create(&path, contents).unwrap())
+            })
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect();
+        let created = replies
+            .iter()
+            .filter(|reply| **reply == Reply::Created)
+            .count();
+        let existed = replies
+            .iter()
+            .filter(|reply| **reply == Reply::PathExists)
+            .count();
+        assert_eq!((created, existed), (1, 1), "{replies:?}");
+        let written = fs::read_to_string(&path).unwrap();
+        let winner = if replies[0] == Reply::Created {
+            "one"
+        } else {
+            "two"
+        };
+        assert_eq!(written, winner);
     }
 
     #[test]

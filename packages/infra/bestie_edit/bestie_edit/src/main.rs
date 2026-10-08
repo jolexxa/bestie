@@ -9,6 +9,7 @@ mod create;
 mod diff;
 mod disk;
 mod edit;
+mod lock;
 #[cfg(test)]
 mod scratch;
 mod wire;

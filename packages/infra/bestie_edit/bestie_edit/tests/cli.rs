@@ -1,8 +1,13 @@
 use std::fs;
 use std::io::Write;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 
 fn run(input: &str) -> (i32, String, String) {
+    finish(start(input))
+}
+
+/// Spawns the program with [`input`] on stdin and leaves it running.
+fn start(input: &str) -> Child {
     let mut child = Command::new(env!("CARGO_BIN_EXE_bestie_edit"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -15,6 +20,10 @@ fn run(input: &str) -> (i32, String, String) {
         .unwrap()
         .write_all(input.as_bytes())
         .unwrap();
+    child
+}
+
+fn finish(child: Child) -> (i32, String, String) {
     let output = child.wait_with_output().unwrap();
     (
         output.status.code().unwrap_or(-1),
@@ -78,4 +87,72 @@ fn refuses_an_empty_target() {
     let (code, _, stderr) = run(r#"{"action":"edit","path":"x","old":"","new":"y"}"#);
     assert_eq!(code, 2);
     assert!(stderr.contains("must not be empty"));
+}
+
+#[test]
+fn concurrent_edits_to_one_file_both_survive() {
+    let path = scratch("concurrent.md");
+    fs::write(&path, "alpha\n\nomega\n").unwrap();
+    let request = |old: &str, new: &str| {
+        serde_json::json!({
+            "action": "edit",
+            "path": path.to_string_lossy(),
+            "old": old,
+            "new": new,
+        })
+        .to_string()
+    };
+    let first = start(&request("alpha", "ALPHA"));
+    let second = start(&request("omega", "OMEGA"));
+    let (first_code, first_stdout, first_stderr) = finish(first);
+    let (second_code, second_stdout, second_stderr) = finish(second);
+    let written = fs::read_to_string(&path).unwrap();
+    let _ = fs::remove_file(&path);
+    assert_eq!(first_code, 0, "stderr: {first_stderr}");
+    assert_eq!(second_code, 0, "stderr: {second_stderr}");
+    let first_reply: serde_json::Value = serde_json::from_str(&first_stdout).unwrap();
+    let second_reply: serde_json::Value = serde_json::from_str(&second_stdout).unwrap();
+    assert_eq!(first_reply["outcome"], "succeeded");
+    assert_eq!(second_reply["outcome"], "succeeded");
+    assert_eq!(
+        written, "ALPHA\n\nOMEGA\n",
+        "both edits reported success, so both must be in the file"
+    );
+}
+
+#[test]
+fn concurrent_creates_of_one_path_elect_one() {
+    let dir = scratch("concurrent-create");
+    let path = dir.join("contested.txt");
+    let request = |contents: &str| {
+        serde_json::json!({
+            "action": "create",
+            "path": path.to_string_lossy(),
+            "contents": contents,
+        })
+        .to_string()
+    };
+    let first = start(&request("one"));
+    let second = start(&request("two"));
+    let (first_code, first_stdout, first_stderr) = finish(first);
+    let (second_code, second_stdout, second_stderr) = finish(second);
+    let written = fs::read_to_string(&path).unwrap();
+    let _ = fs::remove_dir_all(&dir);
+    assert_eq!(first_code, 0, "stderr: {first_stderr}");
+    assert_eq!(second_code, 0, "stderr: {second_stderr}");
+    let first_reply: serde_json::Value = serde_json::from_str(&first_stdout).unwrap();
+    let second_reply: serde_json::Value = serde_json::from_str(&second_stdout).unwrap();
+    let outcomes = [
+        first_reply["outcome"].as_str().unwrap(),
+        second_reply["outcome"].as_str().unwrap(),
+    ];
+    let mut sorted = outcomes;
+    sorted.sort_unstable();
+    assert_eq!(sorted, ["created", "pathExists"], "{outcomes:?}");
+    let winner = if outcomes[0] == "created" {
+        "one"
+    } else {
+        "two"
+    };
+    assert_eq!(written, winner);
 }
