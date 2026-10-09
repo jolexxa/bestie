@@ -5,6 +5,7 @@ import 'package:isolate_worker/isolate_worker.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:model_downloader/model_downloader.dart';
 import 'package:model_downloader/src/transfer_progress.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 /// Runs the isolate entry point on the current isolate. Isolates cannot be
@@ -293,7 +294,10 @@ void main() {
 
   test('DownloadJob totals bytes and resolves target paths', () {
     expect(_job.totalBytes, 400);
-    expect(_job.targetPathFor(_job.files.first), '/models/a.gguf');
+    expect(
+      _job.targetPathFor(_job.files.first),
+      p.join(p.separator, 'models', 'a.gguf'),
+    );
     expect(
       _job.escapes(
         const DownloadFile(url: '', relativePath: 'sub/../a.gguf', bytes: 0),

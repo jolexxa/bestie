@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:bestie_server/bestie_server.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 ServerArguments _parsed(List<String> arguments) =>
@@ -12,7 +13,7 @@ void main() {
   test('defaults to ~/.bestie and stderr', () {
     final arguments = _parsed(const []);
 
-    expect(arguments.bestieDir, '/home/joanna/.bestie');
+    expect(arguments.bestieDir, p.join('/home/joanna', '.bestie'));
     expect(arguments.logPath, isNull);
   });
 

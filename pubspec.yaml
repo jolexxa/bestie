@@ -65,7 +65,7 @@ melos:
 
     test:
       description: Run Dart tests for packages with test directories.
-      run: dart run melos exec --dir-exists=test --fail-fast -- dart test
+      run: dart compile exe tool/test_package.dart -o .dart_tool/test_package.exe && dart run melos exec --dir-exists=test --fail-fast -- "$MELOS_ROOT_PATH/.dart_tool/test_package.exe"
 
     codegen:
       description: Run build_runner in packages that depend on it.

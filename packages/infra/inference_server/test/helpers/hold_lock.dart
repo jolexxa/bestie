@@ -17,7 +17,7 @@ Future<void> main(List<String> arguments) async {
       InferenceLockFile(pid: pid, port: 4321, protocolVersion: 1),
     );
   }
-  stdout.writeln('held');
+  stdout.writeln('held $pid');
   await stdin.transform(utf8.decoder).drain<void>();
   acquired.lock.release();
 }

@@ -29,7 +29,9 @@ void main() {
     );
     lock.release();
     expect(File(path).existsSync(), isTrue);
-    expect(InferenceLock.acquire(path), isA<InferenceLockAcquired>());
+    final reacquired = InferenceLock.acquire(path);
+    expect(reacquired, isA<InferenceLockAcquired>());
+    (reacquired as InferenceLockAcquired).lock.release();
   });
 
   test('a lock another process holds is refused with its record', () async {

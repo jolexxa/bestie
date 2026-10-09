@@ -9,8 +9,14 @@ import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
-  final nativeDir = p.normalize(
-    p.join('..', '..', 'ffi', 'llama_cpp_dart', 'assets', 'native', _host()),
+  final nativeDir = p.absolute(
+    '..',
+    '..',
+    'ffi',
+    'llama_cpp_dart',
+    'assets',
+    'native',
+    _host(),
   );
   final runtimePath = p.join(nativeDir, LlamaCpp.defaultLibraryFileName());
   final skip = File(runtimePath).existsSync()
@@ -77,8 +83,8 @@ void main() {
 }
 
 String _host() => switch (Abi.current()) {
-  Abi.macosArm64 => 'macos/arm64',
-  Abi.linuxX64 => 'linux/x64',
-  Abi.windowsX64 => 'windows/x64',
-  final abi => 'unsupported/$abi',
+  Abi.macosArm64 => p.join('macos', 'arm64'),
+  Abi.linuxX64 => p.join('linux', 'x64'),
+  Abi.windowsX64 => p.join('windows', 'x64'),
+  final abi => p.join('unsupported', '$abi'),
 };

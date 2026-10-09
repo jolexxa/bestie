@@ -159,6 +159,7 @@ void main() {
 
     test('holds the server up while answering', () async {
       final reply = await client.send('GET', bestieModelPath);
+      await untilCalled(lifetime.closed);
 
       expect(reply.status, HttpStatus.ok);
       verify(lifetime.opened).called(1);

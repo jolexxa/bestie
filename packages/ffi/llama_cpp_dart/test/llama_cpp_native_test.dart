@@ -1,12 +1,14 @@
 import 'dart:ffi';
 import 'dart:io';
 
+import 'package:ffi/ffi.dart';
 import 'package:llama_cpp_dart/llama_cpp_dart.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 void main() {
-  final nativeDir = p.join('assets', 'native', _hostSubdir());
+  final nativeDir = p.absolute('assets', 'native', _hostSubdir());
+  _searchDependenciesIn(nativeDir);
   final runtimePath = p.join(nativeDir, LlamaCpp.defaultLibraryFileName());
   final commonPath = p.join(nativeDir, LlamaCpp.defaultCommonLibraryFileName());
   final skip = File(runtimePath).existsSync()
@@ -33,8 +35,20 @@ void main() {
 }
 
 String _hostSubdir() => switch (Abi.current()) {
-  Abi.macosArm64 => 'macos/arm64',
-  Abi.linuxX64 => 'linux/x64',
-  Abi.windowsX64 => 'windows/x64',
-  final abi => 'unsupported/$abi',
+  Abi.macosArm64 => p.join('macos', 'arm64'),
+  Abi.linuxX64 => p.join('linux', 'x64'),
+  Abi.windowsX64 => p.join('windows', 'x64'),
+  final abi => p.join('unsupported', '$abi'),
 };
+
+/// Windows resolves a library's dependencies from the search path, not from
+/// the library's own directory; the other platforms find them beside it.
+void _searchDependenciesIn(String directory) {
+  if (!Platform.isWindows) return;
+  final setDllDirectory = DynamicLibrary.open('kernel32.dll')
+      .lookupFunction<
+        Int32 Function(Pointer<Utf16>),
+        int Function(Pointer<Utf16>)
+      >('SetDllDirectoryW');
+  using((arena) => setDllDirectory(directory.toNativeUtf16(allocator: arena)));
+}

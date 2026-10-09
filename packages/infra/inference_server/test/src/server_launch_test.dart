@@ -53,6 +53,12 @@ void main() {
     bind: bind,
   );
 
+  void expectLockFree(String lockPath) {
+    final acquisition = InferenceLock.acquire(lockPath);
+    expect(acquisition, isA<InferenceLockAcquired>());
+    (acquisition as InferenceLockAcquired).lock.release();
+  }
+
   Future<InferenceLockFile> published(String lockPath) async {
     final file = File(lockPath);
     while (!file.existsSync() || file.lengthSync() == 0) {
@@ -98,10 +104,7 @@ void main() {
     );
     expect(exit.exitCode, 0);
     verify(engine.close).called(1);
-    expect(
-      InferenceLock.acquire(server.lockPath),
-      isA<InferenceLockAcquired>(),
-    );
+    expectLockFree(server.lockPath);
   });
 
   test('defaults to a short startup grace and lock wait', () {
@@ -161,10 +164,7 @@ void main() {
     );
     expect(exit.exitCode, 0);
     verify(() => log.info('Shutting down (drained).')).called(1);
-    expect(
-      InferenceLock.acquire(server.lockPath),
-      isA<InferenceLockAcquired>(),
-    );
+    expectLockFree(server.lockPath);
   });
 
   test('waits for a server that is letting go of the lock', () async {
@@ -234,10 +234,7 @@ void main() {
     );
     expect(exit.exitCode, 72);
     verify(() => log.error('no dylib')).called(1);
-    expect(
-      InferenceLock.acquire(server.lockPath),
-      isA<InferenceLockAcquired>(),
-    );
+    expectLockFree(server.lockPath);
   });
 
   test('fails when the engine cannot start', () async {
@@ -275,9 +272,6 @@ void main() {
     );
     expect(exit.exitCode, 69);
     verify(engine.close).called(1);
-    expect(
-      InferenceLock.acquire(server.lockPath),
-      isA<InferenceLockAcquired>(),
-    );
+    expectLockFree(server.lockPath);
   });
 }

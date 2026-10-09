@@ -5,6 +5,7 @@ import 'package:model_downloader/src/chunked_file_downloader.dart';
 import 'package:model_downloader/src/download_command_handler.dart';
 import 'package:model_downloader/src/file_transfer.dart';
 import 'package:model_downloader/src/transfer_progress.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 class _MockEngine extends Mock implements ChunkedFileDownloader {}
@@ -112,7 +113,12 @@ void main() {
     verify(
       () => engine.download(
         url: _first.url,
-        targetPath: '/models/repo/model-00001-of-00002.gguf',
+        targetPath: p.join(
+          p.separator,
+          'models',
+          'repo',
+          'model-00001-of-00002.gguf',
+        ),
         expectedBytes: 100,
         expectedSha256: 'aaa',
         workers: 3,
