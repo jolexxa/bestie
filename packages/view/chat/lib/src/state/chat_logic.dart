@@ -32,8 +32,6 @@ const Duration rewindChordWindow = Duration(milliseconds: 500);
 sealed class ChatState extends StateLogic<ChatState> {
   ChatState() {
     on<CycleReasoning>(_onCycleReasoning);
-    on<MoveSelectionUp>(_onMoveSelectionUp);
-    on<MoveSelectionDown>(_onMoveSelectionDown);
     on<SelectTimelineItem>(_onSelectTimelineItem);
     on<RevealTimelineItem>(_onRevealTimelineItem);
     on<SelectVisibleItem>(_onSelectVisibleItem);
@@ -236,20 +234,6 @@ sealed class ChatState extends StateLogic<ChatState> {
     if (modes.length <= 1) return toSelf();
     final currentIndex = modes.indexOf(data.reasoningMode);
     data.reasoningMode = modes[(currentIndex + 1) % modes.length];
-    output(const StateUpdated());
-    return toSelf();
-  }
-
-  Transition _onMoveSelectionUp(MoveSelectionUp _) {
-    _selection.input(const MoveUp());
-    output(const ItemSelected());
-    output(const StateUpdated());
-    return toSelf();
-  }
-
-  Transition _onMoveSelectionDown(MoveSelectionDown _) {
-    _selection.input(const MoveDown());
-    output(const ItemSelected());
     output(const StateUpdated());
     return toSelf();
   }

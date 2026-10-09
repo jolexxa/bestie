@@ -90,18 +90,6 @@ final class Dispose extends ChatInput {
   const Dispose();
 }
 
-/// Move the selection cursor one slot earlier (toward older messages).
-@model
-final class MoveSelectionUp extends ChatInput {
-  const MoveSelectionUp();
-}
-
-/// Move the selection cursor one slot later (toward newer messages).
-@model
-final class MoveSelectionDown extends ChatInput {
-  const MoveSelectionDown();
-}
-
 /// Jump the selection cursor directly to timeline item [itemIndex].
 @model
 final class SelectTimelineItem extends ChatInput {

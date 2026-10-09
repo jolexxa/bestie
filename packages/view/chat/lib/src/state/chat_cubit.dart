@@ -41,10 +41,6 @@ class ChatCubit extends LogicBloc<ChatState> {
 
   void cancelRewind() => input(const CancelRewind());
 
-  void moveSelectionUp() => input(const MoveSelectionUp());
-
-  void moveSelectionDown() => input(const MoveSelectionDown());
-
   void selectTimelineItem(int index) => input(SelectTimelineItem(index));
 
   void revealTimelineItem(int index) => input(RevealTimelineItem(index));

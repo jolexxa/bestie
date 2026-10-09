@@ -63,6 +63,39 @@ void main() {
     });
   });
 
+  test('unselects once the selection is reported', () async {
+    await testNocterm('shell unselect', size: const Size(20, 3), (
+      tester,
+    ) async {
+      Color? highlightAt(int x) =>
+          tester.terminalState.getCellAt(x, 0)?.style.backgroundColor;
+      final completed = await _pumpShell(tester);
+      await tester.sendMouseEvent(
+        const MouseEvent(button: MouseButton.left, x: 0, y: 0, pressed: true),
+      );
+      await tester.sendMouseEvent(
+        const MouseEvent(
+          button: MouseButton.left,
+          x: 4,
+          y: 0,
+          pressed: true,
+          isMotion: true,
+          buttons: {MouseButton.left},
+        ),
+      );
+      await tester.pump();
+      expect(highlightAt(2), appThemeDefault.selection);
+
+      await tester.sendMouseEvent(
+        const MouseEvent(button: MouseButton.left, x: 4, y: 0, pressed: false),
+      );
+      await tester.pump();
+
+      expect(completed, ['hell']);
+      expect(highlightAt(2), isNot(appThemeDefault.selection));
+    });
+  });
+
   test('a click that selects nothing reports nothing', () async {
     await testNocterm('shell click', size: const Size(20, 3), (tester) async {
       final completed = await _pumpShell(tester);
