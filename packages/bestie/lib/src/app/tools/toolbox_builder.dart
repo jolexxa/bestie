@@ -53,6 +53,7 @@ UtilityToolsUseCase buildUtilityTools({
     config: config,
     configKeys: configKeys,
     sandboxes: sandboxes,
+    workingDirectory: workingDirectory,
   );
 }
 

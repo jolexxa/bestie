@@ -117,6 +117,8 @@ package "bestie" {
     UtilityToolsUseCase +-- ToolCommandHandler
     class ToolIsolateWorker << useCase >>
     UtilityToolsUseCase +-- ToolIsolateWorker
+    class ToolWorkReady << useCase >>
+    UtilityToolsUseCase +-- ToolWorkReady
     class ToolWorkRequest << useCase >>
     UtilityToolsUseCase +-- ToolWorkRequest
     class ToolWorker << useCase >>
@@ -199,6 +201,7 @@ package "bestie" {
   ToolRouter --> JobManager
   ToolRouter --> JobReporter
   ToolRouter --> Settlement
+  ToolWorkReady --> ToolWorkRequest
   ToolWorkerCreated --> ToolWorker
   ToolWorkerPool --> ToolWorker
   Toolbox --> ArxivTools

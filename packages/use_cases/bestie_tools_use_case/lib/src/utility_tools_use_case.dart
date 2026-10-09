@@ -7,6 +7,7 @@ import 'package:bestie_tools_use_case/src/worker/tool_work_request.dart';
 import 'package:bestie_tools_use_case/src/worker/tool_worker_pool.dart';
 import 'package:config_repository/config_repository.dart';
 import 'package:intentions/intentions.dart';
+import 'package:path/path.dart' as p;
 import 'package:sandbox_repository/sandbox_repository.dart';
 import 'package:tool_protocol/tool_protocol.dart';
 
@@ -19,10 +20,12 @@ class UtilityToolsUseCase implements ToolResponder {
     required ConfigRepository config,
     required ToolsConfigKeys configKeys,
     required SandboxRepository sandboxes,
+    required String workingDirectory,
   }) : _pool = pool,
        _config = config,
        _configKeys = configKeys,
-       _sandboxes = sandboxes {
+       _sandboxes = sandboxes,
+       _workingDirectory = workingDirectory {
     _resize(_config.resolve(_configKeys.concurrentTools.global));
     _concurrencySub = _config
         .watch(_configKeys.concurrentTools.global)
@@ -33,6 +36,9 @@ class UtilityToolsUseCase implements ToolResponder {
   final ConfigRepository _config;
   final ToolsConfigKeys _configKeys;
   final SandboxRepository _sandboxes;
+
+  /// Where a relative path given to a tool is resolved from.
+  final String _workingDirectory;
   late final StreamSubscription<int> _concurrencySub;
 
   @override
@@ -42,6 +48,8 @@ class UtilityToolsUseCase implements ToolResponder {
   void _resize(int workers) =>
       _pool.size = workers.clamp(minConcurrentTools, maxConcurrentTools);
 
+  /// Queues the call before anything is awaited, so calls reach the pool in
+  /// the order they were made.
   @override
   Future<Job> respond(ToolCallInvocation invocation) async {
     // Answered here rather than on a worker: a name this feature never offered
@@ -50,18 +58,46 @@ class UtilityToolsUseCase implements ToolResponder {
       return Job.failed('No such tool: ${invocation.toolName}.');
     }
     if (!_confined.contains(invocation.toolName)) {
-      return _pool.run(ToolWorkRequest(invocation));
+      return _pool.run(
+        Future.value(ToolWorkReady(ToolWorkRequest(invocation))),
+      );
     }
-    return switch (await _sandboxes.confine()) {
-      Unconfined() => _pool.run(ToolWorkRequest(invocation)),
-      Confined(:final sandbox) => _pool.run(
-        ToolWorkRequest(invocation, sandbox: sandbox),
-      ),
-      ConfinementRefused(:final reason) => Job.failed(
-        'Could not confine the editor: $reason',
-      ),
-    };
+    final lane = _laneFor(invocation);
+    final resolved = lane == null ? invocation : _withPath(invocation, lane);
+    return _pool.run(_confine(resolved), lane: lane);
   }
+
+  /// The call's `path`, absolute and normalized, so the lane and the file the
+  /// editor touches are one and the same.
+  String? _laneFor(ToolCallInvocation invocation) =>
+      switch (invocation.arguments['path']) {
+        final String path when path.isNotEmpty => p.normalize(
+          p.join(_workingDirectory, path),
+        ),
+        _ => null,
+      };
+
+  ToolCallInvocation _withPath(ToolCallInvocation invocation, String path) =>
+      ToolCallInvocation(
+        conversationId: invocation.conversationId,
+        agentId: invocation.agentId,
+        callId: invocation.callId,
+        toolName: invocation.toolName,
+        outputPath: invocation.outputPath,
+        maxOutputChars: invocation.maxOutputChars,
+        arguments: {...invocation.arguments, 'path': path},
+      );
+
+  Future<ToolWorkStart> _confine(ToolCallInvocation invocation) async =>
+      switch (await _sandboxes.confine()) {
+        Unconfined() => ToolWorkReady(ToolWorkRequest(invocation)),
+        Confined(:final sandbox) => ToolWorkReady(
+          ToolWorkRequest(invocation, sandbox: sandbox),
+        ),
+        ConfinementRefused(:final reason) => ToolWorkRefused(
+          'Could not confine the editor: $reason',
+        ),
+      };
 
   /// The tools that write to the workspace, and so run under the sandbox.
   static const Set<String> _confined = {

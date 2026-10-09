@@ -3,7 +3,7 @@
 //! Reads one JSON request from stdin, performs it, and writes one JSON reply
 //! to stdout. Exit status 0 means a reply was written, whatever it says; a
 //! nonzero status with a message on stderr means the program could not answer
-//! at all (unreadable request, unexpected I/O failure).
+//! at all (unreadable request, relative path, unexpected I/O failure).
 
 mod create;
 mod diff;
@@ -15,6 +15,7 @@ mod scratch;
 mod wire;
 
 use std::io::{self, Read};
+use std::path::Path;
 use std::process;
 
 use wire::Request;
@@ -28,6 +29,10 @@ fn main() {
         Ok(request) => request,
         Err(error) => fail(&format!("could not parse the request: {error}")),
     };
+    let (Request::Edit { path, .. } | Request::Create { path, .. }) = &request;
+    if !Path::new(path).is_absolute() {
+        fail("`path` must be absolute");
+    }
     let answered = match &request {
         Request::Edit {
             path,

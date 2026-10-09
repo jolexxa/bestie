@@ -357,12 +357,12 @@ void main() {
     test(
       'blames the missing grant when a confinement refuses inside it',
       () async {
-        answerWith(const CreateFileDenied('lib/a.dart'));
+        answerWith(const CreateFileDenied('/work/lib/a.dart'));
 
         expect(
           await _message(call(sandbox: _ConfinedFakeSandbox())),
           allOf(
-            contains('refused to create lib/a.dart'),
+            contains('refused to create /work/lib/a.dart'),
             contains('write grant is missing'),
             contains('Sandbox: reset'),
           ),

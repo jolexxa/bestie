@@ -175,12 +175,10 @@ final class ToolCommandHandler {
         'through request_write_access.';
   }
 
-  bool _writableBySandbox(String path, ConfinedSandbox sandbox) {
-    final absolute = p.normalize(p.join(_config.workingDirectory, path));
-    return sandbox.enforcement.writableRoots.any(
-      (root) => p.equals(root, absolute) || p.isWithin(root, absolute),
-    );
-  }
+  bool _writableBySandbox(String path, ConfinedSandbox sandbox) =>
+      sandbox.enforcement.writableRoots.any(
+        (root) => p.equals(root, path) || p.isWithin(root, path),
+      );
 
   /// What was replaced and the edited region, with the region giving way
   /// first where the two run past [maxChars].

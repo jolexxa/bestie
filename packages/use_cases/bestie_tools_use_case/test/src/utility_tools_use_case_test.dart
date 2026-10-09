@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:bestie_tools_use_case/bestie_tools_use_case.dart';
 import 'package:config_repository/config_repository.dart';
 import 'package:config_repository/testing.dart';
@@ -31,19 +33,38 @@ ToolsConfigKeys _configKeys() => ToolsConfigKeys(
   ),
 );
 
-ToolCallInvocation _invocation(String toolName) => ToolCallInvocation(
+ToolCallInvocation _invocation(
+  String toolName, {
+  Map<String, Object?> arguments = const {},
+}) => ToolCallInvocation(
   conversationId: 'conversation',
   agentId: 'agent',
   callId: 'call-1',
   toolName: toolName,
   outputPath: 'output',
   maxOutputChars: 4000,
-  arguments: const {},
+  arguments: arguments,
 );
 
-/// The request the pool received, however it was wrapped.
-ToolWorkRequest _sent(_MockToolWorkerPool pool) =>
-    verify(() => pool.run(captureAny())).captured.single as ToolWorkRequest;
+/// What the pool was handed for the one call it queued.
+final class _Queued {
+  _Queued(List<dynamic> captured)
+    : start = captured[0] as Future<ToolWorkStart>,
+      lane = captured[1] as String?;
+
+  final Future<ToolWorkStart> start;
+  final String? lane;
+
+  /// The request the call was prepared into.
+  Future<ToolWorkRequest> get request async =>
+      (await start as ToolWorkReady).request;
+}
+
+_Queued _queued(_MockToolWorkerPool pool) => _Queued(
+  verify(
+    () => pool.run(captureAny(), lane: captureAny(named: 'lane')),
+  ).captured,
+);
 
 void main() {
   late _MockToolWorkerPool pool;
@@ -55,10 +76,15 @@ void main() {
     config: config,
     configKeys: _configKeys(),
     sandboxes: sandboxes,
+    workingDirectory: '/work',
   );
 
   setUpAll(() {
-    registerFallbackValue(ToolWorkRequest(_invocation('edit')));
+    registerFallbackValue(
+      Future<ToolWorkStart>.value(
+        ToolWorkReady(ToolWorkRequest(_invocation('edit'))),
+      ),
+    );
   });
 
   setUp(() {
@@ -66,7 +92,9 @@ void main() {
     sandboxes = _MockSandboxRepository();
     config = FakeConfigRepository();
     when(() => pool.close()).thenAnswer((_) async {});
-    when(() => pool.run(any())).thenReturn(Job.done('done'));
+    when(
+      () => pool.run(any(), lane: any(named: 'lane')),
+    ).thenReturn(Job.done('done'));
     when(
       () => sandboxes.confine(),
     ).thenAnswer((_) async => const Unconfined());
@@ -93,15 +121,34 @@ void main() {
   });
 
   group('respond', () {
-    test('hands a tool it offers to the pool, unconfined', () async {
-      final invocation = _invocation('web_search');
+    test(
+      'hands a tool it offers to the pool, unconfined, in no lane',
+      () async {
+        final invocation = _invocation('web_search');
 
-      await useCaseWith().respond(invocation);
+        await useCaseWith().respond(invocation);
 
-      final sent = _sent(pool);
-      expect(sent.invocation, invocation);
-      expect(sent.sandbox, isNull);
-      verifyNever(() => sandboxes.confine());
+        final queued = _queued(pool);
+        final request = await queued.request;
+        expect(request.invocation, invocation);
+        expect(request.sandbox, isNull);
+        expect(queued.lane, isNull);
+        verifyNever(() => sandboxes.confine());
+      },
+    );
+
+    test('queues a write before the sandbox has answered', () async {
+      final confining = Completer<ConfinementDecision>();
+      when(() => sandboxes.confine()).thenAnswer((_) => confining.future);
+      final sandbox = _FakeSandbox();
+
+      await useCaseWith().respond(
+        _invocation('edit', arguments: {'path': 'a.md'}),
+      );
+
+      final queued = _queued(pool);
+      confining.complete(Confined(sandbox));
+      expect((await queued.request).sandbox, sandbox);
     });
 
     test('sends an edit with the sandbox it was confined to', () async {
@@ -109,13 +156,10 @@ void main() {
       when(
         () => sandboxes.confine(),
       ).thenAnswer((_) async => Confined(sandbox));
-      final invocation = _invocation('edit');
 
-      await useCaseWith().respond(invocation);
+      await useCaseWith().respond(_invocation('edit'));
 
-      final sent = _sent(pool);
-      expect(sent.invocation, invocation);
-      expect(sent.sandbox, sandbox);
+      expect((await _queued(pool).request).sandbox, sandbox);
     });
 
     test('confines a create the same way', () async {
@@ -123,48 +167,81 @@ void main() {
       when(
         () => sandboxes.confine(),
       ).thenAnswer((_) async => Confined(sandbox));
-      final invocation = _invocation('create');
 
-      await useCaseWith().respond(invocation);
+      await useCaseWith().respond(_invocation('create'));
 
-      final sent = _sent(pool);
-      expect(sent.invocation, invocation);
-      expect(sent.sandbox, sandbox);
-    });
-
-    test('fails a create the sandbox refused', () async {
-      when(
-        () => sandboxes.confine(),
-      ).thenAnswer((_) async => const ConfinementRefused('no seatbelt'));
-
-      final job = await useCaseWith().respond(_invocation('create'));
-
-      expect(
-        (await job.settled as JobFailed).message,
-        'Could not confine the editor: no seatbelt',
-      );
-      verifyNever(() => pool.run(any()));
+      expect((await _queued(pool).request).sandbox, sandbox);
     });
 
     test('sends an edit unconfined when the sandbox says so', () async {
       await useCaseWith().respond(_invocation('edit'));
 
-      expect(_sent(pool).sandbox, isNull);
+      expect((await _queued(pool).request).sandbox, isNull);
       verify(() => sandboxes.confine()).called(1);
     });
 
-    test('fails an edit the sandbox refused without taking a slot', () async {
-      when(
-        () => sandboxes.confine(),
-      ).thenAnswer((_) async => const ConfinementRefused('no seatbelt'));
+    for (final toolName in ['create', 'edit']) {
+      test('refuses a $toolName the sandbox would not confine', () async {
+        when(
+          () => sandboxes.confine(),
+        ).thenAnswer((_) async => const ConfinementRefused('no seatbelt'));
 
-      final job = await useCaseWith().respond(_invocation('edit'));
+        await useCaseWith().respond(_invocation(toolName));
 
-      expect(
-        (await job.settled as JobFailed).message,
-        'Could not confine the editor: no seatbelt',
-      );
-      verifyNever(() => pool.run(any()));
+        final start = await _queued(pool).start;
+        expect(
+          (start as ToolWorkRefused).message,
+          'Could not confine the editor: no seatbelt',
+        );
+      });
+    }
+
+    group('resolves the path a write names', () {
+      const cases = {
+        'a.md': '/work/a.md',
+        './a.md': '/work/a.md',
+        'lib/../a.md': '/work/a.md',
+        '/elsewhere/./b.md': '/elsewhere/b.md',
+      };
+      for (final MapEntry(key: given, value: resolved) in cases.entries) {
+        test('$given becomes $resolved, and the lane it queues in', () async {
+          await useCaseWith().respond(
+            _invocation(
+              'edit',
+              arguments: {'path': given, 'old_string': 'x', 'new_string': 'y'},
+            ),
+          );
+
+          final queued = _queued(pool);
+          final request = await queued.request;
+          expect(queued.lane, resolved);
+          expect(request.invocation.arguments, {
+            'path': resolved,
+            'old_string': 'x',
+            'new_string': 'y',
+          });
+          expect(request.invocation.callId, 'call-1');
+          expect(request.invocation.toolName, 'edit');
+          expect(request.invocation.outputPath, 'output');
+          expect(request.invocation.maxOutputChars, 4000);
+        });
+      }
+
+      for (final arguments in <Map<String, Object?>>[
+        {},
+        {'path': ''},
+        {'path': 7},
+      ]) {
+        test('leaves $arguments for the tool to reject, in no lane', () async {
+          final invocation = _invocation('create', arguments: arguments);
+
+          await useCaseWith().respond(invocation);
+
+          final queued = _queued(pool);
+          expect(queued.lane, isNull);
+          expect((await queued.request).invocation, invocation);
+        });
+      }
     });
 
     test('answers a tool it does not offer without taking a slot', () async {
@@ -174,7 +251,7 @@ void main() {
         (await job.settled as JobFailed).message,
         contains('No such tool: missing'),
       );
-      verifyNever(() => pool.run(any()));
+      verifyNever(() => pool.run(any(), lane: any(named: 'lane')));
     });
   });
 

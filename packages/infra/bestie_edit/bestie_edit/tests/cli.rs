@@ -84,9 +84,28 @@ fn refuses_an_unreadable_request() {
 
 #[test]
 fn refuses_an_empty_target() {
-    let (code, _, stderr) = run(r#"{"action":"edit","path":"x","old":"","new":"y"}"#);
+    let request = serde_json::json!({
+        "action": "edit",
+        "path": scratch("empty-target.txt").to_string_lossy(),
+        "old": "",
+        "new": "y",
+    });
+    let (code, _, stderr) = run(&request.to_string());
     assert_eq!(code, 2);
     assert!(stderr.contains("must not be empty"));
+}
+
+#[test]
+fn refuses_a_relative_path() {
+    for action in [
+        r#"{"action":"edit","path":"notes.md","old":"a","new":"b"}"#,
+        r#"{"action":"create","path":"notes.md","contents":"a"}"#,
+    ] {
+        let (code, stdout, stderr) = run(action);
+        assert_eq!(code, 2, "{action}");
+        assert!(stdout.is_empty(), "{action}");
+        assert!(stderr.contains("must be absolute"), "{action}");
+    }
 }
 
 #[test]
