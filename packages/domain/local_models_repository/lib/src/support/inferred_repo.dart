@@ -11,9 +11,9 @@ final _huggingFaceCache = RegExp(
 /// snapshot, or an `org/repo/file.gguf` layout under [root] as LM Studio and
 /// bestie's own models folder use. Split quants may sit one folder deeper,
 /// in `org/repo/<quant>/`, as repos often ship them.
-InferredRepo? inferRepo(String root, String path) {
-  final segments = p.split(p.relative(path, from: root));
-  final depth = GgufFileName(path).shardCount > 1 ? {3, 4} : {3};
+InferredRepo? inferRepo(String root, String path, p.Context paths) {
+  final segments = paths.split(paths.relative(path, from: root));
+  final depth = GgufFileName(path, paths: paths).shardCount > 1 ? {3, 4} : {3};
   return switch (_huggingFaceCache.firstMatch(path)) {
     final cache? => InferredRepo(
       repo: '${cache.group(1)}/${cache.group(2)}',

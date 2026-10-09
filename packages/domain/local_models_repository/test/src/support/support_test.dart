@@ -8,6 +8,7 @@ import 'package:local_models_repository/src/support/local_id.dart';
 import 'package:local_models_repository/src/support/model_family.dart';
 import 'package:local_models_repository/src/support/model_task.dart';
 import 'package:local_models_repository/src/support/reasoning.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import 'fixtures.dart';
@@ -260,7 +261,7 @@ void main() {
 
   group('GgufFileName', () {
     test('reads a plain model file', () {
-      final name = GgufFileName('/m/Qwen3-1.7B-Q4_K_M.gguf');
+      final name = GgufFileName('/m/Qwen3-1.7B-Q4_K_M.gguf', paths: p.posix);
 
       expect(name.baseName, 'Qwen3-1.7B-Q4_K_M.gguf');
       expect(name.stem, 'Qwen3-1.7B-Q4_K_M');
@@ -273,7 +274,10 @@ void main() {
     });
 
     test('lists every file of a split model', () {
-      final name = GgufFileName('/m/big-Q8_0-00002-of-00003.gguf');
+      final name = GgufFileName(
+        '/m/big-Q8_0-00002-of-00003.gguf',
+        paths: p.posix,
+      );
 
       expect(name.stem, 'big-Q8_0');
       expect(name.shardIndex, 2);
@@ -288,27 +292,48 @@ void main() {
     });
 
     test('understands the dotted split style', () {
-      final name = GgufFileName('phi-4-Q4_K_M.gguf-00001-of-00002.gguf');
+      final name = GgufFileName(
+        'phi-4-Q4_K_M.gguf-00001-of-00002.gguf',
+        paths: p.posix,
+      );
 
       expect(name.stem, 'phi-4-Q4_K_M');
       expect(name.shardPaths.last, 'phi-4-Q4_K_M.gguf-00002-of-00002.gguf');
     });
 
     test('reads quants in any case and of every family', () {
-      expect(GgufFileName('llama-f16.gguf').quantLabel, 'F16');
-      expect(GgufFileName('a-bf16.gguf').quantLabel, 'BF16');
-      expect(GgufFileName('a.IQ2_XXS.gguf').quantLabel, 'IQ2_XXS');
-      expect(GgufFileName('gpt-oss-20b-MXFP4.gguf').quantLabel, 'MXFP4');
-      expect(GgufFileName('bitnet-TQ1_0.gguf').quantLabel, 'TQ1_0');
-      expect(GgufFileName('q-UD-Q4_K_XL.gguf').quantLabel, 'Q4_K_XL');
-      expect(GgufFileName('Qwen3-1.7B.gguf').quantLabel, isNull);
+      expect(GgufFileName('llama-f16.gguf', paths: p.posix).quantLabel, 'F16');
+      expect(GgufFileName('a-bf16.gguf', paths: p.posix).quantLabel, 'BF16');
+      expect(
+        GgufFileName('a.IQ2_XXS.gguf', paths: p.posix).quantLabel,
+        'IQ2_XXS',
+      );
+      expect(
+        GgufFileName('gpt-oss-20b-MXFP4.gguf', paths: p.posix).quantLabel,
+        'MXFP4',
+      );
+      expect(
+        GgufFileName('bitnet-TQ1_0.gguf', paths: p.posix).quantLabel,
+        'TQ1_0',
+      );
+      expect(
+        GgufFileName('q-UD-Q4_K_XL.gguf', paths: p.posix).quantLabel,
+        'Q4_K_XL',
+      );
+      expect(
+        GgufFileName('Qwen3-1.7B.gguf', paths: p.posix).quantLabel,
+        isNull,
+      );
     });
 
     test('is not a model when it is a projector or another file', () {
-      expect(GgufFileName('mmproj-model-f16.gguf').isModel, isFalse);
-      expect(GgufFileName('README.md').isModel, isFalse);
-      expect(GgufFileName('model.gguf.part').isModel, isFalse);
-      expect(GgufFileName('MODEL.GGUF').isModel, isTrue);
+      expect(
+        GgufFileName('mmproj-model-f16.gguf', paths: p.posix).isModel,
+        isFalse,
+      );
+      expect(GgufFileName('README.md', paths: p.posix).isModel, isFalse);
+      expect(GgufFileName('model.gguf.part', paths: p.posix).isModel, isFalse);
+      expect(GgufFileName('MODEL.GGUF', paths: p.posix).isModel, isTrue);
     });
   });
 
@@ -364,6 +389,7 @@ void main() {
         '/cache',
         '/cache/hub/models--unsloth--Qwen3-8B-GGUF/snapshots/abc123/'
             'Qwen3-8B-Q4_K_M.gguf',
+        p.posix,
       );
 
       expect(repo!.repo, 'unsloth/Qwen3-8B-GGUF');
@@ -374,6 +400,7 @@ void main() {
       final repo = inferRepo(
         '/lmstudio/models',
         '/lmstudio/models/lmstudio-community/Qwen3-8B-GGUF/Qwen3-8B.gguf',
+        p.posix,
       );
 
       expect(repo!.repo, 'lmstudio-community/Qwen3-8B-GGUF');
@@ -384,16 +411,21 @@ void main() {
       final repo = inferRepo(
         '/models',
         '/models/unsloth/Big-GGUF/Q8_0/Big-Q8_0-00001-of-00002.gguf',
+        p.posix,
       );
 
       expect(repo!.repo, 'unsloth/Big-GGUF');
     });
 
     test('guesses nothing from other layouts', () {
-      expect(inferRepo('/models', '/models/Qwen3.gguf'), isNull);
-      expect(inferRepo('/models', '/models/a/b/c/Qwen3.gguf'), isNull);
+      expect(inferRepo('/models', '/models/Qwen3.gguf', p.posix), isNull);
+      expect(inferRepo('/models', '/models/a/b/c/Qwen3.gguf', p.posix), isNull);
       expect(
-        inferRepo('/models', '/models/a/b/c/d/Big-00001-of-00002.gguf'),
+        inferRepo(
+          '/models',
+          '/models/a/b/c/d/Big-00001-of-00002.gguf',
+          p.posix,
+        ),
         isNull,
       );
     });

@@ -1,10 +1,10 @@
 import 'dart:async';
 
+import 'package:bestie_platform_abstractions/bestie_platform_abstractions.dart';
 import 'package:bestie_sandbox_use_case/bestie_sandbox_use_case.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:config_repository/testing.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:path/path.dart' as p;
 import 'package:process_host/process_host.dart';
 import 'package:sandbox/sandbox.dart';
 import 'package:sandbox_repository/sandbox_repository.dart';
@@ -65,15 +65,24 @@ void main() {
       config: config,
       configKeys: SandboxConfigKeys.defaults(),
       sandboxModel: sandboxModel,
-      paths: p.posix,
     );
   }
 
   SandboxPlan setup(SandboxUseCase useCase) {
     final plan = useCase.setupSandbox(
-      workspaceRoot: '/work',
-      homeDir: '/home/cow',
-      tempDir: '/var/folders/cow/T',
+      platform: LinuxPlatform(
+        architecture: OSArchitecture.linuxX64,
+        homeDir: '/home/cow',
+        tempDir: '/var/folders/cow/T',
+        workingDirectory: '/work',
+        bestieDir: '/home/cow/.bestie',
+        configFile: '/home/cow/.bestie/bestie.json',
+        conversationsDir: '/home/cow/.bestie/conversations',
+        curlLibraryPath: '/opt/libcurl.so',
+        caCertPath: '/opt/cacert.pem',
+        creditsPath: '/opt/CREDITS.md',
+        serverExecutable: const ProgramCommand(executable: '/opt/server'),
+      ),
       programRoots: const ['/opt/bestie/bin', '/opt/bestie/editor'],
     );
     when(() => sandboxes.plan).thenReturn(plan);

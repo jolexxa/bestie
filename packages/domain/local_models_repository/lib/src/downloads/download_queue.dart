@@ -20,7 +20,6 @@ import 'package:local_models_repository/src/models/model_source.dart';
 import 'package:logic_blocks/logic_blocks.dart';
 import 'package:model_downloader/model_downloader.dart';
 import 'package:model_index_store/model_index_store.dart';
-import 'package:path/path.dart' as p;
 
 /// Every download bestie knows about: the ones in flight, waiting, stopped
 /// or finished but not yet listed, each run by its own [DownloadLogic], and
@@ -112,7 +111,11 @@ class DownloadQueue {
   /// Queues [record] unless it is already known, unsafe, or would replace a
   /// file bestie did not download.
   DownloadRequestResult enqueue(DownloadRecord record) =>
-      switch (DownloadPlan.of(record, modelsDir: _modelsDir)) {
+      switch (DownloadPlan.of(
+        record,
+        modelsDir: _modelsDir,
+        paths: _fileSystem.path,
+      )) {
         _ when !_status.writable => DownloadsUnavailable(record.id),
         _ when knownIds.contains(record.id) => DownloadAlreadyQueued(
           record.id,
@@ -230,9 +233,14 @@ class DownloadQueue {
     };
     _completed.clear();
     for (final record in records) {
-      if (DownloadPlan.of(record, modelsDir: _modelsDir) case DownloadPlanned(
-        :final plan,
-      ) when record.status == DownloadRecordStatus.completed) {
+      if (DownloadPlan.of(
+            record,
+            modelsDir: _modelsDir,
+            paths: _fileSystem.path,
+          )
+          case DownloadPlanned(
+            :final plan,
+          ) when record.status == DownloadRecordStatus.completed) {
         _completed[plan.id] = plan;
       }
     }
@@ -252,7 +260,11 @@ class DownloadQueue {
     _completed.clear();
     final dropped = <DroppedDownload>[];
     for (final record in records) {
-      switch (DownloadPlan.of(record, modelsDir: _modelsDir)) {
+      switch (DownloadPlan.of(
+        record,
+        modelsDir: _modelsDir,
+        paths: _fileSystem.path,
+      )) {
         case DownloadPlanInvalid(:final reason):
           dropped.add(DroppedDownload(downloadId: record.id, reason: reason));
         case DownloadPlanned(:final plan)
@@ -379,9 +391,9 @@ class DownloadQueue {
     final folders = {
       for (final path in plan.paths)
         for (
-          var folder = p.dirname(path);
-          p.isWithin(_modelsDir, folder);
-          folder = p.dirname(folder)
+          var folder = _fileSystem.path.dirname(path);
+          _fileSystem.path.isWithin(_modelsDir, folder);
+          folder = _fileSystem.path.dirname(folder)
         )
           folder,
     }.toList()..sort((first, second) => second.length.compareTo(first.length));

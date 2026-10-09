@@ -1,5 +1,5 @@
-name: real_paths
-description: Symlink resolution for paths that may only partly exist.
+name: path_plus
+description: "Paths beyond package:path: symlink resolution and the user's home."
 version: 0.0.0
 publish_to: none
 

@@ -31,8 +31,6 @@ final class MockAgentSession extends Mock implements AgentSession {}
 final class MockOSPlatformRepository extends Mock
     implements OSPlatformRepository {}
 
-final class MockOSPlatform extends Mock implements OSPlatform {}
-
 final class MockAgentProvider extends Mock implements AgentProvider {}
 
 const localProviderId = 'local';
@@ -59,8 +57,7 @@ final class Repositories {
     ).thenAnswer((_) => providerChanges.stream.startWith(providerStatus));
     when(() => agents.primary).thenReturn(primary);
     when(() => primary.conversationPhase).thenAnswer((_) => phase);
-    when(() => platform.platform).thenReturn(os);
-    when(() => os.homeDir).thenReturn(homeDir);
+    when(() => platform.platform).thenReturn(linuxPlatform);
     when(platform.readSystemInfo).thenReturn(
       const SystemInfoSnapshot(
         logicalCoreCount: 8,
@@ -79,7 +76,6 @@ final class Repositories {
   final agents = MockAgentRepository();
   final primary = MockAgentSession();
   final platform = MockOSPlatformRepository();
-  final os = MockOSPlatform();
   final libraryChanges = StreamController<ModelLibrary>.broadcast();
   final serverChanges = StreamController<LocalServerStatus>.broadcast();
   final providerChanges = StreamController<ProviderStatus>.broadcast();

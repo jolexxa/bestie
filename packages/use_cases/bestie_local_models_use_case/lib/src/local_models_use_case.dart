@@ -200,7 +200,7 @@ class LocalModelsUseCase implements CommandContribution {
             for (final folder in _operations.folders)
               Option(
                 value: folder,
-                label: homePath(folder, homeDir: _operations.homeDir),
+                label: _operations.shorten(folder),
               ),
           ],
         )

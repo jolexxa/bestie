@@ -1,4 +1,5 @@
 import 'package:bestie_local_models_use_case/src/local_models_operations.dart';
+import 'package:bestie_platform_abstractions/bestie_platform_abstractions.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:local_inference_protocol/local_inference_protocol.dart';
 import 'package:local_models_repository/local_models_repository.dart';
@@ -10,6 +11,21 @@ final class MockLocalModelsOperations extends Mock
     implements LocalModelsOperations {}
 
 const homeDir = '/home/joanna';
+
+/// The platform every test runs against, so paths read the same on any host.
+final linuxPlatform = LinuxPlatform(
+  architecture: OSArchitecture.linuxX64,
+  homeDir: homeDir,
+  tempDir: '/tmp',
+  workingDirectory: '/work',
+  bestieDir: '$homeDir/.bestie',
+  configFile: '$homeDir/.bestie/bestie.json',
+  conversationsDir: '$homeDir/.bestie/conversations',
+  curlLibraryPath: '/opt/libcurl.so',
+  caCertPath: '/opt/cacert.pem',
+  creditsPath: '/opt/CREDITS.md',
+  serverExecutable: const ProgramCommand(executable: '/opt/bestie_server'),
+);
 
 const int gigabyte = 1000 * 1000 * 1000;
 
@@ -160,7 +176,11 @@ void stubOperations(
   when(() => operations.failures).thenAnswer(
     (_) => failures ?? Stream.value(null),
   );
-  when(() => operations.homeDir).thenReturn(homeDir);
+  when(() => operations.shorten(any())).thenAnswer(
+    (invocation) => linuxPlatform.paths.shortenHome(
+      invocation.positionalArguments.single as String,
+    ),
+  );
   when(() => operations.memoryBytes).thenReturn(memoryBytes);
   when(() => operations.freeMemoryBytes).thenReturn(freeMemoryBytes);
 }

@@ -17,14 +17,18 @@ final class DownloadPlan {
     required this.paths,
   });
 
-  /// [record] as a plan under [modelsDir], or why it cannot be one.
+  /// [record] as a plan under [modelsDir], or why it cannot be one. [paths]
+  /// reads [modelsDir] the way the filesystem it sits on does.
   static DownloadPlanResult of(
     DownloadRecord record, {
     required String modelsDir,
+    required p.Context paths,
   }) {
-    final directory = p.join(modelsDir, record.repo);
+    final directory = paths.join(modelsDir, record.repo);
     final unsafe = record.files.where(
-      (file) => !p.isRelative(file.path) || !_isInside(directory, file.path),
+      (file) =>
+          !paths.isRelative(file.path) ||
+          !paths.isWithin(directory, paths.join(directory, file.path)),
     );
     return switch (RepoId.tryParse(record.repo)) {
       null => DownloadPlanInvalid(InvalidRepoId(record.repo)),
@@ -40,15 +44,12 @@ final class DownloadPlan {
           directory: directory,
           paths: [
             for (final file in record.files)
-              p.normalize(p.join(directory, file.path)),
+              paths.normalize(paths.join(directory, file.path)),
           ],
         ),
       ),
     };
   }
-
-  static bool _isInside(String directory, String path) =>
-      p.isWithin(directory, p.join(directory, path));
 
   /// As the ledger last recorded it.
   final DownloadRecord record;

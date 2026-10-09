@@ -42,13 +42,14 @@ class LocalModelsRepository {
     List<String> folders = const [],
     FileSystem fileSystem = const LocalFileSystem(),
     Clock clock = const Clock(),
-  }) : _modelsDir = p.normalize(modelsDir),
-       _folders = _normalized(folders),
+  }) : _modelsDir = fileSystem.path.normalize(modelsDir),
+       _paths = fileSystem.path,
+       _folders = _normalized(folders, fileSystem.path),
        _indexStore = indexStore,
        _resolver = RepoResolver(hub),
        _searcher = RepoSearcher(hub),
        _downloads = DownloadQueue(
-         modelsDir: p.normalize(modelsDir),
+         modelsDir: fileSystem.path.normalize(modelsDir),
          downloader: downloader,
          ledger: ledgerStore,
          fileSystem: fileSystem,
@@ -64,6 +65,7 @@ class LocalModelsRepository {
   }
 
   final String _modelsDir;
+  final p.Context _paths;
   List<String> _folders;
   final ModelIndexStore _indexStore;
   final RepoResolver _resolver;
@@ -105,7 +107,7 @@ class LocalModelsRepository {
 
   /// Replaces the user's folders and rescans.
   Future<void> setFolders(List<String> folders) {
-    _folders = _normalized(folders);
+    _folders = _normalized(folders, _paths);
     return rescan();
   }
 
@@ -292,8 +294,8 @@ class LocalModelsRepository {
   static String _sortKey(LocalModel model) =>
       '${model is SupportedModel ? 0 : 1}${model.displayName.toLowerCase()}';
 
-  static List<String> _normalized(List<String> folders) => [
-    for (final folder in folders) p.normalize(folder),
+  static List<String> _normalized(List<String> folders, p.Context paths) => [
+    for (final folder in folders) paths.normalize(folder),
   ];
 
   static DownloadRecord _recordOf(RepoQuant quant) => DownloadRecord(

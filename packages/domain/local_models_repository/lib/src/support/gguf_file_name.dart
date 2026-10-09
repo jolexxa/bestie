@@ -5,9 +5,10 @@ import 'package:path/path.dart' as p;
 /// file it is, and its quant.
 @model
 final class GgufFileName {
-  GgufFileName(this.path)
-    : baseName = p.basename(path),
-      _shard = _shardPattern.firstMatch(p.basename(path));
+  GgufFileName(this.path, {required p.Context paths})
+    : _paths = paths,
+      baseName = paths.basename(path),
+      _shard = _shardPattern.firstMatch(paths.basename(path));
 
   /// `model-Q4_K_M-00001-of-00003.gguf` and
   /// `model-Q4_K_M.gguf-00001-of-00003.gguf`.
@@ -30,6 +31,8 @@ final class GgufFileName {
   final String path;
 
   final String baseName;
+
+  final p.Context _paths;
 
   final RegExpMatch? _shard;
 
@@ -58,9 +61,9 @@ final class GgufFileName {
     null => [path],
     final shard => [
       for (var index = 1; index <= shardCount; index++)
-        p.normalize(
-          p.join(
-            p.dirname(path),
+        _paths.normalize(
+          _paths.join(
+            _paths.dirname(path),
             '${shard.group(1)}${shard.group(2)}${_pad(index)}-of-'
             '${shard.group(4)}.gguf',
           ),

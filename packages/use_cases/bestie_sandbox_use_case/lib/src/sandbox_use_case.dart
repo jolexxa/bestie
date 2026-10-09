@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:bestie_platform_abstractions/bestie_platform_abstractions.dart';
 import 'package:bestie_sandbox_use_case/src/sandbox_config_keys.dart';
 import 'package:bestie_sandbox_use_case/src/sandbox_platform_model.dart';
 import 'package:bestie_sandbox_use_case/src/sandbox_tools.dart';
@@ -11,7 +12,7 @@ import 'package:bestie_sandbox_use_case/src/write_grants_forgotten.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:config_repository/config_repository.dart';
 import 'package:intentions/intentions.dart';
-import 'package:path/path.dart' as p;
+import 'package:path_plus/path_plus.dart';
 import 'package:sandbox/sandbox.dart';
 import 'package:sandbox_repository/sandbox_repository.dart';
 import 'package:tool_protocol/tool_protocol.dart';
@@ -26,9 +27,7 @@ class SandboxUseCase implements CommandContribution, ToolResponder {
     required this.config,
     required this.configKeys,
     required this.sandboxModel,
-    p.Context? paths,
-  }) : paths = paths ?? p.context,
-       commands = [];
+  }) : commands = [];
 
   /// Provisions and reuses this session's confinement.
   final SandboxRepository sandboxes;
@@ -43,9 +42,6 @@ class SandboxUseCase implements CommandContribution, ToolResponder {
   /// program may read, and which temp trees it may write. Selected by OS at
   /// the composition root.
   final SandboxPlatformModel sandboxModel;
-
-  /// Reads the paths the agent asks about, in the host's style.
-  final p.Context paths;
 
   /// The palette commands, filled in once a sandbox is planned.
   @override
@@ -77,42 +73,36 @@ class SandboxUseCase implements CommandContribution, ToolResponder {
   /// been rebuilt without them.
   Stream<WriteGrantsForgotten> get writeGrantsForgotten => _forgotten.stream;
 
-  /// Plans confinement for a session working in [workspaceRoot] as the user
-  /// whose home is [homeDir] and whose programs stage files in [tempDir],
-  /// where the agent's programs live under [programRoots]. Provisioning starts
-  /// at once on a prepared host; otherwise it waits at the gate for
-  /// [initialize].
+  /// Plans confinement for a session on [platform]: working in its working
+  /// directory, as the user whose home it names, with programs staging files
+  /// in its temp directory, where the agent's programs live under
+  /// [programRoots]. Provisioning starts at once on a prepared host;
+  /// otherwise it waits at the gate for [initialize].
   SandboxPlan setupSandbox({
-    required String workspaceRoot,
-    required String homeDir,
-    required String tempDir,
+    required OSPlatform platform,
     required List<String> programRoots,
   }) {
     if (!config.resolve(configKeys.sandboxAgentShell.global)) {
       return const SandboxOff();
     }
+    final workspaceRoot = platform.workingDirectory;
     final base = SandboxSpec(
       workspaceRoot: workspaceRoot,
       writableRoots: [
         workspaceRoot,
         ...sandboxModel.systemWriteRoots,
-        ...sandboxModel.tempWriteRoots(tempDir),
+        ...sandboxModel.tempWriteRoots(platform.tempDir),
       ],
       readableRoots: [
         ...sandboxModel.systemReadRoots,
-        ...sandboxModel.homeReadRoots(homeDir),
+        ...sandboxModel.homeReadRoots(platform.paths),
         ...programRoots,
         workspaceRoot,
       ],
-      deniedReads: sandboxModel.deniedReadsFor(homeDir),
+      deniedReads: sandboxModel.deniedReadsFor(platform.paths),
       network: config.resolve(configKeys.sandboxNetworkTier.global),
     );
-    _session = _Session(
-      workspaceRoot: workspaceRoot,
-      homeDir: homeDir,
-      base: base,
-      paths: paths,
-    );
+    _session = _Session(platform: platform, base: base);
     final plan = SandboxPlanned(
       spec: _widened(base, _grants),
       failClosed: config.resolve(configKeys.sandboxFailClosed.global),
@@ -332,62 +322,39 @@ class SandboxUseCase implements CommandContribution, ToolResponder {
 /// What a session was planned around, for reading the paths the agent asks
 /// about against it.
 final class _Session {
-  const _Session({
-    required this.workspaceRoot,
-    required this.homeDir,
-    required this.base,
-    required this.paths,
-  });
+  const _Session({required this.platform, required this.base});
 
-  final String workspaceRoot;
-  final String homeDir;
+  final OSPlatform platform;
 
   /// The policy before any of the user's write grants.
   final SandboxSpec base;
-  final p.Context paths;
+
+  UserPaths get paths => platform.paths;
 
   /// [raw] as an absolute, normalized directory: `~` is the home directory
   /// and a relative path is taken from the workspace.
-  String normalize(String raw) {
-    final expanded = switch (raw) {
-      '~' => homeDir,
-      _ when raw.startsWith('~/') || raw.startsWith(r'~\') => paths.join(
-        homeDir,
-        raw.substring(2),
-      ),
-      _ => raw,
-    };
-    return paths.normalize(
-      paths.isAbsolute(expanded)
-          ? expanded
-          : paths.join(workspaceRoot, expanded),
-    );
-  }
+  String normalize(String raw) =>
+      paths.resolve(raw, from: platform.workingDirectory);
 
   /// [directory] as the user knows it: their home shortened to `~`.
-  String shorten(String directory) => paths.isWithin(homeDir, directory)
-      ? paths.join('~', paths.relative(directory, from: homeDir))
-      : directory;
+  String shorten(String directory) => paths.shortenHome(directory);
 
   /// Whether [spec] already lets programs write under [directory].
   bool writable(SandboxSpec spec, String directory) =>
-      spec.writableRoots.any((root) => _covers(root, directory));
+      spec.writableRoots.any((root) => paths.covers(root, directory));
 
   /// Why [directory] is not one the sandbox will open, or null when it may be
   /// put to the user.
   String? refusalFor(String directory, List<String> deniedReads) {
-    if (paths.equals(paths.rootPrefix(directory), directory)) {
+    if (paths.isFilesystemRoot(directory)) {
       return 'it is the whole filesystem';
     }
-    if (paths.equals(homeDir, directory)) {
+    if (paths.isHome(directory)) {
       return 'it is the whole home directory';
     }
-    if (deniedReads.any((secret) => _covers(secret, directory))) {
+    if (deniedReads.any((secret) => paths.covers(secret, directory))) {
       return 'it holds secrets the sandbox keeps from the agent';
     }
     return null;
   }
-
-  bool _covers(String root, String directory) =>
-      paths.equals(root, directory) || paths.isWithin(root, directory);
 }

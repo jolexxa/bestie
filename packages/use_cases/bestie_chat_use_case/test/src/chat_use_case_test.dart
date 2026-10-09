@@ -17,6 +17,8 @@ import 'package:provider_repository/provider_repository.dart';
 import 'package:test/test.dart';
 import 'package:tool_protocol/tool_protocol.dart';
 
+import '../helpers/platform.dart';
+
 class _MockProviderRepository extends Mock implements ProviderRepository {}
 
 class _MockAgentRepository extends Mock implements AgentRepository {}
@@ -157,7 +159,7 @@ void main() {
         configKeys: configKeys,
         sampling: () => sampling,
         dynamicSystemPrompt: ' [dyn]',
-        homeDirectory: '/home/j',
+        paths: linuxPlatform.paths,
       );
     });
 

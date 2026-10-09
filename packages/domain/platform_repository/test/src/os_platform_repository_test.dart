@@ -14,7 +14,7 @@ class _MockTerminalEnvironmentDataSource extends Mock
 
 class _MockTerminalOverride extends Mock implements TerminalOverride {}
 
-const _platform = LinuxPlatform(
+final _platform = LinuxPlatform(
   architecture: OSArchitecture.linuxX64,
   homeDir: '/home/cow',
   tempDir: '/tmp',
@@ -25,7 +25,7 @@ const _platform = LinuxPlatform(
   curlLibraryPath: '/opt/libcurl.so',
   caCertPath: '/opt/cacert.pem',
   creditsPath: '/opt/CREDITS.md',
-  serverExecutable: ProgramCommand(executable: '/opt/bestie_server'),
+  serverExecutable: const ProgramCommand(executable: '/opt/bestie_server'),
 );
 
 const _snapshot = SystemInfoSnapshot(

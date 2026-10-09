@@ -109,7 +109,7 @@ class ModelDetailsPane extends Pane {
     final facts = <String, PaneSpan>{
       'Name': PaneSpan(model.displayName),
       'File': PaneSpan(
-        homePath(model.path, homeDir: _operations.homeDir),
+        _operations.shorten(model.path),
         PaneTone.muted,
       ),
       'Source': PaneSpan(_sourceOf(model.source)),
@@ -153,8 +153,7 @@ class ModelDetailsPane extends Pane {
 
   String _sourceOf(ModelSource source) => switch (source) {
     DownloadedSource(:final repo) => 'Hugging Face · $repo',
-    ScannedSource(:final root) =>
-      'Your folder · ${homePath(root, homeDir: _operations.homeDir)}',
+    ScannedSource(:final root) => 'Your folder · ${_operations.shorten(root)}',
     UntrackedSource() => "Bestie's models folder · not downloaded by bestie",
   };
 }

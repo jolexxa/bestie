@@ -1,6 +1,6 @@
 import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
-import 'package:real_paths/real_paths.dart';
+import 'package:path_plus/path_plus.dart';
 
 /// Resolves the current user's home directory from [environment].
 String resolveHomeDir(Map<String, String> environment) {

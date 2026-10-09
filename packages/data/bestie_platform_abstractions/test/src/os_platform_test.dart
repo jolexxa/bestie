@@ -8,7 +8,7 @@ void main() {
   // cannot be constructed claiming to be an operating system it isn't.
   group('a platform reports the operating system it is', () {
     test('macOS', () {
-      const platform = MacOSPlatform(
+      final platform = MacOSPlatform(
         architecture: OSArchitecture.macosArm64,
         homeDir: '/Users/cow',
         tempDir: '/tmp',
@@ -24,10 +24,11 @@ void main() {
 
       expect(platform.os, OSKind.macos);
       expect(platform.architecture, OSArchitecture.macosArm64);
+      expect(platform.paths.shortenHome('/Users/cow/proj'), '~/proj');
     });
 
     test('Windows', () {
-      const platform = WindowsPlatform(
+      final platform = WindowsPlatform(
         architecture: OSArchitecture.windowsX64,
         homeDir: r'C:\Users\cow',
         tempDir: r'C:\Users\cow\AppData\Local\Temp',
@@ -43,10 +44,11 @@ void main() {
 
       expect(platform.os, OSKind.windows);
       expect(platform.architecture, OSArchitecture.windowsX64);
+      expect(platform.paths.shortenHome(r'C:\Users\cow\proj'), r'~\proj');
     });
 
     test('Linux', () {
-      const platform = LinuxPlatform(
+      final platform = LinuxPlatform(
         architecture: OSArchitecture.linuxX64,
         homeDir: '/home/cow',
         tempDir: '/tmp',
@@ -62,11 +64,12 @@ void main() {
 
       expect(platform.os, OSKind.linux);
       expect(platform.architecture, OSArchitecture.linuxX64);
+      expect(platform.paths.shortenHome('/home/cow/proj'), '~/proj');
     });
   });
 
   test('a platform carries the resolved paths it was built with', () {
-    const platform = LinuxPlatform(
+    final platform = LinuxPlatform(
       architecture: OSArchitecture.linuxX64,
       homeDir: '/home/cow',
       tempDir: '/tmp',

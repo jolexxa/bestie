@@ -7,6 +7,7 @@ import 'package:local_models_repository/src/downloads/download_plan.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:model_downloader/model_downloader.dart';
 import 'package:model_index_store/model_index_store.dart';
+import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
 import '../support/download_fixtures.dart';
@@ -34,7 +35,9 @@ void main() {
 
   DownloadLogic logicFor(DownloadRecord record) {
     final plan =
-        (DownloadPlan.of(record, modelsDir: '/models') as DownloadPlanned).plan;
+        (DownloadPlan.of(record, modelsDir: '/models', paths: p.posix)
+                as DownloadPlanned)
+            .plan;
     final logic = DownloadLogic(
       data: DownloadData(plan),
       downloader: downloader,

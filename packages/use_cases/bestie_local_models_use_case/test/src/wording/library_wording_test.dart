@@ -130,14 +130,6 @@ void main() {
     expect(downloadName('owner/plain'), 'plain');
   });
 
-  test('homePath writes the home folder as ~', () {
-    expect(
-      homePath('$homeDir/models/a.gguf', homeDir: homeDir),
-      '~/models/a.gguf',
-    );
-    expect(homePath('/opt/models', homeDir: homeDir), '/opt/models');
-  });
-
   test('tierSpan tones each tier', () {
     expect(
       {for (final tier in QualityTier.values) tier.name: tierSpan(tier).tone},

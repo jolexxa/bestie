@@ -332,11 +332,11 @@ class AppContext {
       final readPolicy = SandboxReadPolicy(
         readRoots: [
           ...sandboxModel.systemReadRoots,
-          ...sandboxModel.homeReadRoots(platform.homeDir),
+          ...sandboxModel.homeReadRoots(platform.paths),
           shellUserland.binDir,
           p.dirname(editorPath),
         ],
-        holes: sandboxModel.deniedReadsFor(platform.homeDir),
+        holes: sandboxModel.deniedReadsFor(platform.paths),
         policyVersion: 1,
       );
       final worker = switch (await Win32SandboxWorker.spawn()) {
@@ -436,9 +436,7 @@ class AppContext {
       sandboxModel: sandboxModel,
     );
     final sandboxPlan = sandboxUseCase.setupSandbox(
-      workspaceRoot: workingDirectory,
-      homeDir: platform.homeDir,
-      tempDir: platform.tempDir,
+      platform: platform,
       programRoots: [shellUserland.binDir, p.dirname(editorPath)],
     );
 
@@ -553,7 +551,7 @@ class AppContext {
       configKeys: parameters.chat,
       sampling: () => providerUseCase.sampling,
       dynamicSystemPrompt: dynamicSystemPrompt,
-      homeDirectory: platform.homeDir,
+      paths: platform.paths,
     );
 
     final shellRepository = ShellRepository(

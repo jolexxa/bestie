@@ -6,6 +6,7 @@ import 'package:date_time_tools/date_time_tools.dart';
 import 'package:files_data_source/files_data_source.dart';
 import 'package:fs_tools/fs_tools.dart';
 import 'package:intentions/intentions.dart';
+import 'package:path_plus/path_plus.dart';
 import 'package:web_fetch_tools/web_fetch_tools.dart';
 import 'package:web_search_tools/web_search_tools.dart';
 import 'package:wikipedia_tools/wikipedia_tools.dart';
@@ -42,12 +43,16 @@ final class ToolWorkerConfig {
     required this.caCertPath,
     required this.editorPath,
     required this.processHost,
+    required this.paths,
     this.toolCacheChars = defaultToolCacheChars,
   });
 
   final String workingDirectory;
   final String curlLibraryPath;
   final String caCertPath;
+
+  /// Reads the paths tools name the way this host does.
+  final UserPaths paths;
 
   /// The program behind the `edit` tool.
   final String editorPath;

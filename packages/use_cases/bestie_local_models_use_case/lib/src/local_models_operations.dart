@@ -10,7 +10,6 @@ import 'package:config_repository/config_repository.dart';
 import 'package:intentions/intentions.dart';
 import 'package:local_models_repository/local_models_repository.dart';
 import 'package:local_server_repository/local_server_repository.dart';
-import 'package:path/path.dart' as p;
 import 'package:platform_repository/platform_repository.dart';
 import 'package:provider_protocol/provider_protocol.dart'
     show ProviderFailure, ProviderModelRef;
@@ -109,7 +108,8 @@ class LocalModelsOperations {
 
   List<String> get folders => _config.resolve(_configKeys.paths.global);
 
-  String get homeDir => _platform.platform.homeDir;
+  /// [path] as the user knows it: their home shortened to `~`.
+  String shorten(String path) => _platform.platform.paths.shortenHome(path);
 
   /// All of this machine's memory, which the fit of a download is judged
   /// against.
@@ -157,11 +157,9 @@ class LocalModelsOperations {
   /// [folder] as the library would list it: `~` expanded and normalized, or
   /// null when it is not an absolute path.
   String? folderFrom(String folder) {
-    final trimmed = folder.trim();
-    final expanded = trimmed == '~' || trimmed.startsWith('~/')
-        ? p.join(homeDir, trimmed.substring(1).replaceFirst('/', ''))
-        : trimmed;
-    return p.isAbsolute(expanded) ? p.normalize(expanded) : null;
+    final paths = _platform.platform.paths;
+    final expanded = paths.expandHome(folder.trim());
+    return paths.isAbsolute(expanded) ? paths.normalize(expanded) : null;
   }
 
   void setFolders(List<String> folders) => _config.commit({

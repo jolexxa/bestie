@@ -4,7 +4,6 @@ library;
 import 'package:command_protocol/command_protocol.dart';
 import 'package:local_inference_protocol/local_inference_protocol.dart';
 import 'package:local_models_repository/local_models_repository.dart';
-import 'package:path/path.dart' as p;
 
 /// The prompt formats bestie runs, for explaining what it can't.
 const runnableFamilies = 'qwen2/3/3.5, gpt-oss, gemma4 and glm4';
@@ -85,18 +84,15 @@ List<PaneNote> unrunnableNotes(UnrunnableReason reason) => switch (reason) {
 
 /// A download's name: its repo's, without the `-GGUF` every GGUF repo
 /// carries.
-String downloadName(String repo) => p.url
-    .basename(repo)
+String downloadName(String repo) => repo
+    .split('/')
+    .last
     .replaceFirst(RegExp(r'[-_.]gguf$', caseSensitive: false), '');
 
 /// The display name of the model [localId] names in [library], or the id
 /// itself when the library doesn't list it.
 String modelName(ModelLibrary library, String localId) =>
     library.modelById(localId)?.displayName ?? localId;
-
-/// [path] with the home folder written as `~`.
-String homePath(String path, {required String homeDir}) =>
-    p.isWithin(homeDir, path) ? '~/${p.relative(path, from: homeDir)}' : path;
 
 /// The tier's name and the tone it reads in.
 PaneSpan tierSpan(QualityTier tier) => PaneSpan(tier.name, switch (tier) {

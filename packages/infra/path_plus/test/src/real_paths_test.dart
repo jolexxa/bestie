@@ -2,7 +2,7 @@ import 'package:file/file.dart';
 import 'package:file/memory.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:path/path.dart' as p;
-import 'package:real_paths/real_paths.dart';
+import 'package:path_plus/path_plus.dart';
 import 'package:test/test.dart';
 
 class _MockFileSystem extends Mock implements FileSystem {}

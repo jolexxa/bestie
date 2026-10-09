@@ -13,10 +13,10 @@ dependencies:
   dart_mappable: ^4.3.0
   file: ^7.0.1
   path: ^1.9.1
+  path_plus:
+    path: ../path_plus
   process_host:
     path: ../process_host
-  real_paths:
-    path: ../real_paths
 
 dev_dependencies:
   build_runner: ^2.4.12

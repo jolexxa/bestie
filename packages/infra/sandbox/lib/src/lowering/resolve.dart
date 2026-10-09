@@ -1,5 +1,5 @@
 import 'package:file/file.dart';
-import 'package:real_paths/real_paths.dart';
+import 'package:path_plus/path_plus.dart';
 import 'package:sandbox/src/lowering/glob.dart';
 import 'package:sandbox/src/lowering/resolved_spec.dart';
 import 'package:sandbox/src/sandbox_spec.dart';

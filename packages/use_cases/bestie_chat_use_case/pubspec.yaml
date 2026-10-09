@@ -22,11 +22,15 @@ dependencies:
   intentions: ^0.1.0
   logic_blocks: ^1.0.0
   meta: ^1.18.0
+  path_plus:
+    path: ../../infra/path_plus
   provider_repository:
     path: ../../domain/provider_repository
   tool_protocol:
     path: ../../infra/tool_protocol
 dev_dependencies:
+  bestie_platform_abstractions:
+    path: ../../data/bestie_platform_abstractions
   mocktail: ^1.0.4
   provider_protocol:
     path: ../../infra/provider_protocol

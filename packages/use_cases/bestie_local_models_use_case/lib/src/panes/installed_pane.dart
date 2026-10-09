@@ -355,7 +355,7 @@ class InstalledPane extends Pane {
     invoke: () async => switch (await _operations.discard(download.id)) {
       DownloadDiscarded() || NothingToDiscard() => const PaneStay(),
       DiscardFailed(:final path, :final error) => PaneRejected(
-        "Couldn't delete ${homePath(path, homeDir: _operations.homeDir)}: "
+        "Couldn't delete ${_operations.shorten(path)}: "
         '$error',
       ),
     },
@@ -391,7 +391,7 @@ class InstalledPane extends Pane {
         ],
         SupportedModel(:final path) => [
           PaneSpan(
-            homePath(path, homeDir: _operations.homeDir),
+            _operations.shorten(path),
             PaneTone.muted,
           ),
         ],

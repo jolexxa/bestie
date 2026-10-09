@@ -73,7 +73,10 @@ class RepoResolver {
         reason: NoSupportedQuants([
           ...{
             for (final files in groups)
-              ?GgufFileName(files.first.relativeFilename).quantLabel,
+              ?GgufFileName(
+                files.first.relativeFilename,
+                paths: p.url,
+              ).quantLabel,
           },
         ]),
       ),
@@ -97,7 +100,7 @@ class RepoResolver {
   static List<List<SiblingInfo>> _groupByModel(List<SiblingInfo> siblings) {
     final groups = <String, List<SiblingInfo>>{};
     for (final sibling in siblings) {
-      final name = GgufFileName(sibling.relativeFilename);
+      final name = GgufFileName(sibling.relativeFilename, paths: p.url);
       if (!name.isModel) continue;
       groups
           .putIfAbsent(
@@ -116,7 +119,7 @@ class RepoResolver {
   }
 
   RepoQuant? _quantOf(RepoId id, String? revision, List<SiblingInfo> files) {
-    final name = GgufFileName(files.first.relativeFilename);
+    final name = GgufFileName(files.first.relativeFilename, paths: p.url);
     final label = name.quantLabel ?? '';
     final type = QuantType.fromLabel(label);
     final sized = [

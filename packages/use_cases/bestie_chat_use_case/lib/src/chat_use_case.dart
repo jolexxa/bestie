@@ -11,6 +11,7 @@ import 'package:bestie_chat_use_case/src/subagent_tools.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:config_repository/config_repository.dart';
 import 'package:intentions/intentions.dart';
+import 'package:path_plus/path_plus.dart';
 import 'package:provider_repository/provider_repository.dart';
 import 'package:tool_protocol/tool_protocol.dart'
     show Job, ToolCallInvocation, ToolDefinitions, ToolResponder;
@@ -28,14 +29,14 @@ class ChatUseCase implements ToolResponder, CommandContribution {
     required ChatConfigKeys configKeys,
     required SamplingResolver sampling,
     required String dynamicSystemPrompt,
-    required String homeDirectory,
+    required UserPaths paths,
   }) : _providers = providerRepository,
        _agents = agentRepository,
        _config = config,
        _configKeys = configKeys,
        _sampling = sampling,
        _dynamicSystemPrompt = dynamicSystemPrompt,
-       _homeDirectory = homeDirectory {
+       _paths = paths {
     _reloadsStartingSub = _providers.reloadsStarting.listen(
       _prepareForReload,
     );
@@ -137,7 +138,7 @@ class ChatUseCase implements ToolResponder, CommandContribution {
   final String _dynamicSystemPrompt;
 
   /// Shown as `~` when listing where conversations started.
-  final String _homeDirectory;
+  final UserPaths _paths;
   late final StreamSubscription<void> _reloadsStartingSub;
   late final StreamSubscription<AgentSession> _primarySub;
   late final StreamSubscription<ProviderStatus> _loadingSub;
@@ -577,7 +578,7 @@ class ChatUseCase implements ToolResponder, CommandContribution {
     if (soFar.maybe(_conversationKey) != null) return null;
     final picker = ConversationPicker(
       summaries: conversations(),
-      homeDirectory: _homeDirectory,
+      paths: _paths,
       currentConversationId: _primary.transcript.conversationId,
     );
     return ChoiceParam<String>.searchable(

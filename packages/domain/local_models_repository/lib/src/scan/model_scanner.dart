@@ -17,7 +17,6 @@ import 'package:local_models_repository/src/support/local_id.dart';
 import 'package:local_models_repository/src/support/model_family.dart';
 import 'package:local_models_repository/src/support/model_task.dart';
 import 'package:local_models_repository/src/support/reasoning.dart';
-import 'package:path/path.dart' as p;
 
 /// Finds every GGUF model under a set of folders and reads what each one is,
 /// on a background isolate so header reads never stall the UI.
@@ -51,7 +50,11 @@ class ModelScanner {
     for (final root in roots) {
       for (final path in _modelsUnder(root)) {
         if (described.containsKey(path)) continue;
-        described[path] = _describe(root, GgufFileName(path), previous[path]);
+        described[path] = _describe(
+          root,
+          GgufFileName(path, paths: _fileSystem.path),
+          previous[path],
+        );
       }
     }
     return _Scan(described);
@@ -68,19 +71,21 @@ class ModelScanner {
       return;
     }
     for (final entry in entries) {
-      final name = p.basename(entry.path);
+      final name = _fileSystem.path.basename(entry.path);
       yield* switch (entry) {
         _ when name.startsWith('.') => const <String>[],
         Directory() when _skippedFolders.contains(name) => const <String>[],
         Directory() => _modelsUnder(entry.path),
-        _ when _isFirstModelFile(entry.path) => [p.normalize(entry.path)],
+        _ when _isFirstModelFile(entry.path) => [
+          _fileSystem.path.normalize(entry.path),
+        ],
         _ => const <String>[],
       };
     }
   }
 
   bool _isFirstModelFile(String path) {
-    final name = GgufFileName(path);
+    final name = GgufFileName(path, paths: _fileSystem.path);
     return name.isModel && name.isFirstShard && _fileSystem.isFileSync(path);
   }
 
@@ -88,7 +93,7 @@ class ModelScanner {
   _Described _describe(String root, GgufFileName name, _Described? previous) {
     final source = ScannedSource(
       root: root,
-      inferredRepo: inferRepo(root, name.path),
+      inferredRepo: inferRepo(root, name.path, _fileSystem.path),
     );
     final shards = [
       for (final shard in name.shardPaths)

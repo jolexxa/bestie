@@ -135,6 +135,7 @@ void main() {
       final operations = operationsWith();
       expect(operations.folderFrom('~'), homeDir);
       expect(operations.folderFrom('  ~/models/ '), '$homeDir/models');
+      expect(operations.folderFrom(r'~\models'), '$homeDir/models');
       expect(operations.folderFrom('/opt/models/../gguf'), '/opt/gguf');
       expect(operations.folderFrom('models'), isNull);
       expect(operations.folderFrom('~joanna/models'), isNull);
@@ -274,7 +275,7 @@ void main() {
     final operations = operationsWith();
     expect(operations.memoryBytes, 24 * gigabyte);
     expect(operations.freeMemoryBytes, 18 * gigabyte);
-    expect(operations.homeDir, homeDir);
+    expect(operations.shorten('$homeDir/models/a.gguf'), '~/models/a.gguf');
     await operations.dispose();
   });
 

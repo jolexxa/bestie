@@ -8,7 +8,6 @@ import 'package:files_data_source/files_data_source.dart';
 import 'package:fs_tools/fs_tools.dart';
 import 'package:intentions/intentions.dart';
 import 'package:isolate_worker/isolate_worker.dart';
-import 'package:path/path.dart' as p;
 import 'package:process_host/process_host.dart';
 import 'package:sandbox/sandbox.dart';
 import 'package:tool_protocol/tool_protocol.dart';
@@ -177,7 +176,7 @@ final class ToolCommandHandler {
 
   bool _writableBySandbox(String path, ConfinedSandbox sandbox) =>
       sandbox.enforcement.writableRoots.any(
-        (root) => p.equals(root, path) || p.isWithin(root, path),
+        (root) => _config.paths.covers(root, path),
       );
 
   /// What was replaced and the edited region, with the region giving way

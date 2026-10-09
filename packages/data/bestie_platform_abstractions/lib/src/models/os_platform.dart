@@ -2,6 +2,7 @@ import 'package:bestie_platform_abstractions/src/models/program_command.dart';
 import 'package:bestie_platform_abstractions/src/utils/platform_paths.dart';
 import 'package:intentions/intentions.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_plus/path_plus.dart';
 
 /// Supported operating systems for Bestie.
 enum OSKind { macos, linux, windows }
@@ -15,7 +16,7 @@ enum OSArchitecture { macosArm64, linuxX64, windowsX64 }
 /// [LinuxPlatform] and own their own derivations.
 @model
 abstract class OSPlatform {
-  const OSPlatform({
+  OSPlatform({
     required this.os,
     required this.architecture,
     required this.homeDir,
@@ -28,11 +29,20 @@ abstract class OSPlatform {
     required this.caCertPath,
     required this.creditsPath,
     required this.serverExecutable,
-  });
+  }) : paths = UserPaths(homeDir: homeDir, context: _contextOf(os));
 
   final OSKind os;
   final OSArchitecture architecture;
   final String homeDir;
+
+  /// Paths as the user writes them on the OS this platform describes, not on
+  /// the host.
+  final UserPaths paths;
+
+  static p.Context _contextOf(OSKind os) =>
+      os == OSKind.windows ? p.windows : p.posix;
+
+  p.Context get _context => _contextOf(os);
 
   /// The temporary directory processes on this host inherit — what `TMPDIR`
   /// (or `TMP`/`TEMP`) names, or the platform default when unset.
@@ -58,44 +68,41 @@ abstract class OSPlatform {
   /// How to start the local inference server.
   final ProgramCommand serverExecutable;
 
-  /// Path semantics of the OS this platform describes, not of the host.
-  p.Context get _pathContext => os == OSKind.windows ? p.windows : p.posix;
-
   /// The per-run log directory and the individual sinks within it.
-  String get logsDir => logsDirFor(bestieDir, _pathContext);
+  String get logsDir => logsDirFor(bestieDir, _context);
 
   /// Native fd-2 capture (FFI asserts, native library diagnostics).
-  String get nativeLogFile => nativeLogFileFor(bestieDir, _pathContext);
+  String get nativeLogFile => nativeLogFileFor(bestieDir, _context);
 
   /// Managed Dart-side diagnostic breadcrumbs.
-  String get managedLogFile => managedLogFileFor(bestieDir, _pathContext);
+  String get managedLogFile => managedLogFileFor(bestieDir, _context);
 
   /// Uncaught-error black box.
-  String get crashLogFile => crashLogFileFor(bestieDir, _pathContext);
+  String get crashLogFile => crashLogFileFor(bestieDir, _context);
 
   /// The Windows sandbox grants document.
-  String get sandboxesFile => sandboxesFileFor(bestieDir, _pathContext);
+  String get sandboxesFile => sandboxesFileFor(bestieDir, _context);
 
   /// Cached copy of the external model catalog.
   String get modelCatalogCacheFile =>
-      modelCatalogCacheFileFor(bestieDir, _pathContext);
+      modelCatalogCacheFileFor(bestieDir, _context);
 
   /// Downloaded models and the model index.
-  String get modelsDir => modelsDirFor(bestieDir, _pathContext);
+  String get modelsDir => modelsDirFor(bestieDir, _context);
 
   /// Files running helper processes leave for bestie.
-  String get runDir => runDirFor(bestieDir, _pathContext);
+  String get runDir => runDirFor(bestieDir, _context);
 
   /// Where the running local inference server says which port it serves.
-  String get inferenceLockFile => inferenceLockFileFor(bestieDir, _pathContext);
+  String get inferenceLockFile => inferenceLockFileFor(bestieDir, _context);
 
   /// The local inference server's log.
-  String get serverLogFile => serverLogFileFor(bestieDir, _pathContext);
+  String get serverLogFile => serverLogFileFor(bestieDir, _context);
 }
 
 @model
 class MacOSPlatform extends OSPlatform {
-  const MacOSPlatform({
+  MacOSPlatform({
     required super.architecture,
     required super.homeDir,
     required super.tempDir,
@@ -112,7 +119,7 @@ class MacOSPlatform extends OSPlatform {
 
 @model
 class WindowsPlatform extends OSPlatform {
-  const WindowsPlatform({
+  WindowsPlatform({
     required super.architecture,
     required super.homeDir,
     required super.tempDir,
@@ -129,7 +136,7 @@ class WindowsPlatform extends OSPlatform {
 
 @model
 class LinuxPlatform extends OSPlatform {
-  const LinuxPlatform({
+  LinuxPlatform({
     required super.architecture,
     required super.homeDir,
     required super.tempDir,

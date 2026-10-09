@@ -46,7 +46,7 @@ class DeleteModelPane extends Pane {
           ]),
           PaneNote([
             PaneSpan(
-              homePath(model.path, homeDir: _operations.homeDir),
+              _operations.shorten(model.path),
               PaneTone.muted,
             ),
           ]),
@@ -87,7 +87,7 @@ class DeleteModelPane extends Pane {
       ModelDeleted() || NothingToDelete() => const PanePop(),
       DeleteRefusedScanned(:final root) => PaneRejected(
         'Bestie never deletes files in your folders; remove '
-        '${homePath(root, homeDir: _operations.homeDir)} from your model '
+        '${_operations.shorten(root)} from your model '
         'folders to hide it',
       ),
       DeleteRefusedUntracked() => const PaneRejected(
@@ -99,7 +99,7 @@ class DeleteModelPane extends Pane {
         ),
       ),
       DeleteFailed(:final path, :final error) => PaneRejected(
-        "Couldn't delete ${homePath(path, homeDir: _operations.homeDir)}: "
+        "Couldn't delete ${_operations.shorten(path)}: "
         '$error',
       ),
     };

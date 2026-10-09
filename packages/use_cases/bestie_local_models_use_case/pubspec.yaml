@@ -30,7 +30,6 @@ dependencies:
     path: ../../domain/local_models_repository
   local_server_repository:
     path: ../../domain/local_server_repository
-  path: ^1.9.1
   platform_repository:
     path: ../../domain/platform_repository
   provider_protocol:

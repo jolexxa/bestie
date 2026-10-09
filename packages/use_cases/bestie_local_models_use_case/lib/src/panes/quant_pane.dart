@@ -218,22 +218,23 @@ class QuantPane extends Pane {
     };
   }
 
-  Future<PaneActionResult> _download(RepoQuant quant) async =>
-      switch (await _operations.download(quant)) {
-        DownloadAccepted() || DownloadAlreadyQueued() => const PaneStay(),
-        DownloadTargetOccupied(:final path) => PaneRejected(
-          "A file bestie didn't download is already at "
-          '${homePath(path, homeDir: _operations.homeDir)}',
-        ),
-        DownloadRejected(:final reason) => PaneRejected(switch (reason) {
-          InvalidRepoId(:final repo) => '$repo is not a repo bestie can fetch',
-          InvalidFilePath(:final path) => '$path would land outside the repo',
-          NoDownloadFiles() => 'This quant has no files to download',
-        }),
-        DownloadsUnavailable() => PaneRejected(
-          downloadsUnavailableReason(
-            _operations.currentLibrary.downloadsStatus,
-          ),
-        ),
-      };
+  Future<PaneActionResult> _download(
+    RepoQuant quant,
+  ) async => switch (await _operations.download(quant)) {
+    DownloadAccepted() || DownloadAlreadyQueued() => const PaneStay(),
+    DownloadTargetOccupied(:final path) => PaneRejected(
+      "A file bestie didn't download is already at "
+      '${_operations.shorten(path)}',
+    ),
+    DownloadRejected(:final reason) => PaneRejected(switch (reason) {
+      InvalidRepoId(:final repo) => '$repo is not a repo bestie can fetch',
+      InvalidFilePath(:final path) => '$path would land outside the repo',
+      NoDownloadFiles() => 'This quant has no files to download',
+    }),
+    DownloadsUnavailable() => PaneRejected(
+      downloadsUnavailableReason(
+        _operations.currentLibrary.downloadsStatus,
+      ),
+    ),
+  };
 }
