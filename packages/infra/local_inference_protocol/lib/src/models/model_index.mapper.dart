@@ -494,6 +494,20 @@ class ModelSamplingDefaultsMapper
     key: r'min_p',
     opt: true,
   );
+  static double? _$penaltyRepeat(ModelSamplingDefaults v) => v.penaltyRepeat;
+  static const Field<ModelSamplingDefaults, double> _f$penaltyRepeat = Field(
+    'penaltyRepeat',
+    _$penaltyRepeat,
+    key: r'penalty_repeat',
+    opt: true,
+  );
+  static int? _$penaltyLastN(ModelSamplingDefaults v) => v.penaltyLastN;
+  static const Field<ModelSamplingDefaults, int> _f$penaltyLastN = Field(
+    'penaltyLastN',
+    _$penaltyLastN,
+    key: r'penalty_last_n',
+    opt: true,
+  );
 
   @override
   final MappableFields<ModelSamplingDefaults> fields = const {
@@ -501,6 +515,8 @@ class ModelSamplingDefaultsMapper
     #topK: _f$topK,
     #topP: _f$topP,
     #minP: _f$minP,
+    #penaltyRepeat: _f$penaltyRepeat,
+    #penaltyLastN: _f$penaltyLastN,
   };
 
   static ModelSamplingDefaults _instantiate(DecodingData data) {
@@ -509,6 +525,8 @@ class ModelSamplingDefaultsMapper
       topK: data.dec(_f$topK),
       topP: data.dec(_f$topP),
       minP: data.dec(_f$minP),
+      penaltyRepeat: data.dec(_f$penaltyRepeat),
+      penaltyLastN: data.dec(_f$penaltyLastN),
     );
   }
 
@@ -582,7 +600,14 @@ abstract class ModelSamplingDefaultsCopyWith<
   $Out
 >
     implements ClassCopyWith<$R, $In, $Out> {
-  $R call({double? temperature, int? topK, double? topP, double? minP});
+  $R call({
+    double? temperature,
+    int? topK,
+    double? topP,
+    double? minP,
+    double? penaltyRepeat,
+    int? penaltyLastN,
+  });
   ModelSamplingDefaultsCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   );
@@ -602,12 +627,16 @@ class _ModelSamplingDefaultsCopyWithImpl<$R, $Out>
     Object? topK = $none,
     Object? topP = $none,
     Object? minP = $none,
+    Object? penaltyRepeat = $none,
+    Object? penaltyLastN = $none,
   }) => $apply(
     FieldCopyWithData({
       if (temperature != $none) #temperature: temperature,
       if (topK != $none) #topK: topK,
       if (topP != $none) #topP: topP,
       if (minP != $none) #minP: minP,
+      if (penaltyRepeat != $none) #penaltyRepeat: penaltyRepeat,
+      if (penaltyLastN != $none) #penaltyLastN: penaltyLastN,
     }),
   );
   @override
@@ -616,6 +645,8 @@ class _ModelSamplingDefaultsCopyWithImpl<$R, $Out>
     topK: data.get(#topK, or: $value.topK),
     topP: data.get(#topP, or: $value.topP),
     minP: data.get(#minP, or: $value.minP),
+    penaltyRepeat: data.get(#penaltyRepeat, or: $value.penaltyRepeat),
+    penaltyLastN: data.get(#penaltyLastN, or: $value.penaltyLastN),
   );
 
   @override

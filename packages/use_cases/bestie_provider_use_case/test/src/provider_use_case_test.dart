@@ -305,6 +305,15 @@ void main() {
       expect(_Harness().useCase.sampling.seed, 0);
     });
 
+    test('leaves unset sampling to the model', () {
+      final sampling = _Harness().useCase.sampling;
+
+      expect(sampling.temperature, isNull);
+      expect(sampling.topP, isNull);
+      expect(sampling.penaltyFreq, isNull);
+      expect(sampling.penaltyPresent, isNull);
+    });
+
     test('forwards status, key info, models, and reconnects', () async {
       final harness = _Harness();
       when(harness.repository.keyInfo).thenAnswer(

@@ -57,14 +57,20 @@ final class FakeConfigRepository implements ConfigRepository {
   @override
   Resolved<Object?> inspectBase(ConfigAddressBase address) => Resolved<Object?>(
     value: _resolved(address.key),
-    source: address,
+    source: _sourceOf(address),
   );
 
   @override
   Resolved<T> inspect<T>(ConfigAddress<T> address) => Resolved<T>(
     value: _resolved(address.key) as T,
-    source: address,
+    source: _sourceOf(address),
   );
+
+  ConfigAddressBase? _sourceOf(ConfigAddressBase address) =>
+      _values.containsKey(address.key.id) ||
+          _scopeDefaults.containsKey(address.key.id)
+      ? address
+      : null;
 
   Object? _resolved(ConfigKeyBase key) {
     if (_values.containsKey(key.id)) return _values[key.id];

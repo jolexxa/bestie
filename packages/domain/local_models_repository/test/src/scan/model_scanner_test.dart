@@ -28,6 +28,8 @@ void main() {
         'general.sampling.top_k': TestValue.int32(20),
         'general.sampling.top_p': TestValue.float32(0.25),
         'general.sampling.min_p': TestValue.float32(0.125),
+        'general.sampling.penalty_repeat': TestValue.float32(1.5),
+        'general.sampling.penalty_last_n': TestValue.int32(128),
       },
     );
 
@@ -55,6 +57,8 @@ void main() {
         topK: 20,
         topP: 0.25,
         minP: 0.125,
+        penaltyRepeat: 1.5,
+        penaltyLastN: 128,
       ),
     );
     final source = model.source as ScannedSource;

@@ -129,6 +129,10 @@ String? samplingLabel(ModelSamplingDefaults sampling) {
     if (sampling.topP case final topP?) 'top_p $topP',
     if (sampling.topK case final topK?) 'top_k $topK',
     if (sampling.minP case final minP?) 'min_p $minP',
+    if (sampling.penaltyRepeat case final penaltyRepeat?)
+      'repeat_penalty $penaltyRepeat',
+    if (sampling.penaltyLastN case final penaltyLastN?)
+      'repeat_last_n $penaltyLastN',
   ];
   return parts.isEmpty ? null : '${parts.join(' · ')} (from the GGUF)';
 }

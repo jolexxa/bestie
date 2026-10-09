@@ -200,6 +200,8 @@ final class LlamaModelEngine implements ModelEngine {
           topK: defaults.topK,
           topP: defaults.topP,
           minP: defaults.minP,
+          penaltyRepeat: defaults.penaltyRepeat,
+          penaltyLastN: defaults.penaltyLastN,
         ),
       ),
       deviceBytes: fit.usedBytes,

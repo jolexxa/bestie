@@ -22,6 +22,8 @@ const _entry = ModelIndexEntry(
     topK: 20,
     topP: 0.95,
     minP: 0,
+    penaltyRepeat: 1.1,
+    penaltyLastN: 64,
   ),
   provenance: ModelDownloaded(
     repo: 'Qwen/Qwen3-4B-GGUF',
@@ -297,6 +299,8 @@ void main() {
           'top_k': 20,
           'top_p': 0.95,
           'min_p': 0,
+          'penalty_repeat': 1.1,
+          'penalty_last_n': 64,
         },
         'provenance': {
           'source': 'downloaded',

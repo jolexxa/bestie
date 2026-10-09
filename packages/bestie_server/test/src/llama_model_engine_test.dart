@@ -32,7 +32,14 @@ const _entry = ModelIndexEntry(
   sizeBytes: 1,
   trainedContextLength: 32768,
   reasoning: ModelReasoningToggle(),
-  defaultSampling: ModelSamplingDefaults(temperature: 0.6, topK: 20),
+  defaultSampling: ModelSamplingDefaults(
+    temperature: 0.6,
+    topK: 20,
+    topP: 0.95,
+    minP: 0.05,
+    penaltyRepeat: 1.1,
+    penaltyLastN: 128,
+  ),
   provenance: ModelScanned(root: '/models'),
   fingerprint: 'f',
 );
@@ -94,6 +101,7 @@ void main() {
   late _MockLoader loader;
   late _MockModel model;
   late _MockContext context;
+  late _MockSequences sequences;
   late _MockLog log;
   late int nativeCloses;
   late LlamaModelEngine engine;
@@ -114,6 +122,7 @@ void main() {
       ),
     );
     registerFallbackValue(const LlamaModelLoadRequest(path: ''));
+    registerFallbackValue(const SequenceRequest(sampling: EngineSampling()));
     registerFallbackValue(
       const LlamaCreateContextRequest(
         options: LlamaContextOptions(
@@ -130,6 +139,7 @@ void main() {
     loader = _MockLoader();
     model = _MockModel();
     context = _MockContext();
+    sequences = _MockSequences();
     log = _MockLog();
     nativeCloses = 0;
     engine = LlamaModelEngine(
@@ -166,7 +176,7 @@ void main() {
       ),
     );
     when(() => context.envelope).thenReturn(_envelope());
-    when(() => context.sequences).thenReturn(_MockSequences());
+    when(() => context.sequences).thenReturn(sequences);
     when(
       context.dispose,
     ).thenAnswer((_) async => const DisposeContextSucceeded());
@@ -230,6 +240,32 @@ void main() {
             as LlamaCreateContextRequest;
     expect(created.options, options.copyWith(contextSize: 16384));
     verify(() => log.info(any(that: contains('MTL0 (gpu)')))).called(1);
+  });
+
+  test("serves the model's sampling defaults", () async {
+    when(() => sequences.acquire(any())).thenReturn(
+      const RequestSequenceFailed(message: 'full', stackTrace: ''),
+    );
+    final events = await load();
+    final runtime = (events.last as ModelEngineLoaded).model.runtime;
+
+    await runtime.openPrimary('main');
+
+    final request =
+        verify(() => sequences.acquire(captureAny())).captured.single
+            as SequenceRequest;
+    expect(
+      request.sampling,
+      const EngineSampling(
+        temperature: 0.6,
+        topK: 20,
+        topP: 0.95,
+        minP: 0.05,
+        penaltyRepeat: 1.1,
+        penaltyLastN: 128,
+      ),
+    );
+    await runtime.dispose();
   });
 
   test('fits up to the trained length without a cap', () async {

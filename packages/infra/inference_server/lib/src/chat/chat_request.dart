@@ -49,6 +49,8 @@ final class ChatRequest {
     topK: defaults.topK,
     topP: topP ?? defaults.topP,
     minP: defaults.minP,
+    penaltyRepeat: defaults.penaltyRepeat,
+    penaltyLastN: defaults.penaltyLastN,
     penaltyFreq: frequencyPenalty,
     penaltyPresent: presencePenalty,
   );

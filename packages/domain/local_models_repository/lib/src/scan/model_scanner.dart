@@ -212,6 +212,8 @@ class ModelScanner {
         topK: sampling.topK,
         topP: sampling.topP,
         minP: sampling.minP,
+        penaltyRepeat: sampling.penaltyRepeat,
+        penaltyLastN: sampling.penaltyLastN,
       ),
     );
   }

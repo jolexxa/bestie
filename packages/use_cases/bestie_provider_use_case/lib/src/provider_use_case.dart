@@ -106,16 +106,20 @@ class ProviderUseCase implements CommandContribution {
     maxAgents: _resolve(_configKeys.maxAgents),
   );
 
-  /// The sampling every turn runs under, as configured right now.
+  /// The sampling every turn runs under, as configured right now. Anything
+  /// left unset is omitted so the model's own defaults apply.
   SamplingOptions get sampling => SamplingOptions(
     seed: _config.resolve(_configKeys.sampling.seed.global),
-    temperature: _config.resolve(_configKeys.sampling.temperature.global),
-    topP: _config.resolve(_configKeys.sampling.topP.global),
-    penaltyFreq: _config.resolve(_configKeys.sampling.frequencyPenalty.global),
-    penaltyPresent: _config.resolve(
-      _configKeys.sampling.presencePenalty.global,
-    ),
+    temperature: _chosen(_configKeys.sampling.temperature),
+    topP: _chosen(_configKeys.sampling.topP),
+    penaltyFreq: _chosen(_configKeys.sampling.frequencyPenalty),
+    penaltyPresent: _chosen(_configKeys.sampling.presencePenalty),
   );
+
+  double? _chosen(ConfigKey<double> key) {
+    final resolved = _config.inspect(key.global);
+    return resolved.isDefault ? null : resolved.value;
+  }
 
   ProviderStatus get status => _providers.status;
 

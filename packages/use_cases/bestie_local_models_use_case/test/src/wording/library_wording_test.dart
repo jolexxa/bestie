@@ -183,9 +183,12 @@ void main() {
           topP: 0.95,
           topK: 20,
           minP: 0,
+          penaltyRepeat: 1.05,
+          penaltyLastN: 128,
         ),
       ),
-      'temp 0.6 · top_p 0.95 · top_k 20 · min_p 0.0 (from the GGUF)',
+      'temp 0.6 · top_p 0.95 · top_k 20 · min_p 0.0 · repeat_penalty 1.05 · '
+      'repeat_last_n 128 (from the GGUF)',
     );
     expect(samplingLabel(const ModelSamplingDefaults()), isNull);
   });

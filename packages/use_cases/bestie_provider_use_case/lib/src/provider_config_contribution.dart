@@ -98,6 +98,8 @@ final _maxAgentsField = NumericField<int>(
   step: 1,
 );
 
+const _modelDefault = 'model default';
+
 final _temperatureField = NumericField<double>(
   label: 'Temperature',
   description:
@@ -106,6 +108,7 @@ final _temperatureField = NumericField<double>(
   min: 0,
   max: 2,
   step: 0.1,
+  unsetLabel: _modelDefault,
 );
 
 final _topPField = NumericField<double>(
@@ -116,6 +119,7 @@ final _topPField = NumericField<double>(
   min: 0,
   max: 1,
   step: 0.05,
+  unsetLabel: _modelDefault,
 );
 
 final _frequencyPenaltyField = NumericField<double>(
@@ -124,6 +128,7 @@ final _frequencyPenaltyField = NumericField<double>(
   min: -2,
   max: 2,
   step: 0.1,
+  unsetLabel: _modelDefault,
 );
 
 final _presencePenaltyField = NumericField<double>(
@@ -132,6 +137,7 @@ final _presencePenaltyField = NumericField<double>(
   min: -2,
   max: 2,
   step: 0.1,
+  unsetLabel: _modelDefault,
 );
 
 final _seedField = NumericField<int>(

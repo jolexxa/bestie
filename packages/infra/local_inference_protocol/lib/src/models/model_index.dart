@@ -136,6 +136,8 @@ final class ModelSamplingDefaults with ModelSamplingDefaultsMappable {
     this.topK,
     this.topP,
     this.minP,
+    this.penaltyRepeat,
+    this.penaltyLastN,
   });
 
   final double? temperature;
@@ -145,6 +147,10 @@ final class ModelSamplingDefaults with ModelSamplingDefaultsMappable {
   final double? topP;
 
   final double? minP;
+
+  final double? penaltyRepeat;
+
+  final int? penaltyLastN;
 }
 
 /// Where a local model came from.

@@ -50,6 +50,21 @@ void main() {
       expect(field.adjust(2, 5), 2);
     });
 
+    test('shows the default unless given an unset label', () {
+      expect(field.unsetLabel, isNull);
+      expect(
+        NumericField<double>(
+          label: 'Temp',
+          description: 'sampling',
+          min: 0,
+          max: 2,
+          step: 0.1,
+          unsetLabel: 'model default',
+        ).unsetLabel,
+        'model default',
+      );
+    });
+
     test('format uses step precision', () {
       expect(field.format(0.7), '0.7');
       expect(field.format(1.25), '1.3');

@@ -286,6 +286,8 @@ void main() {
               topK: 20,
               topP: 0.95,
               minP: 0.05,
+              penaltyRepeat: 1.1,
+              penaltyLastN: 128,
             ),
           );
 
@@ -297,6 +299,8 @@ void main() {
           topK: 20,
           topP: 0.95,
           minP: 0.05,
+          penaltyRepeat: 1.1,
+          penaltyLastN: 128,
           penaltyFreq: 0.1,
           penaltyPresent: 0.4,
         ),
