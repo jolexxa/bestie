@@ -75,7 +75,7 @@ Future<String?> _download(Uri url) async {
   try {
     final response = await (await client.getUrl(url)).close();
     if (response.statusCode != HttpStatus.ok) return null;
-    return utf8.decoder.bind(response).join();
+    return await utf8.decoder.bind(response).join();
   } finally {
     client.close();
   }

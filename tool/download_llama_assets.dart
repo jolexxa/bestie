@@ -271,11 +271,16 @@ Future<_Outcome?> _extract(
     // the Windows archive's permission bits and leaves files unreadable on a
     // POSIX host. Entries are flattened, which also keeps them inside
     // [destination].
-    final zip = ZipDecoder().decodeStream(InputFileStream(archive.path));
-    for (final entry in zip.files.where((entry) => entry.isFile)) {
-      File(
-        p.join(destination.path, p.basename(entry.name)),
-      ).writeAsBytesSync(entry.content as List<int>);
+    final input = InputFileStream(archive.path);
+    try {
+      final zip = ZipDecoder().decodeStream(input);
+      for (final entry in zip.files.where((entry) => entry.isFile)) {
+        File(
+          p.join(destination.path, p.basename(entry.name)),
+        ).writeAsBytesSync(entry.content as List<int>);
+      }
+    } finally {
+      input.closeSync();
     }
     return null;
   }
