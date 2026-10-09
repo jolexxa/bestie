@@ -98,8 +98,8 @@ jobs:
         with:
           os: ${{ matrix.asset_os }}
 
-      - name: Check bestie_edit
-        run: dart run melos run checks:edit --no-select
+      - name: Check Rust crates
+        run: dart run melos run checks:rust
 
       - name: Build bundle
         shell: bash

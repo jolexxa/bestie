@@ -53,10 +53,11 @@ dart run melos run ffigen_posix_linux         # POSIX Linux bindings
 dart run melos run build:spawner              # build the spawner PTY helper (Rust, POSIX only)
 dart run melos run build:sidecars             # build every Rust sidecar (brush, coreutils, ripgrep, findutils, sed, bestie_edit)
 dart run melos run build:edit                 # build just bestie_edit (also build:brush, build:coreutils, build:ripgrep, build:findutils, build:sed)
-dart run melos run checks:edit                # cargo fmt / clippy / test for the bestie_edit crate
-dart run melos run checks:guard               # cargo fmt / clippy / test for the bestie_guard sandbox crate
+dart run melos run checks:rust                # cargo fmt / clippy / test for bestie_edit, bestie_guard, spawner (dart tool/check_crates.dart edit to pick)
 dart run melos run setup                      # full fresh-clone bootstrap (host-aware; see below)
-dart run melos run checks --no-select         # full CI check sequence
+dart run melos run checks:static              # CI static job: version placeholder, format, analyze
+dart run melos run checks:test                # CI test job: Dart tests + Rust crate checks
+dart run melos run checks                     # everything CI runs, plus 100% coverage
 dart run melos run credits                    # regenerate CREDITS.md from shipped dependencies
 ```
 

@@ -17,7 +17,44 @@ runs:
         sdk: stable
         problem-matcher: false
 
+    - name: 🔑 Compute asset cache keys
+      id: keys
+      shell: bash
+      run: |
+        echo "curl=$(git rev-parse HEAD:packages/ffi/curl_impersonate_dart/third_party/curl-impersonate)" >> "$GITHUB_OUTPUT"
+        echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+
+    - name: 💾 Cache curl-impersonate assets
+      id: curl-cache
+      uses: actions/cache@v6
+      with:
+        path: packages/ffi/curl_impersonate_dart/assets/native
+        key: curl-${{ inputs.os }}-${{ steps.keys.outputs.curl }}
+
+    - name: 💾 Cache llama.cpp libraries
+      id: llama-cache
+      uses: actions/cache@v6
+      with:
+        path: packages/ffi/llama_cpp_dart/assets/native
+        key: llama-${{ inputs.os }}-${{ hashFiles('packages/ffi/llama_cpp_dart/llama_release.txt') }}
+
+    - name: 💾 Cache CA certificate bundle
+      id: cert-cache
+      uses: actions/cache@v6
+      with:
+        path: packages/ffi/curl_impersonate_dart/assets/cacert.pem
+        key: cacert-${{ steps.keys.outputs.month }}
+
+    - name: 💾 Cache the Windows console host
+      id: console-cache
+      if: inputs.os == 'windows'
+      uses: actions/cache@v6
+      with:
+        path: packages/ffi/win32_dart/assets/native/windows
+        key: openconsole-${{ hashFiles('tool/src/console_host.dart') }}
+
     - name: 🏷 Fetch curl-impersonate tags
+      if: steps.curl-cache.outputs.cache-hit != 'true'
       shell: bash
       run: git -C packages/ffi/curl_impersonate_dart/third_party/curl-impersonate fetch --tags
 
@@ -26,19 +63,22 @@ runs:
       run: dart pub get
 
     - name: ⬇️ Download curl-impersonate assets
+      if: steps.curl-cache.outputs.cache-hit != 'true'
       shell: bash
       run: dart tool/download_curl_assets.dart --os ${{ inputs.os }}
 
     - name: ⬇️ Download llama.cpp libraries
+      if: steps.llama-cache.outputs.cache-hit != 'true'
       shell: bash
       run: dart tool/download_llama_assets.dart --os ${{ inputs.os }}
 
     - name: ⬇️ Download CA certificate bundle
+      if: steps.cert-cache.outputs.cache-hit != 'true'
       shell: bash
       run: dart tool/download_cert_assets.dart
 
     - name: ⬇️ Download the Windows console host
-      if: inputs.os == 'windows'
+      if: inputs.os == 'windows' && steps.console-cache.outputs.cache-hit != 'true'
       shell: bash
       run: dart tool/download_openconsole_assets.dart
 
@@ -48,7 +88,10 @@ runs:
     - name: 💾 Cache cargo builds
       uses: Swatinem/rust-cache@v2
       with:
-        workspaces: packages/infra/bestie_edit/bestie_edit -> ../../../../build/cargo-target
+        workspaces: |
+          packages/infra/bestie_edit/bestie_edit -> ../../../../build/cargo-target
+          packages/ffi/posix_spawner/bestie_guard -> ../../../../build/cargo-target
+          packages/ffi/posix_spawner/spawner -> ../../../../build/cargo-target
         cache-targets: true
 
     - name: 🔨 Build spawner

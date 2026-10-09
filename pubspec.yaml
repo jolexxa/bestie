@@ -159,17 +159,21 @@ melos:
       description: Full fresh-clone setup — submodules, deps, native assets, sidecars, codegen.
       run: dart tool/setup.dart
 
-    checks:edit:
-      description: Format, lint, and test the bestie_edit crate.
-      run: cargo fmt --manifest-path packages/infra/bestie_edit/bestie_edit/Cargo.toml --check && cargo clippy --manifest-path packages/infra/bestie_edit/bestie_edit/Cargo.toml -- -D warnings && cargo test --manifest-path packages/infra/bestie_edit/bestie_edit/Cargo.toml
+    checks:static:
+      description: Check the version placeholder, formatting, and analysis.
+      run: dart tool/set_version.dart --check && dart run melos run format:check --no-select && dart run melos run analyze --no-select
 
-    checks:guard:
-      description: Format, lint, and test the bestie_guard crate.
-      run: cargo fmt --manifest-path packages/ffi/posix_spawner/bestie_guard/Cargo.toml --check && cargo clippy --manifest-path packages/ffi/posix_spawner/bestie_guard/Cargo.toml --tests -- -D warnings && cargo test --manifest-path packages/ffi/posix_spawner/bestie_guard/Cargo.toml
+    checks:rust:
+      description: Format, lint, and test bestie's Rust crates (bestie_edit, bestie_guard, spawner).
+      run: dart tool/check_crates.dart
+
+    checks:test:
+      description: Run the Dart tests and the Rust crate checks.
+      run: dart run melos run test --no-select && dart run melos run checks:rust
 
     checks:
-      description: Run the full CI-equivalent check sequence.
-      run: dart tool/set_version.dart --check && dart run melos run format:check --no-select && dart run melos run analyze --no-select && dart run melos run test --no-select && dart run melos run coverage --no-select && dart run melos run checks:edit --no-select && dart run melos run checks:guard --no-select
+      description: Run the CI checks plus local 100% coverage.
+      run: dart run melos run checks:static && dart run melos run coverage --no-select && dart run melos run checks:rust
 
     clean:
       description: Remove all .dart_tool directories (clears platform-specific caches that break across OSes).

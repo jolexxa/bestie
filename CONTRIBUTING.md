@@ -67,10 +67,10 @@ Melos owns workspace orchestration. Run commands from the repo root; the root `p
 dart run melos run test --no-select           # run Dart tests
 dart run melos run analyze --no-select        # dart analyze --fatal-infos
 dart run melos run format --no-select         # format root tools and packages
-dart run melos run checks --no-select         # full CI check sequence
+dart run melos run checks                     # everything CI runs, plus coverage
 ```
 
-Run `dart run melos run checks --no-select` before pushing. It mirrors what CI runs.
+Run `dart run melos run checks` before pushing. CI runs `checks:static` and `checks:test`, and `checks` adds 100% coverage on top.
 
 [Dart SDK]: https://dart.dev/get-dart
 [FVM]: https://fvm.app/
