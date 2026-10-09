@@ -623,4 +623,24 @@ void main() {
       expect(files.pathOf('/elsewhere/notes.txt'), '/elsewhere/notes.txt');
     });
   });
+
+  group('realPathOf', () {
+    setUp(() {
+      fileSystem.directory('/elsewhere').createSync();
+      fileSystem.file('/elsewhere/notes.txt').createSync();
+      fileSystem.link('/work/notes.txt').createSync('/elsewhere/notes.txt');
+    });
+
+    test('follows a relative path from the working directory', () {
+      expect(files.realPathOf('notes.txt'), '/elsewhere/notes.txt');
+    });
+
+    test('follows an absolute path where it points', () {
+      expect(files.realPathOf('/work/notes.txt'), '/elsewhere/notes.txt');
+    });
+
+    test('names a file that does not exist yet where it would land', () {
+      expect(files.realPathOf('drafts/new.txt'), '/work/drafts/new.txt');
+    });
+  });
 }

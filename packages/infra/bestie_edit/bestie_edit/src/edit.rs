@@ -20,6 +20,14 @@ pub fn edit(path: &str, old: &str, new: &str, replace_all: bool) -> Result<Reply
         Ok(lock) => lock,
         Err(error) => return refused(error, path),
     };
+    // Renaming over a symlink would replace the link rather than edit the
+    // file it leads to.
+    if fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
+        return Err(Failure(format!(
+            "{}: `path` must not be a symlink",
+            path.display()
+        )));
+    }
     let metadata = match fs::metadata(path) {
         Ok(metadata) => metadata,
         Err(error) => return refused(error, path),
@@ -124,6 +132,25 @@ mod tests {
         assert!(!lock_path.exists());
         edit(&file.path(), "zero", "0", false).unwrap();
         assert!(!lock_path.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_to_edit_through_a_symlink() {
+        let dir = ScratchDir::new();
+        let target = dir.join("real.md");
+        let link = dir.join("link.md");
+        fs::write(&target, "one\n").unwrap();
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+
+        let failure = edit(&link, "one", "1", false).unwrap_err();
+
+        assert!(failure.0.contains("must not be a symlink"), "{}", failure.0);
+        assert!(fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert_eq!(fs::read_to_string(&target).unwrap(), "one\n");
     }
 
     #[test]

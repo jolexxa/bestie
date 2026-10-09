@@ -1,4 +1,6 @@
+import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
+import 'package:real_paths/real_paths.dart';
 
 /// Resolves the current user's home directory from [environment].
 String resolveHomeDir(Map<String, String> environment) {
@@ -7,6 +9,10 @@ String resolveHomeDir(Map<String, String> environment) {
   if (home == null) throw StateError('Unable to resolve user home directory.');
   return home;
 }
+
+/// Resolves the directory the process was started in, through any symlinks.
+String resolveWorkingDirectory(FileSystem fileSystem) =>
+    RealPaths(fileSystem).resolve(fileSystem.currentDirectory.path);
 
 /// Resolves the temporary directory a POSIX process inherits from
 /// [environment]: `TMPDIR`, else `/tmp`. macOS ends `TMPDIR` with a slash;

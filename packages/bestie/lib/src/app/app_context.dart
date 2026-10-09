@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:ffi';
-import 'dart:io' show Directory;
 
 import 'package:agent_provider_remote/agent_provider_remote.dart';
 import 'package:agent_repository/agent_repository.dart';
@@ -223,7 +222,6 @@ class AppContext {
     required OSPlatformRepository platformRepository,
     required AppTerminalEnvironmentUseCase appTerminalEnvironmentUseCase,
     Clock clock = const Clock(),
-    String? directory,
   }) async {
     final platform = platformRepository.platform;
     final hostEnvironment = hostPlatform.environment;
@@ -358,7 +356,11 @@ class AppContext {
         'recovered from a corrupt config; backup at ${loaded.backupPath}',
       );
     }
-    final workingDirectory = directory ?? Directory.current.path;
+    final workingDirectory = platform.workingDirectory;
+    final files = FilesDataSource(
+      fileSystem: fileSystem,
+      workingDirectory: workingDirectory,
+    );
 
     final tools = [
       ...utilityToolDefinitions,
@@ -424,6 +426,7 @@ class AppContext {
       editorPath: editorPath,
       processHost: processHostLocation,
       sandboxes: sandboxRepository,
+      files: files,
     );
 
     final agentRepository = AgentRepository(
@@ -523,10 +526,7 @@ class AppContext {
 
     final shellRepository = ShellRepository(
       host: terminalHost,
-      files: FilesDataSource(
-        fileSystem: fileSystem,
-        workingDirectory: workingDirectory,
-      ),
+      files: files,
     );
 
     final shellEnvironment = ShellEnvironment(

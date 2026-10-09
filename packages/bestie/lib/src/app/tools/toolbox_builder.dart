@@ -32,6 +32,7 @@ UtilityToolsUseCase buildUtilityTools({
   required String editorPath,
   required ProcessHostLocation processHost,
   required SandboxRepository sandboxes,
+  required FilesDataSource files,
 }) {
   final workerConfig = ToolWorkerConfig(
     workingDirectory: workingDirectory,
@@ -53,7 +54,7 @@ UtilityToolsUseCase buildUtilityTools({
     config: config,
     configKeys: configKeys,
     sandboxes: sandboxes,
-    workingDirectory: workingDirectory,
+    workspacePaths: WorkspacePaths(files: files),
   );
 }
 

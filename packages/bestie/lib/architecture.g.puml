@@ -135,6 +135,7 @@ package "bestie" {
   class WebSearchTools << repository >>
   class WikimediaClient << dataSource >>
   class WikipediaTools << repository >>
+  class WorkspacePaths << repository >>
 
   AgentJournal --> ConversationStore
   AgentRepository --> ConversationStore
@@ -215,12 +216,14 @@ package "bestie" {
   UtilityToolsUseCase --> ConfigRepository
   UtilityToolsUseCase --> SandboxRepository
   UtilityToolsUseCase --> ToolWorkerPool
+  UtilityToolsUseCase --> WorkspacePaths
   WebFetchTools --> FilesDataSource
   WebFetchTools --> WebPageClient
   WebSearchTools --> FilesDataSource
   WebSearchTools --> MetasearchClient
   WikipediaTools --> FilesDataSource
   WikipediaTools --> WikimediaClient
+  WorkspacePaths --> FilesDataSource
 }
 
 @enduml

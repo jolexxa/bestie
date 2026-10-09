@@ -1,4 +1,5 @@
 import 'package:file/file.dart';
+import 'package:real_paths/real_paths.dart';
 
 const _globChars = {'*', '?', '[', ']'};
 
@@ -91,13 +92,7 @@ class GlobExpander {
 
   /// Fully resolves symlinks in [path]; null if it does not exist or the chain
   /// breaks.
-  String? canonicalize(String path) {
-    try {
-      return _fs.file(path).resolveSymbolicLinksSync();
-    } on FileSystemException {
-      return null;
-    }
-  }
+  String? canonicalize(String path) => RealPaths(_fs).canonicalize(path);
 
   List<String>? _readDir(String path) {
     if (!_fs.isDirectorySync(path)) return null;

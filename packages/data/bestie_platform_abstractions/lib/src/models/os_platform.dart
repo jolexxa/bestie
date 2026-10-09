@@ -19,6 +19,7 @@ abstract class OSPlatform {
     required this.architecture,
     required this.homeDir,
     required this.tempDir,
+    required this.workingDirectory,
     required this.bestieDir,
     required this.configFile,
     required this.conversationsDir,
@@ -34,6 +35,10 @@ abstract class OSPlatform {
   /// The temporary directory processes on this host inherit — what `TMPDIR`
   /// (or `TMP`/`TEMP`) names, or the platform default when unset.
   final String tempDir;
+
+  /// The directory Bestie was started in, followed through any symlinks so
+  /// every part of the app spells it the same way.
+  final String workingDirectory;
 
   final String bestieDir;
   final String configFile;
@@ -77,6 +82,7 @@ class MacOSPlatform extends OSPlatform {
     required super.architecture,
     required super.homeDir,
     required super.tempDir,
+    required super.workingDirectory,
     required super.bestieDir,
     required super.configFile,
     required super.conversationsDir,
@@ -92,6 +98,7 @@ class WindowsPlatform extends OSPlatform {
     required super.architecture,
     required super.homeDir,
     required super.tempDir,
+    required super.workingDirectory,
     required super.bestieDir,
     required super.configFile,
     required super.conversationsDir,
@@ -107,6 +114,7 @@ class LinuxPlatform extends OSPlatform {
     required super.architecture,
     required super.homeDir,
     required super.tempDir,
+    required super.workingDirectory,
     required super.bestieDir,
     required super.configFile,
     required super.conversationsDir,

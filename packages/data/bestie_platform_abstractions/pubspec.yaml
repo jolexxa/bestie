@@ -12,6 +12,8 @@ dependencies:
   file: ^7.0.1
   intentions: ^0.1.0
   path: ^1.9.1
+  real_paths:
+    path: ../../infra/real_paths
 
 dev_dependencies:
   mocktail: ^1.0.4

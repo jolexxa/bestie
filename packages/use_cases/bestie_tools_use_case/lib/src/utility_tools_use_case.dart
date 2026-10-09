@@ -6,8 +6,8 @@ import 'package:bestie_tools_use_case/src/tools_config_keys.dart';
 import 'package:bestie_tools_use_case/src/worker/tool_work_request.dart';
 import 'package:bestie_tools_use_case/src/worker/tool_worker_pool.dart';
 import 'package:config_repository/config_repository.dart';
+import 'package:fs_tools/fs_tools.dart';
 import 'package:intentions/intentions.dart';
-import 'package:path/path.dart' as p;
 import 'package:sandbox_repository/sandbox_repository.dart';
 import 'package:tool_protocol/tool_protocol.dart';
 
@@ -20,12 +20,12 @@ class UtilityToolsUseCase implements ToolResponder {
     required ConfigRepository config,
     required ToolsConfigKeys configKeys,
     required SandboxRepository sandboxes,
-    required String workingDirectory,
+    required WorkspacePaths workspacePaths,
   }) : _pool = pool,
        _config = config,
        _configKeys = configKeys,
        _sandboxes = sandboxes,
-       _workingDirectory = workingDirectory {
+       _workspacePaths = workspacePaths {
     _resize(_config.resolve(_configKeys.concurrentTools.global));
     _concurrencySub = _config
         .watch(_configKeys.concurrentTools.global)
@@ -37,8 +37,7 @@ class UtilityToolsUseCase implements ToolResponder {
   final ToolsConfigKeys _configKeys;
   final SandboxRepository _sandboxes;
 
-  /// Where a relative path given to a tool is resolved from.
-  final String _workingDirectory;
+  final WorkspacePaths _workspacePaths;
   late final StreamSubscription<int> _concurrencySub;
 
   @override
@@ -67,12 +66,12 @@ class UtilityToolsUseCase implements ToolResponder {
     return _pool.run(_confine(resolved), lane: lane);
   }
 
-  /// The call's `path`, absolute and normalized, so the lane and the file the
+  /// The file the call's `path` really reaches, so the lane and the file the
   /// editor touches are one and the same.
   String? _laneFor(ToolCallInvocation invocation) =>
       switch (invocation.arguments['path']) {
-        final String path when path.isNotEmpty => p.normalize(
-          p.join(_workingDirectory, path),
+        final String path when path.isNotEmpty => _workspacePaths.targetOf(
+          path,
         ),
         _ => null,
       };

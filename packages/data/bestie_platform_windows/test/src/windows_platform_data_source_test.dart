@@ -316,4 +316,16 @@ void main() {
       ]),
     );
   });
+
+  test('resolves the working directory through symlinks', () {
+    final fs = MemoryFileSystem.test();
+    _createAssets(fs, _mirror(fs, bundled: false));
+    fs.directory('/real/project').createSync(recursive: true);
+    fs.link('/linked').createSync('/real');
+    fs.currentDirectory = '/linked/project';
+
+    final platform = _dataSource(fs, bundled: false).loadPlatform();
+
+    expect(platform.workingDirectory, '/real/project');
+  });
 }

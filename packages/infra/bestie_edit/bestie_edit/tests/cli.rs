@@ -175,3 +175,34 @@ fn concurrent_creates_of_one_path_elect_one() {
     };
     assert_eq!(written, winner);
 }
+
+#[cfg(unix)]
+#[test]
+fn refuses_to_edit_through_a_symlink() {
+    let dir = scratch("symlinked");
+    fs::create_dir_all(&dir).unwrap();
+    let target = dir.join("real.md");
+    let link = dir.join("link.md");
+    fs::write(&target, "one\n").unwrap();
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+    let request = serde_json::json!({
+        "action": "edit",
+        "path": link.to_string_lossy(),
+        "old": "one",
+        "new": "1",
+    });
+
+    let (code, stdout, stderr) = run(&request.to_string());
+    let still_linked = fs::symlink_metadata(&link)
+        .unwrap()
+        .file_type()
+        .is_symlink();
+    let contents = fs::read_to_string(&target).unwrap();
+    let _ = fs::remove_dir_all(&dir);
+
+    assert_eq!(code, 2);
+    assert!(stdout.is_empty());
+    assert!(stderr.contains("must not be a symlink"), "{stderr}");
+    assert!(still_linked);
+    assert_eq!(contents, "one\n");
+}

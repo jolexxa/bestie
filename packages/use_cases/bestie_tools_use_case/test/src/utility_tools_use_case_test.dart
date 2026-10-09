@@ -4,6 +4,7 @@ import 'package:bestie_tools_use_case/bestie_tools_use_case.dart';
 import 'package:config_repository/config_repository.dart';
 import 'package:config_repository/testing.dart';
 import 'package:files_data_source/files_data_source.dart';
+import 'package:fs_tools/fs_tools.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:process_host/process_host.dart';
 import 'package:sandbox_repository/sandbox_repository.dart';
@@ -13,6 +14,8 @@ import 'package:tool_protocol/tool_protocol.dart';
 class _MockToolWorkerPool extends Mock implements ToolWorkerPool {}
 
 class _MockSandboxRepository extends Mock implements SandboxRepository {}
+
+class _MockWorkspacePaths extends Mock implements WorkspacePaths {}
 
 class _FakeSandbox implements Sandbox {}
 
@@ -69,6 +72,7 @@ _Queued _queued(_MockToolWorkerPool pool) => _Queued(
 void main() {
   late _MockToolWorkerPool pool;
   late _MockSandboxRepository sandboxes;
+  late _MockWorkspacePaths workspacePaths;
   late FakeConfigRepository config;
 
   UtilityToolsUseCase useCaseWith() => UtilityToolsUseCase(
@@ -76,7 +80,7 @@ void main() {
     config: config,
     configKeys: _configKeys(),
     sandboxes: sandboxes,
-    workingDirectory: '/work',
+    workspacePaths: workspacePaths,
   );
 
   setUpAll(() {
@@ -90,6 +94,8 @@ void main() {
   setUp(() {
     pool = _MockToolWorkerPool();
     sandboxes = _MockSandboxRepository();
+    workspacePaths = _MockWorkspacePaths();
+    when(() => workspacePaths.targetOf(any())).thenReturn('/work/a.md');
     config = FakeConfigRepository();
     when(() => pool.close()).thenAnswer((_) async {});
     when(
@@ -196,43 +202,41 @@ void main() {
       });
     }
 
-    group('resolves the path a write names', () {
-      const cases = {
-        'a.md': '/work/a.md',
-        './a.md': '/work/a.md',
-        'lib/../a.md': '/work/a.md',
-        '/elsewhere/./b.md': '/elsewhere/b.md',
-      };
-      for (final MapEntry(key: given, value: resolved) in cases.entries) {
-        test('$given becomes $resolved, and the lane it queues in', () async {
-          await useCaseWith().respond(
-            _invocation(
-              'edit',
-              arguments: {'path': given, 'old_string': 'x', 'new_string': 'y'},
-            ),
-          );
+    group('the file a write names', () {
+      test('is where it really lands, and the lane it queues in', () async {
+        when(() => workspacePaths.targetOf('link.md')).thenReturn('/real.md');
 
-          final queued = _queued(pool);
-          final request = await queued.request;
-          expect(queued.lane, resolved);
-          expect(request.invocation.arguments, {
-            'path': resolved,
-            'old_string': 'x',
-            'new_string': 'y',
-          });
-          expect(request.invocation.callId, 'call-1');
-          expect(request.invocation.toolName, 'edit');
-          expect(request.invocation.outputPath, 'output');
-          expect(request.invocation.maxOutputChars, 4000);
+        await useCaseWith().respond(
+          _invocation(
+            'edit',
+            arguments: {
+              'path': 'link.md',
+              'old_string': 'x',
+              'new_string': 'y',
+            },
+          ),
+        );
+
+        final queued = _queued(pool);
+        final request = await queued.request;
+        expect(queued.lane, '/real.md');
+        expect(request.invocation.arguments, {
+          'path': '/real.md',
+          'old_string': 'x',
+          'new_string': 'y',
         });
-      }
+        expect(request.invocation.callId, 'call-1');
+        expect(request.invocation.toolName, 'edit');
+        expect(request.invocation.outputPath, 'output');
+        expect(request.invocation.maxOutputChars, 4000);
+      });
 
       for (final arguments in <Map<String, Object?>>[
         {},
         {'path': ''},
         {'path': 7},
       ]) {
-        test('leaves $arguments for the tool to reject, in no lane', () async {
+        test('is left as $arguments for the tool to reject', () async {
           final invocation = _invocation('create', arguments: arguments);
 
           await useCaseWith().respond(invocation);
@@ -240,8 +244,17 @@ void main() {
           final queued = _queued(pool);
           expect(queued.lane, isNull);
           expect((await queued.request).invocation, invocation);
+          verifyNever(() => workspacePaths.targetOf(any()));
         });
       }
+
+      test('is never looked up for a tool that does not write', () async {
+        await useCaseWith().respond(
+          _invocation('web_fetch', arguments: {'path': 'a.md'}),
+        );
+
+        verifyNever(() => workspacePaths.targetOf(any()));
+      });
     });
 
     test('answers a tool it does not offer without taking a slot', () async {
