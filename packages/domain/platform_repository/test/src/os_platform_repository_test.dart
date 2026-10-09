@@ -18,6 +18,7 @@ const _platform = LinuxPlatform(
   architecture: OSArchitecture.linuxX64,
   homeDir: '/home/cow',
   tempDir: '/tmp',
+  workingDirectory: '/work',
   bestieDir: '/home/cow/.bestie',
   configFile: '/home/cow/.bestie/bestie.json',
   conversationsDir: '/home/cow/.bestie/conversations',

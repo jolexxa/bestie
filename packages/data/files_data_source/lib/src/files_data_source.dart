@@ -13,6 +13,7 @@ import 'package:files_data_source/src/record_file.dart';
 import 'package:files_data_source/src/utf8_window.dart';
 import 'package:intentions/intentions.dart';
 import 'package:path/path.dart' as p;
+import 'package:real_paths/real_paths.dart';
 import 'package:tool_protocol/tool_protocol.dart';
 
 /// Bytes sampled when deciding whether a file holds text.
@@ -44,6 +45,11 @@ final class FilesDataSource {
   /// [path] spelled the way this filesystem spells it, whether or not
   /// anything is there.
   String pathOf(String path) => _absolute(_resolve(path));
+
+  /// [path] made absolute and followed through every symlink as far as the
+  /// filesystem goes, so two names for one file come out the same.
+  String realPathOf(String path) =>
+      RealPaths(_fileSystem).resolve(_path.join(_workingDirectory, path));
 
   /// What sits at [path], or null when nothing does. A symlink is named as
   /// one, but its size, times, and mode are the target's.

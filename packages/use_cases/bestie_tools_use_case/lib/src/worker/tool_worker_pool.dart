@@ -8,6 +8,9 @@ import 'package:intentions/intentions.dart';
 import 'package:tool_protocol/tool_protocol.dart';
 
 /// A bounded number of concurrency slots for tool calls, with a queue in front.
+///
+/// Calls that share a lane run one at a time, in the order they were queued;
+/// calls in different lanes, or in none, run side by side.
 @PartOf(UtilityToolsUseCase)
 class ToolWorkerPool {
   ToolWorkerPool({
@@ -44,14 +47,20 @@ class ToolWorkerPool {
   /// Workers alive or on their way, which is what [size] bounds.
   int get _liveCount => _idle.length + _busy.length + _spawning;
 
-  /// Queues [request] and hands back the job that will settle with it.
-  Job run(ToolWorkRequest request) {
+  /// Queues a call in [lane] now, to run once [start] has prepared it, and
+  /// hands back the job that will settle with it.
+  Job run(Future<ToolWorkStart> start, {String? lane}) {
     if (_closed) {
       return Job.failed('The tool system is shutting down.');
     }
-    final pending = _PendingCall(request, _stop);
+    final pending = _PendingCall(lane, _stop);
     _waiting.add(pending);
-    _pump();
+    unawaited(
+      start.then(
+        (started) => _started(pending, started),
+        onError: (Object error) => _refuse(pending, '$error'),
+      ),
+    );
     return pending.job;
   }
 
@@ -73,22 +82,47 @@ class ToolWorkerPool {
     await Future.wait(workers.map((worker) => worker.terminate()));
   }
 
-  /// Gives waiting calls a worker for as long as there are both.
-  void _pump() {
-    while (!_closed && _waiting.isNotEmpty) {
-      if (_idle.isNotEmpty) {
-        _dispatch(_idle.removeLast(), _waiting.removeFirst());
-        continue;
-      }
-      if (_liveCount < _size) {
-        unawaited(_spawnFor(_waiting.removeFirst()));
-        continue;
-      }
-      return;
+  void _started(_PendingCall pending, ToolWorkStart start) {
+    switch (start) {
+      case ToolWorkReady(:final request):
+        pending.request = request;
+        _pump();
+      case ToolWorkRefused(:final message):
+        _refuse(pending, message);
     }
   }
 
-  Future<void> _spawnFor(_PendingCall pending) async {
+  /// Answers a call that will never run, freeing its place in its lane.
+  void _refuse(_PendingCall pending, String message) {
+    if (pending.isSettled) return;
+    _waiting.remove(pending);
+    pending.job.complete(JobFailed(message));
+    _pump();
+  }
+
+  /// Gives ready calls a worker for as long as there are both, skipping any
+  /// whose lane an earlier call still holds.
+  void _pump() {
+    if (_closed) return;
+    final heldLanes = {for (final call in _running) ?call.lane};
+    for (final pending in [..._waiting]) {
+      final lane = pending.lane;
+      final blocked = lane != null && !heldLanes.add(lane);
+      final request = pending.request;
+      if (blocked || request == null) continue;
+      if (_idle.isEmpty && _liveCount >= _size) return;
+
+      _waiting.remove(pending);
+      _running.add(pending);
+      if (_idle.isNotEmpty) {
+        _dispatch(_idle.removeLast(), pending, request);
+      } else {
+        unawaited(_spawnFor(pending, request));
+      }
+    }
+  }
+
+  Future<void> _spawnFor(_PendingCall pending, ToolWorkRequest request) async {
     _spawning++;
     final result = await _spawnWorker();
     _spawning--;
@@ -99,8 +133,9 @@ class ToolWorkerPool {
           _release(worker);
           return;
         }
-        _dispatch(worker, pending);
+        _dispatch(worker, pending, request);
       case ToolWorkerCreateFailed(:final message):
+        _running.remove(pending);
         pending.job.complete(
           JobFailed('Could not start a tool worker: $message'),
         );
@@ -110,12 +145,15 @@ class ToolWorkerPool {
 
   /// Only ever reached with a call still waiting on an answer: a stopped one
   /// leaves the queue before it settles, and the spawn path checks first.
-  void _dispatch(ToolWorker worker, _PendingCall pending) {
+  void _dispatch(
+    ToolWorker worker,
+    _PendingCall pending,
+    ToolWorkRequest request,
+  ) {
     _busy.add(worker);
-    _running.add(pending);
     pending.worker = worker;
     unawaited(
-      worker.run(pending.request).then((outcome) {
+      worker.run(request).then((outcome) {
         _running.remove(pending);
         // A stopped call has already answered itself and dropped its worker.
         if (pending.isSettled) return;
@@ -155,12 +193,16 @@ class ToolWorkerPool {
 
 /// One queued or running call, and the job standing in for its answer.
 final class _PendingCall {
-  _PendingCall(this.request, void Function(_PendingCall) stop) {
+  _PendingCall(this.lane, void Function(_PendingCall) stop) {
     job = _PooledJob(() => stop(this));
   }
 
-  final ToolWorkRequest request;
+  /// Calls sharing a lane run one at a time, in the order they were queued.
+  final String? lane;
   late final _PooledJob job;
+
+  /// What to run, once the call has been prepared.
+  ToolWorkRequest? request;
 
   /// The worker running this call, once it has one.
   ToolWorker? worker;

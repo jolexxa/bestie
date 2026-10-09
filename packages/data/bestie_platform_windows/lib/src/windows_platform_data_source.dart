@@ -91,6 +91,7 @@ class WindowsPlatformDataSource {
       architecture: OSArchitecture.windowsX64,
       homeDir: homeDir,
       tempDir: resolveWindowsTempDir(platform.environment, homeDir: homeDir),
+      workingDirectory: resolveWorkingDirectory(fileSystem),
       bestieDir: bestieDir,
       configFile: configFileFor(bestieDir, p.windows),
       conversationsDir: conversationsDirFor(bestieDir, p.windows),

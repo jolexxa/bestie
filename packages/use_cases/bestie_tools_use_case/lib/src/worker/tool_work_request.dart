@@ -14,3 +14,25 @@ final class ToolWorkRequest {
   /// Absent when the call runs unconfined.
   final Sandbox? sandbox;
 }
+
+/// What a queued tool call turned out to need once it could be prepared.
+@PartOf(UtilityToolsUseCase)
+sealed class ToolWorkStart {
+  const ToolWorkStart();
+}
+
+/// The call is ready to hand to a worker.
+@PartOf(UtilityToolsUseCase)
+final class ToolWorkReady extends ToolWorkStart {
+  const ToolWorkReady(this.request);
+
+  final ToolWorkRequest request;
+}
+
+/// The call cannot run, and [message] says why.
+@PartOf(UtilityToolsUseCase)
+final class ToolWorkRefused extends ToolWorkStart {
+  const ToolWorkRefused(this.message);
+
+  final String message;
+}

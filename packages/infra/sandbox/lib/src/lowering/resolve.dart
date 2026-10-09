@@ -1,4 +1,5 @@
 import 'package:file/file.dart';
+import 'package:real_paths/real_paths.dart';
 import 'package:sandbox/src/lowering/glob.dart';
 import 'package:sandbox/src/lowering/resolved_spec.dart';
 import 'package:sandbox/src/sandbox_spec.dart';
@@ -57,11 +58,5 @@ class SpecResolver {
     return result;
   }
 
-  String? _canonicalize(String path) {
-    try {
-      return _fs.file(path).resolveSymbolicLinksSync();
-    } on FileSystemException {
-      return null;
-    }
-  }
+  String? _canonicalize(String path) => RealPaths(_fs).canonicalize(path);
 }

@@ -67,6 +67,7 @@ class MacOSPlatformDataSource {
       architecture: OSArchitecture.macosArm64,
       homeDir: homeDir,
       tempDir: resolvePosixTempDir(platform.environment),
+      workingDirectory: resolveWorkingDirectory(fileSystem),
       bestieDir: bestieDir,
       configFile: configFileFor(bestieDir, p.posix),
       conversationsDir: conversationsDirFor(bestieDir, p.posix),
