@@ -1,0 +1,23 @@
+name: local_inference_protocol
+description: >-
+  The wire contract between bestie and its local inference server: the
+  extensions to the OpenAI protocol, the lock file, and the model index.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  dart_mappable: ^4.3.0
+  llm_model_profiles:
+    path: ../llm_model_profiles
+
+dev_dependencies:
+  build_runner: ^2.4.12
+  coverage: ^1.9.0
+  dart_mappable_builder: ^4.3.0
+  test: ^1.25.0
+  very_good_analysis: ^10.0.0

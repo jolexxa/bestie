@@ -1,0 +1,285 @@
+import 'package:llm_model_templates/llm_model_templates.dart';
+import 'package:test/test.dart';
+import 'package:tool_protocol/tool_protocol.dart';
+
+void main() {
+  group('Qwen25PromptFormatter', () {
+    const formatter = Qwen25PromptFormatter();
+
+    test('uses the first system message when tools are present', () {
+      final output = formatter.format(
+        messages: const <PromptMessage>[
+          PromptSystemMessage('System header'),
+          PromptUserMessage('Hi'),
+        ],
+        tools: const <PromptTool>[
+          PromptTool(
+            name: 'search',
+            description: 'Search',
+            parameters: <String, Object?>{},
+          ),
+        ],
+        reasoningMode: 'on',
+      );
+
+      expect(output, contains('System header'));
+    });
+
+    test('uses the first system message without tools', () {
+      final output = formatter.format(
+        messages: const <PromptMessage>[
+          PromptSystemMessage('System only'),
+          PromptUserMessage('Hi'),
+        ],
+        tools: const <PromptTool>[],
+        reasoningMode: 'on',
+      );
+
+      expect(output, contains('System only'));
+      expect(output, contains('<|im_start|>system'));
+    });
+
+    test('emits tool instructions with plain tool schemas', () {
+      final output = formatter.format(
+        messages: const <PromptMessage>[
+          PromptUserMessage('Hi'),
+        ],
+        tools: const <PromptTool>[
+          PromptTool(
+            name: 'search',
+            description: 'Search',
+            parameters: <String, Object?>{},
+          ),
+        ],
+        reasoningMode: 'on',
+      );
+
+      expect(output, contains('# Tools'));
+      expect(output, contains('"name":"search"'));
+      expect(output, isNot(contains('"type":"function"')));
+      expect(output, contains('<tool_call>'));
+      expect(output, contains('"name": <function-name>'));
+      expect(output, isNot(contains('"id": <tool-call-id>')));
+    });
+
+    test('uses the default system prompt when none is provided', () {
+      final output = formatter.format(
+        messages: const <PromptMessage>[
+          PromptUserMessage('Hello'),
+        ],
+        tools: const <PromptTool>[],
+        reasoningMode: 'on',
+      );
+
+      expect(
+        output,
+        contains('You are Qwen, created by Alibaba Cloud.'),
+      );
+    });
+
+    test('includes non-leading system messages in the prompt', () {
+      final output = formatter.format(
+        messages: const <PromptMessage>[
+          PromptUserMessage('Hi'),
+          PromptSystemMessage('System after user'),
+        ],
+        tools: const <PromptTool>[],
+        reasoningMode: 'on',
+      );
+
+      expect(output, contains('System after user'));
+      expect(output, contains('<|im_start|>system'));
+    });
+
+    test('appends an assistant prefill after the generation prompt', () {
+      final prompt = formatter.format(
+        messages: const [PromptUserMessage('Hi')],
+        tools: const [],
+        reasoningMode: 'off',
+        assistantPrefill: '## Goal\n',
+      );
+      expect(prompt, endsWith('<|im_start|>assistant\n## Goal\n'));
+    });
+
+    test('formats assistant messages without tool calls', () {
+      final output = formatter.format(
+        messages: const <PromptMessage>[
+          PromptAssistantMessage(content: 'Plain response'),
+        ],
+        tools: const <PromptTool>[],
+        reasoningMode: 'on',
+      );
+
+      expect(output, contains('<|im_start|>assistant'));
+      expect(output, contains('Plain response'));
+      expect(output, contains('<|im_end|>'));
+    });
+
+    test('omits empty assistant content when tool calls are present', () {
+      final output = formatter.format(
+        messages: const <PromptMessage>[
+          PromptAssistantMessage(
+            toolCalls: <ToolCall>[
+              ToolCallDefault(
+                id: 'ignored',
+                name: 'lookup',
+                arguments: <String, Object?>{'id': 2},
+              ),
+            ],
+          ),
+        ],
+        tools: const <PromptTool>[],
+        reasoningMode: 'on',
+      );
+
+      final assistantIndex = output.indexOf('<|im_start|>assistant');
+      final toolIndex = output.indexOf('<tool_call>');
+      expect(assistantIndex, lessThan(toolIndex));
+    });
+
+    test('formats assistant tool calls without ids', () {
+      final output = formatter.format(
+        messages: const <PromptMessage>[
+          PromptAssistantMessage(
+            content: 'Checking.',
+            toolCalls: <ToolCall>[
+              ToolCallDefault(
+                id: 'ignored',
+                name: 'lookup',
+                arguments: <String, Object?>{'id': 1},
+              ),
+            ],
+          ),
+        ],
+        tools: const <PromptTool>[],
+        reasoningMode: 'on',
+      );
+
+      expect(output, contains('<tool_call>'));
+      expect(output, contains('"name": "lookup"'));
+      expect(output, contains('"arguments": {"id":1}'));
+      expect(output, isNot(contains('"id":"ignored"')));
+      expect(output, isNot(contains('"id": "ignored"')));
+    });
+
+    test('wraps a single tool response in its own user block', () {
+      final output = formatter.format(
+        messages: const <PromptMessage>[
+          PromptToolMessage(
+            toolCallId: '',
+            name: 'unknown',
+            content: 'Only tool',
+          ),
+        ],
+        tools: const <PromptTool>[],
+        reasoningMode: 'on',
+      );
+
+      expect(output, contains('<|im_start|>user'));
+      expect(output, contains('<|im_end|>'));
+      expect(output, contains('<tool_response>'));
+    });
+
+    test('groups tool responses in a single user block', () {
+      final output = formatter.format(
+        messages: const <PromptMessage>[
+          PromptToolMessage(toolCallId: '', name: 'unknown', content: 'A'),
+          PromptToolMessage(toolCallId: '', name: 'unknown', content: 'B'),
+        ],
+        tools: const <PromptTool>[],
+        reasoningMode: 'on',
+      );
+
+      final startCount = _count(output, '<|im_start|>user');
+      final responseCount = _count(output, '<tool_response>');
+      final endCount = _count(output, '<|im_end|>');
+
+      expect(startCount, 1);
+      expect(responseCount, 2);
+      expect(endCount, greaterThanOrEqualTo(1));
+    });
+
+    test('exposes stop sequences and BOS setting', () {
+      expect(
+        formatter.stopSequences,
+        const <String>['<|im_end|>', '<|im_start|>'],
+      );
+      expect(formatter.addBos, isTrue);
+    });
+
+    test('formats assistant tool calls with content and closes the block', () {
+      final output = formatter.format(
+        messages: const <PromptMessage>[
+          PromptAssistantMessage(
+            content: 'Working',
+            toolCalls: <ToolCall>[
+              ToolCallDefault(
+                id: 'ignored',
+                name: 'search',
+                arguments: <String, Object?>{'q': 'cows'},
+              ),
+              ToolCallDefault(
+                id: 'ignored-2',
+                name: 'lookup',
+                arguments: <String, Object?>{'id': 2},
+              ),
+            ],
+          ),
+        ],
+        tools: const <PromptTool>[],
+        reasoningMode: 'on',
+      );
+
+      expect(output, contains('Working'));
+      expect(_count(output, '<tool_call>'), 2);
+      expect(output, contains('<|im_end|>'));
+    });
+
+    test('closes tool response blocks before the next user message', () {
+      final output = formatter.format(
+        messages: const <PromptMessage>[
+          PromptUserMessage('Hi'),
+          PromptToolMessage(
+            toolCallId: '',
+            name: 'unknown',
+            content: 'Tool response',
+          ),
+          PromptUserMessage('Thanks'),
+        ],
+        tools: const <PromptTool>[],
+        reasoningMode: 'on',
+      );
+
+      final toolResponseIndex = output.indexOf('<tool_response>');
+      final endIndex = output.indexOf('<|im_end|>', toolResponseIndex);
+      final nextUserIndex = output.indexOf('<|im_start|>user', endIndex + 1);
+      expect(toolResponseIndex, greaterThanOrEqualTo(0));
+      expect(endIndex, greaterThan(toolResponseIndex));
+      expect(nextUserIndex, greaterThan(endIndex));
+    });
+
+    test('folds developer messages into system-style ChatML', () {
+      final output = formatter.format(
+        messages: const <PromptMessage>[
+          PromptDeveloperMessage('Developer rules.'),
+          PromptUserMessage('Hi'),
+        ],
+        tools: const <PromptTool>[],
+        reasoningMode: 'on',
+      );
+
+      expect(output, contains('<|im_start|>system\nDeveloper rules.'));
+    });
+  });
+}
+
+int _count(String haystack, String needle) {
+  var count = 0;
+  var index = 0;
+  while (true) {
+    index = haystack.indexOf(needle, index);
+    if (index == -1) return count;
+    count += 1;
+    index += needle.length;
+  }
+}

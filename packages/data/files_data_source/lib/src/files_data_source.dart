@@ -13,7 +13,7 @@ import 'package:files_data_source/src/record_file.dart';
 import 'package:files_data_source/src/utf8_window.dart';
 import 'package:intentions/intentions.dart';
 import 'package:path/path.dart' as p;
-import 'package:real_paths/real_paths.dart';
+import 'package:path_plus/path_plus.dart';
 import 'package:tool_protocol/tool_protocol.dart';
 
 /// Bytes sampled when deciding whether a file holds text.

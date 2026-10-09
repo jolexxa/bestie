@@ -1,3 +1,4 @@
+import 'package:bestie_platform_abstractions/src/models/program_command.dart';
 import 'package:file/file.dart';
 import 'package:intentions/intentions.dart';
 import 'package:path/path.dart' as p;
@@ -9,6 +10,11 @@ enum AssetBundleUnit {
 
   /// Copy the owning package's entire `assets/native/<os>/<arch>/` directory.
   ownerNativeDir,
+
+  /// Build the owning package's [AppAsset.sourceScript] with `dart build cli`
+  /// and merge that bundle in: the executable and the native libraries its
+  /// dependencies' build hooks produced.
+  ownerCliBundle,
 }
 
 /// A file bestie ships and locates at runtime — a native library, a helper
@@ -22,6 +28,7 @@ final class AppAsset {
     this.isPlatformSpecific = true,
     this.bundleSubdir = 'lib',
     this.bundleUnit = AssetBundleUnit.assetPath,
+    this.sourceScript,
   });
 
   /// Location relative to a base directory: a file leaf,
@@ -45,6 +52,10 @@ final class AppAsset {
 
   /// What the release bundler copies for this asset.
   final AssetBundleUnit bundleUnit;
+
+  /// For a program written in Dart, the repo-relative script a source
+  /// checkout runs in place of the built executable.
+  final String? sourceScript;
 }
 
 /// Resolves an [AppAsset] to its one expected path for the current run.
@@ -100,6 +111,24 @@ class AppAssetResolver {
     final full = asset.path.isEmpty ? base : _p.join(base, asset.path);
     return _p.normalize(full);
   }
+
+  /// How to start the program [asset] ships, without verifying it exists:
+  /// an optional program that is missing should fail when started, not when
+  /// bestie starts. A bundle runs the executable itself; a source checkout
+  /// has [dartExecutable] run the asset's [AppAsset.sourceScript], so nothing
+  /// needs building first.
+  ProgramCommand commandFor(
+    AppAsset asset, {
+    required String dartExecutable,
+  }) => bundled
+      ? ProgramCommand(executable: pathFor(asset))
+      : ProgramCommand(
+          executable: dartExecutable,
+          arguments: [
+            'run',
+            _p.normalize(_p.join(repoRoot, asset.sourceScript)),
+          ],
+        );
 
   List<String> _devBase(AppAsset asset) {
     final owner = asset.packageOwner;

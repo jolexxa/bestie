@@ -123,6 +123,7 @@ void main() {
       expect(request.sampling, const InferenceSampling());
       expect(request.reasoning, const InferenceReasoningDefault());
       expect(request.stopSequences, isEmpty);
+      expect(request.agent, isNull);
     });
 
     test('carries tools and sampling', () {
@@ -138,6 +139,7 @@ void main() {
         sampling: InferenceSampling(temperature: 0.5),
         reasoning: InferenceReasoningEffort(InferenceEffort.high),
         stopSequences: ['END'],
+        agent: AgentIdentity(id: 'primary:1', kind: AgentIdentityKind.primary),
       );
 
       expect(request.tools.single.name, 'echo');
@@ -149,6 +151,10 @@ void main() {
         const InferenceReasoningEffort(InferenceEffort.high),
       );
       expect(request.stopSequences, ['END']);
+      expect(
+        request.agent,
+        const AgentIdentity(id: 'primary:1', kind: AgentIdentityKind.primary),
+      );
     });
   });
 

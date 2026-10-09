@@ -37,6 +37,8 @@ dependencies:
     path: ../view/config
   bestie_edit:
     path: ../infra/bestie_edit
+  bestie_local_models_use_case:
+    path: ../use_cases/bestie_local_models_use_case
   bestie_mascot_use_case:
     path: ../use_cases/bestie_mascot_use_case
   bestie_palette_view:
@@ -88,13 +90,21 @@ dependencies:
     path: ../domain/fs_tools
   good_intentions: ^0.8.0
   http: ^1.2.2
+  hugging_face_client:
+    path: ../data/hugging_face_client
   humanizer: ^3.0.1
   inference_openai_compat:
     path: ../data/inference_openai_compat
-  inference_protocol:
-    path: ../infra/inference_protocol
   intentions: ^0.1.0
   io: ^1.0.4
+  local_inference_client:
+    path: ../data/local_inference_client
+  local_inference_protocol:
+    path: ../infra/local_inference_protocol
+  local_models_repository:
+    path: ../domain/local_models_repository
+  local_server_repository:
+    path: ../domain/local_server_repository
   logger: ^2.4.0
   logic_bloc_adapter:
     path: ../infra/logic_bloc_adapter
@@ -106,6 +116,10 @@ dependencies:
     path: ../data/metasearch_client
   model_catalog_modelsdev:
     path: ../data/model_catalog_modelsdev
+  model_downloader:
+    path: ../data/model_downloader
+  model_index_store:
+    path: ../data/model_index_store
   nocterm: ^0.6.0
   openrouter_sdk: ^0.0.8
   path: ^1.9.1
@@ -169,6 +183,8 @@ dev_dependencies:
   build_runner: ^2.8.0
   build_verify: ^3.1.1
   fake_async: ^1.3.2
+  inference_protocol:
+    path: ../infra/inference_protocol
   mocktail: ^1.0.4
   test: ^1.26.3
   very_good_analysis: ^10.0.0

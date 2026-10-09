@@ -194,7 +194,7 @@ final class StreamingState extends ReceivingState {
     InferenceReasoningDelta(:final text) => _appendText(text, reasoning: true),
     InferenceToolCallStarted(:final name) => _startToolCall(name),
     InferenceToolCallEmitted(:final call) => _addToolCall(call),
-    InferenceUsageReported() => recordUsage(event),
+    InferenceUsageReported() => _recordStepUsage(event),
     InferenceCompletionFinished(:final reason) => _recordStop(reason),
     InferenceCompletionFailed(:final failure) => fail(
       AgentRunFailureReason.loopFailed,
@@ -247,6 +247,11 @@ final class StreamingState extends ReceivingState {
       ),
     );
     return toSelf();
+  }
+
+  Transition _recordStepUsage(InferenceUsageReported event) {
+    step.shareTokens(event.completionTokens);
+    return recordUsage(event);
   }
 
   Transition _recordStop(InferenceStopReason reason) {

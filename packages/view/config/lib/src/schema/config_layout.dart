@@ -63,6 +63,13 @@ ConfigLayout buildConfigLayout(
         label: 'Provider',
         sections: [
           ConfigSection(
+            heading: 'Local models',
+            entries: [
+              at(provider.localContextCap),
+              at(keys.localModels.paths),
+            ],
+          ),
+          ConfigSection(
             heading: 'OpenRouter',
             entries: [at(provider.openRouterApiKey)],
           ),

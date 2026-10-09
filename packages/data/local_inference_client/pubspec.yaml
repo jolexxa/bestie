@@ -1,0 +1,42 @@
+name: local_inference_client
+description: >-
+  Finds or starts bestie's local inference server, holds its owner session,
+  and serves its models to bestie as the `local` provider.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  bestie_platform_abstractions:
+    path: ../bestie_platform_abstractions
+  clock: ^1.1.1
+  dart_mappable: ^4.3.0
+  file: ^7.0.1
+  http: ^1.1.0
+  inference_protocol:
+    path: ../../infra/inference_protocol
+  intentions: ^0.1.0
+  local_inference_protocol:
+    path: ../../infra/local_inference_protocol
+  logic_blocks: ^1.0.0
+  meta: ^1.15.0
+  path: ^1.9.1
+  provider_protocol:
+    path: ../../infra/provider_protocol
+
+dev_dependencies:
+  agent_provider_protocol:
+    path: ../../infra/agent_provider_protocol
+  agent_provider_remote:
+    path: ../../infra/agent_provider_remote
+  coverage: ^1.15.0
+  fake_async: ^1.3.2
+  inference_openai_compat:
+    path: ../inference_openai_compat
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

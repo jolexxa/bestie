@@ -1,12 +1,20 @@
 /// The hosted-provider contract for bestie.
 library;
 
+export 'src/hosted_models.dart' show HostedModels;
 export 'src/model_catalog.dart'
     show CatalogListed, CatalogResult, CatalogUnavailable, ModelCatalog;
 export 'src/models/credits_result.dart'
     show CreditsFailed, CreditsFetched, CreditsResult, CreditsUnsupported;
 export 'src/models/key_info_result.dart'
     show KeyInfoFailed, KeyInfoFetched, KeyInfoResult, KeyInfoUnsupported;
+export 'src/models/model_activation.dart'
+    show
+        ModelActivated,
+        ModelActivation,
+        ModelActivationFailed,
+        ModelActivationRequest,
+        ModelActivationResult;
 export 'src/models/provider_credits.dart' show ProviderCredits, SpendWindow;
 export 'src/models/provider_descriptor.dart' show ProviderDescriptor;
 export 'src/models/provider_failure.dart' show ProviderFailure;

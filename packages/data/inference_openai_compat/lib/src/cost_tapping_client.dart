@@ -2,9 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:inference_openai_compat/src/open_ai_compat_inference_client.dart';
+import 'package:intentions/intentions.dart';
 
 /// Carries a streaming request unchanged while reading the charge a provider
 /// stamps on the `usage` of its final `data:` line.
+@PartOf(OpenAiCompatInferenceClient)
 final class CostTappingClient extends http.BaseClient {
   CostTappingClient(this._inner, {required this.onCost});
 

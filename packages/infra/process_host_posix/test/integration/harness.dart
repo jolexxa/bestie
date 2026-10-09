@@ -315,7 +315,7 @@ Future<void> _scenarioKillTargetsGrandchild() async {
   final proc = _piped(
     environment: Platform.environment,
     executable: '/bin/sh',
-    arguments: const ['-c', 'sleep 30'],
+    arguments: const ['-c', 'exec sleep 30'],
   );
   final targetPid = await proc.pid;
   _expect(targetPid > 0, 'target pid was $targetPid');

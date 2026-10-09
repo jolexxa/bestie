@@ -13,6 +13,8 @@ dependencies:
     path: ../../use_cases/bestie_chat_use_case
   bestie_config_use_case:
     path: ../../use_cases/bestie_config_use_case
+  bestie_local_models_use_case:
+    path: ../../use_cases/bestie_local_models_use_case
   bestie_mascot_use_case:
     path: ../../use_cases/bestie_mascot_use_case
   bestie_platform_abstractions:

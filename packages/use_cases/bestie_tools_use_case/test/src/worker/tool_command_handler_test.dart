@@ -15,6 +15,8 @@ import 'package:web_fetch_tools/web_fetch_tools.dart';
 import 'package:web_search_tools/web_search_tools.dart';
 import 'package:wikipedia_tools/wikipedia_tools.dart';
 
+import '../../helpers/platform.dart';
+
 class _MockFsTools extends Mock implements FsTools {}
 
 class _MockWebSearchTools extends Mock implements WebSearchTools {}
@@ -85,12 +87,13 @@ Future<String> _content(Future<JobOutcome> outcome) async =>
 Future<String> _message(Future<JobOutcome> outcome) async =>
     (await outcome as JobFailed).message;
 
-const _workerConfig = ToolWorkerConfig(
+final _workerConfig = ToolWorkerConfig(
   workingDirectory: '/work',
   curlLibraryPath: '/curl',
   caCertPath: '/ca.pem',
   editorPath: '/bestie_edit',
-  processHost: PosixProcessHostLocation(spawnerBinaryPath: '/spawner'),
+  processHost: const PosixProcessHostLocation(spawnerBinaryPath: '/spawner'),
+  paths: linuxPlatform.paths,
 );
 
 void main() {

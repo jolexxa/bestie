@@ -179,9 +179,45 @@ void main() {
         expect(block.id, first.blockId);
         expect(block.text, 'Hello');
         expect(block.stat!.startedAt, _fixedNow);
+        expect(block.stat!.tokenCount, 20);
         expect(harness.logic.value, isA<CompletedState>());
         expect(harness.data.report, 'Hello');
       });
+    });
+
+    test('shares the tokens a step decoded among its blocks by how much '
+        'output each holds', () {
+      final harness = _Harness()
+        ..logic.input(const StepRequested())
+        ..event(const InferenceReasoningDelta('Let me think it over'))
+        ..event(const InferenceTextDelta('Echoing'))
+        ..event(const InferenceTextDelta(' it now'))
+        ..event(
+          const InferenceToolCallEmitted(
+            InferenceToolCall(
+              id: 'call_a',
+              name: 'echo',
+              arguments: {},
+              rawArguments: '{}',
+            ),
+          ),
+        )
+        ..event(
+          const InferenceUsageReported(promptTokens: 40, completionTokens: 20),
+        )
+        ..event(
+          const InferenceCompletionFinished(InferenceStopReason.toolCalls),
+        )
+        ..drain()
+        ..streamEnded();
+
+      final entry = harness
+          .drain()
+          .whereType<AgentNeedsToolResults>()
+          .single
+          .entry;
+      final tokens = [for (final block in entry.blocks) block.stat!.tokenCount];
+      expect(tokens, [10, 7, 3]);
     });
 
     test('announces a tool call before it lands', () {

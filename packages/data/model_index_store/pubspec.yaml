@@ -1,0 +1,26 @@
+name: model_index_store
+description: >-
+  Reads and atomically writes the local model library's files: the model
+  index the inference server loads from, and the ledger of downloads.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  dart_mappable: ^4.3.0
+  file: ^7.0.1
+  intentions: ^0.1.0
+  local_inference_protocol:
+    path: ../../infra/local_inference_protocol
+
+dev_dependencies:
+  build_runner: ^2.4.12
+  coverage: ^1.15.0
+  dart_mappable_builder: ^4.3.0
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

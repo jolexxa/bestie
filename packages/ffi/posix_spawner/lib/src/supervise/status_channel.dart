@@ -27,9 +27,10 @@ final class PosixSupervisorLost extends PosixSupervisorOutcome {
   const PosixSupervisorLost();
 }
 
-/// Reads the supervisor's status pipe in a background isolate. The
-/// supervisor writes two fixed 4-byte native-endian frames —
-/// `[target_pid][raw_status]` — then closes its write end. Unlike
+/// Reads the supervisor's status pipe in a background isolate. Two
+/// fixed 4-byte native-endian frames arrive — `[target_pid]` from the
+/// target once it leads its own process group, then `[raw_status]`
+/// from the supervisor, which closes its write end. Unlike
 /// `waitpid`, a pipe read is reaper-immune: the bytes are buffered in
 /// the kernel and can only be read by us, so the exit status can't be
 /// stolen by the Dart VM's SIGCHLD handler.

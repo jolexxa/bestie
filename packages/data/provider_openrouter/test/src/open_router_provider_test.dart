@@ -55,6 +55,9 @@ void main() {
   late MockModelsResource modelsResource;
   late OpenRouterProvider provider;
 
+  Future<List<openrouter.Model>> textModels() =>
+      modelsResource.list(outputModalities: {openrouter.Modality.text});
+
   setUp(() {
     client = MockOpenRouter();
     creditsResource = MockCreditsResource();
@@ -201,8 +204,21 @@ void main() {
   });
 
   group('models', () {
+    test('asks only for models that answer in text', () async {
+      when(textModels).thenAnswer((_) async => [_model(id: 'a/chat')]);
+
+      final result = await provider.models();
+
+      expect(
+        (result as ProviderModelsListed).models.map((model) => model.id),
+        ['a/chat'],
+      );
+      verify(textModels).called(1);
+      verifyNoMoreInteractions(modelsResource);
+    });
+
     test('maps the catalog', () async {
-      when(modelsResource.list).thenAnswer(
+      when(textModels).thenAnswer(
         (_) async => [
           _model(
             id: 'a/tools',
@@ -303,7 +319,7 @@ void main() {
     });
 
     test('maps failures', () async {
-      when(modelsResource.list).thenThrow(
+      when(textModels).thenThrow(
         openrouter.OpenRouterException(
           message: 'slow down',
           code: 429,

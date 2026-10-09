@@ -237,9 +237,9 @@ void main() {
       expect(t.stateType, ReadyState);
     });
 
-    test('a reconnecting provider moves to ReconnectingState', () {
+    test('a reconnecting provider moves to ConnectingState', () {
       final t = state.handleInput(const ProviderStatusChanged(_connecting));
-      expect(t.stateType, ReconnectingState);
+      expect(t.stateType, ConnectingState);
     });
 
     test('Cancel stops background jobs instead of a turn', () {
@@ -591,7 +591,7 @@ void main() {
       test('a reconnecting provider routes away', () {
         final t = state.handleInput(const ProviderStatusChanged(_connecting));
 
-        expect(t.stateType, ReconnectingState);
+        expect(t.stateType, ConnectingState);
       });
     });
   });
@@ -728,13 +728,13 @@ void main() {
     });
   });
 
-  group('ReconnectingState', () {
-    late ReconnectingState state;
+  group('ConnectingState', () {
+    late ConnectingState state;
     late _MockChatUseCase useCase;
     late _MockProviderUseCase provider;
 
     setUp(() {
-      state = ReconnectingState();
+      state = ConnectingState();
       useCase = _MockChatUseCase();
       provider = _MockProviderUseCase();
       state.createFakeContext()
@@ -750,7 +750,7 @@ void main() {
 
     test('holds while the provider is still connecting', () {
       final t = state.handleInput(const ProviderStatusChanged(_connecting));
-      expect(t.stateType, ReconnectingState);
+      expect(t.stateType, ConnectingState);
     });
 
     test('routes once the provider settles', () {
@@ -902,7 +902,7 @@ void main() {
     test('a reconnecting provider abandons the turn', () {
       final t = state.handleInput(const ProviderStatusChanged(_connecting));
 
-      expect(t.stateType, ReconnectingState);
+      expect(t.stateType, ConnectingState);
       verify(() => useCase.cancel()).called(1);
     });
 
@@ -950,9 +950,9 @@ void main() {
       );
     });
 
-    test('ProviderStatusChanged(connecting) routes to ReconnectingState', () {
+    test('ProviderStatusChanged(connecting) routes to ConnectingState', () {
       final t = state.handleInput(const ProviderStatusChanged(_connecting));
-      expect(t.stateType, ReconnectingState);
+      expect(t.stateType, ConnectingState);
     });
 
     test('ProviderStatusChanged(failed) stays and emits StateUpdated', () {
@@ -1733,7 +1733,7 @@ void main() {
       current = _connecting;
       statuses.add(_connecting);
       await Future<void>.delayed(Duration.zero);
-      expect(logic.value, isA<ReconnectingState>());
+      expect(logic.value, isA<ConnectingState>());
 
       current = _ready();
       statuses.add(current);
@@ -1745,6 +1745,68 @@ void main() {
           primaryContextSize: 1024,
         ),
       ).called(2);
+    });
+
+    test('repaints the conversation while the provider loads', () async {
+      final conversation = StreamController<ConversationState>.broadcast();
+      addTearDown(conversation.close);
+      const loading = ProviderStatusConnecting(
+        model: _modelRef,
+        loading: LoadingModel(
+          name: 'Qwen3 1.7B',
+          providerName: 'Bestie Server',
+          contextWindow: 40960,
+          progress: 0.62,
+        ),
+      );
+      final withCard = _idleState(
+        timelineItems: [
+          ModelCardTimelineItem(
+            id: 'live-model-status',
+            timestamp: DateTime.utc(2025),
+            card: const ModelSnapshot(
+              modelId: 'qwen3-1.7b',
+              displayName: 'Qwen3 1.7B',
+              contextSize: 40960,
+              provider: 'Bestie Server',
+              phase: ModelCardPhase.loading,
+              progress: 0.62,
+            ),
+          ),
+        ],
+      );
+      when(() => provider.status).thenReturn(loading);
+      when(
+        () => useCase.conversationStream,
+      ).thenAnswer((_) => conversation.stream);
+      when(() => useCase.viewedConversationState).thenReturn(withCard);
+      when(() => useCase.conversationState).thenReturn(withCard);
+
+      final logic =
+          ChatLogic(
+              useCase: useCase,
+              providerUseCase: provider,
+              toolsUseCase: tools,
+              sandboxUseCase: sandbox,
+            )
+            ..start()
+            ..input(const Start());
+      addTearDown(
+        () => logic
+          ..stop()
+          ..dispose(),
+      );
+      final updates = <StateUpdated>[];
+      final binding = logic.bind()..onOutput<StateUpdated>(updates.add);
+      addTearDown(binding.dispose);
+      expect(logic.value, isA<ConnectingState>());
+
+      conversation.add(withCard);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(updates, isNotEmpty);
+      expect(logic.value.timelineItems.single, isA<ModelCardTimelineItem>());
+      expect(logic.value.selectionPosition.itemIndex, 0);
     });
 
     test('forwards a replacement from the use case into the machine', () async {
@@ -1857,6 +1919,148 @@ void main() {
       );
 
       expect(logic.value, isA<ReadyState>());
+    });
+
+    group('after a failed turn, a newly picked model takes messages', () {
+      late StreamController<ProviderStatus> statuses;
+      late StreamController<ConversationState> conversation;
+      late ProviderStatus currentStatus;
+      late ConversationState currentConversation;
+
+      setUp(() {
+        statuses = StreamController<ProviderStatus>.broadcast();
+        conversation = StreamController<ConversationState>.broadcast();
+        currentConversation = _idleState();
+        when(() => provider.status).thenAnswer((_) => currentStatus);
+        when(() => provider.statusStream).thenAnswer((_) => statuses.stream);
+        when(
+          () => useCase.conversationStream,
+        ).thenAnswer((_) => conversation.stream);
+        when(
+          () => useCase.conversationState,
+        ).thenAnswer((_) => currentConversation);
+        when(
+          () => useCase.viewedConversationState,
+        ).thenAnswer((_) => currentConversation);
+        when(() => useCase.failure).thenAnswer(
+          (_) => switch (currentConversation) {
+            ConversationIdle(:final failure) => failure,
+            TurnInProgress() => null,
+          },
+        );
+        when(() => useCase.canSubmit).thenReturn(true);
+        when(
+          () => useCase.submit(
+            message: any(named: 'message'),
+            reasoningMode: any(named: 'reasoningMode'),
+          ),
+        ).thenAnswer((_) async => true);
+        when(() => useCase.clearSettledSubagents()).thenReturn(null);
+        when(
+          () => useCase.attachSession(
+            primary: any(named: 'primary'),
+            primaryContextSize: any(named: 'primaryContextSize'),
+          ),
+        ).thenReturn(null);
+      });
+
+      tearDown(() async {
+        await statuses.close();
+        await conversation.close();
+      });
+
+      Future<void> settle() => Future<void>.delayed(Duration.zero);
+
+      Future<void> provide(ProviderStatus status) {
+        currentStatus = status;
+        statuses.add(status);
+        return settle();
+      }
+
+      Future<void> converse(ConversationState state) {
+        currentConversation = state;
+        conversation.add(state);
+        return settle();
+      }
+
+      Future<void> pickModelAfterFailedTurn(
+        ProviderStatus startingStatus,
+      ) async {
+        currentStatus = startingStatus;
+        final logic =
+            ChatLogic(
+                useCase: useCase,
+                providerUseCase: provider,
+                toolsUseCase: tools,
+                sandboxUseCase: sandbox,
+              )
+              ..start()
+              ..input(const Start());
+        addTearDown(
+          () => logic
+            ..stop()
+            ..dispose(),
+        );
+
+        await provide(_connecting);
+        final first = _MockAgentProvider();
+        await provide(_ready(handle: first));
+        await converse(_idleState());
+        expect(logic.value, isA<ReadyState>());
+
+        logic.input(const Submit('hi'));
+        await converse(_turnInProgress());
+        await converse(
+          const ConversationIdle(
+            timelineItems: [],
+            conversationPhase: ConversationPhase.idle,
+            failure: TurnFailure(
+              reason: AgentRunFailureReason.loopFailed,
+              message: 'badRequest: requires more credits',
+            ),
+          ),
+        );
+        expect(logic.value, isA<FailedState>());
+
+        await provide(_connecting);
+        final second = _MockAgentProvider();
+        await provide(_ready(handle: second));
+        await converse(_idleState());
+
+        expect(logic.value, isA<ReadyState>());
+        verify(
+          () => useCase.attachSession(
+            primary: second,
+            primaryContextSize: any(named: 'primaryContextSize'),
+          ),
+        ).called(1);
+
+        logic.input(const Submit('hello again'));
+
+        expect(logic.value, isA<TurnActiveState>());
+        verify(
+          () => useCase.submit(
+            message: 'hello again',
+            reasoningMode: any(named: 'reasoningMode'),
+          ),
+        ).called(1);
+      }
+
+      test('when the window started on a busy server', () async {
+        await pickModelAfterFailedTurn(
+          const ProviderStatusFailed(
+            failure: ProviderFailure(
+              kind: InferenceFailureKind.server,
+              message: 'Another bestie is using Bestie Server.',
+            ),
+            model: ProviderModelRef(providerId: 'local', modelId: 'qwen3'),
+          ),
+        );
+      });
+
+      test('when the window started on a hosted model', () async {
+        await pickModelAfterFailedTurn(_connecting);
+      });
     });
   });
 }

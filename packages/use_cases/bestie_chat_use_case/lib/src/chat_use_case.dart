@@ -11,6 +11,7 @@ import 'package:bestie_chat_use_case/src/subagent_tools.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:config_repository/config_repository.dart';
 import 'package:intentions/intentions.dart';
+import 'package:path_plus/path_plus.dart';
 import 'package:provider_repository/provider_repository.dart';
 import 'package:tool_protocol/tool_protocol.dart'
     show Job, ToolCallInvocation, ToolDefinitions, ToolResponder;
@@ -28,19 +29,20 @@ class ChatUseCase implements ToolResponder, CommandContribution {
     required ChatConfigKeys configKeys,
     required SamplingResolver sampling,
     required String dynamicSystemPrompt,
-    required String homeDirectory,
+    required UserPaths paths,
   }) : _providers = providerRepository,
        _agents = agentRepository,
        _config = config,
        _configKeys = configKeys,
        _sampling = sampling,
        _dynamicSystemPrompt = dynamicSystemPrompt,
-       _homeDirectory = homeDirectory {
+       _paths = paths {
     _reloadsStartingSub = _providers.reloadsStarting.listen(
       _prepareForReload,
     );
     _bindPrimary(_agents.primary);
     _primarySub = _agents.primaryStream.listen(_bindPrimary);
+    _loadingSub = _providers.statusStream.listen(_showLoading);
     // Pool occupancy moves while the primary sits idle, so tick the render
     // surface on every snapshot.
     _poolSub = _agents.poolStream.listen(
@@ -68,7 +70,7 @@ class ChatUseCase implements ToolResponder, CommandContribution {
         description: 'Cancel the turn in progress',
         group: 'Chat',
         availability: _turnInFlightAvailability(),
-        invoke: _stopInvoke,
+        body: CommandFlow(invoke: _stopInvoke),
       ),
       Command(
         id: 'chat.clear',
@@ -78,8 +80,7 @@ class ChatUseCase implements ToolResponder, CommandContribution {
         description: 'Start a fresh conversation',
         group: 'Chat',
         availability: _modelReadyAvailability(),
-        next: _clearFlow,
-        invoke: _clearInvoke,
+        body: CommandFlow(next: _clearFlow, invoke: _clearInvoke),
       ),
       Command(
         id: 'chat.load',
@@ -88,8 +89,7 @@ class ChatUseCase implements ToolResponder, CommandContribution {
         description: 'Continue a saved conversation',
         group: 'Chat',
         availability: _historySwapAvailability(),
-        next: _loadFlow,
-        invoke: _loadInvoke,
+        body: CommandFlow(next: _loadFlow, invoke: _loadInvoke),
       ),
       Command(
         id: 'chat.rewind',
@@ -99,7 +99,7 @@ class ChatUseCase implements ToolResponder, CommandContribution {
         description: 'Pick an earlier message of yours to edit and resend',
         group: 'Chat',
         availability: _historySwapAvailability(),
-        invoke: _rewindInvoke,
+        body: CommandFlow(invoke: _rewindInvoke),
       ),
       Command(
         id: 'chat.compact',
@@ -108,7 +108,7 @@ class ChatUseCase implements ToolResponder, CommandContribution {
         description: 'Fold the conversation so far into a summary',
         group: 'Chat',
         availability: _compactAvailability(),
-        invoke: _compactInvoke,
+        body: CommandFlow(invoke: _compactInvoke),
       ),
     ]);
   }
@@ -138,9 +138,10 @@ class ChatUseCase implements ToolResponder, CommandContribution {
   final String _dynamicSystemPrompt;
 
   /// Shown as `~` when listing where conversations started.
-  final String _homeDirectory;
+  final UserPaths _paths;
   late final StreamSubscription<void> _reloadsStartingSub;
   late final StreamSubscription<AgentSession> _primarySub;
+  late final StreamSubscription<ProviderStatus> _loadingSub;
   late final StreamSubscription<ContextPoolSnapshot> _poolSub;
   late final StreamSubscription<List<SubagentSummary>> _subagentsSub;
   late final StreamSubscription<double> _compactionSub;
@@ -185,6 +186,23 @@ class ChatUseCase implements ToolResponder, CommandContribution {
     _sessionSub = primary.stream.listen(_conversationController.add);
     _conversationController.add(primary.state);
   }
+
+  /// Shows the model coming up while its provider loads it, and nothing
+  /// once it is up or will not come up.
+  void _showLoading(ProviderStatus status) => _primary.setLiveModelStatus(
+    switch (status) {
+      ProviderStatusConnecting(:final model, loading: final loading?) =>
+        ModelSnapshot(
+          modelId: model.modelId,
+          displayName: loading.name,
+          contextSize: loading.contextWindow,
+          provider: loading.providerName,
+          phase: ModelCardPhase.loading,
+          progress: loading.progress,
+        ),
+      _ => null,
+    },
+  );
 
   // ── Viewed session ────────────────────────────────────────
 
@@ -560,7 +578,7 @@ class ChatUseCase implements ToolResponder, CommandContribution {
     if (soFar.maybe(_conversationKey) != null) return null;
     final picker = ConversationPicker(
       summaries: conversations(),
-      homeDirectory: _homeDirectory,
+      paths: _paths,
       currentConversationId: _primary.transcript.conversationId,
     );
     return ChoiceParam<String>.searchable(
@@ -615,6 +633,7 @@ class ChatUseCase implements ToolResponder, CommandContribution {
   Future<void> dispose() async {
     await _reloadsStartingSub.cancel();
     await _primarySub.cancel();
+    await _loadingSub.cancel();
     await _poolSub.cancel();
     await _subagentsSub.cancel();
     await _compactionSub.cancel();

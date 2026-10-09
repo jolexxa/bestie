@@ -132,6 +132,91 @@ void main() {
       logic.dispose();
     });
 
+    test("rows follow their commands' statuses while browsing", () async {
+      final downloads = StreamController<CommandStatus?>.broadcast();
+      final server = StreamController<CommandStatus?>.broadcast();
+      addTearDown(downloads.close);
+      addTearDown(server.close);
+      final logic = PaletteLogic(
+        commands: [
+          simpleCommand('models.installed', status: downloads.stream),
+          simpleCommand(
+            'models.stop',
+            availability: Stream.value(const Unavailable('not running')),
+            status: server.stream,
+          ),
+        ],
+      )..start();
+      final updates = <PaletteOutput>[];
+      final binding = logic.bind()..onOutput<PaletteStateUpdated>(updates.add);
+      addTearDown(binding.dispose);
+      expect(downloads.hasListener, isFalse);
+
+      logic.input(const OpenPalette());
+      expect(downloads.hasListener, isTrue);
+      expect(server.hasListener, isTrue);
+
+      downloads.add(const CommandStatus([PaneSpan('↓ 1 · 10%')], progress: .1));
+      server.add(const CommandStatus([PaneSpan('⚠ in use elsewhere')]));
+      await settle();
+      final rows = {for (final row in logic.value.rows) row.command.id: row};
+      expect(rows['models.installed']!.status!.progress, .1);
+      expect(rows['models.stop']!.availability, isA<Unavailable>());
+      expect(
+        rows['models.stop']!.status!.spans.single.text,
+        '⚠ in use elsewhere',
+      );
+      expect(updates, isNotEmpty);
+
+      downloads.add(null);
+      server.addError(StateError('gone'));
+      await settle();
+      expect(logic.value.rows.map((row) => row.status), [null, null]);
+
+      logic.dispose();
+    });
+
+    test('leaving the command list stops following statuses', () async {
+      final status = StreamController<CommandStatus?>.broadcast();
+      addTearDown(status.close);
+      final pane = DemoPane();
+      addTearDown(pane.close);
+      final logic =
+          PaletteLogic(
+              commands: [
+                simpleCommand(
+                  'models.installed',
+                  status: status.stream,
+                  pane: pane,
+                ),
+              ],
+            )
+            ..start()
+            ..input(const OpenPalette());
+      status.add(const CommandStatus([PaneSpan('● ready')]));
+      await settle();
+      expect(logic.value.rows.single.status, isNotNull);
+
+      logic.input(const Activate());
+      expect(logic.value, isA<ViewingPaneState>());
+      expect(status.hasListener, isFalse);
+
+      logic.input(const Back());
+      expect(logic.value, isA<BrowsingState>());
+      expect(status.hasListener, isTrue);
+      expect(logic.value.rows.single.status, isNull);
+
+      logic.input(const ClosePalette());
+      expect(status.hasListener, isFalse);
+
+      logic.input(const OpenPalette());
+      expect(status.hasListener, isTrue);
+      logic.stop();
+      expect(status.hasListener, isFalse);
+
+      logic.dispose();
+    });
+
     test('query filters and ranks; selection moves and clamps', () {
       final logic =
           PaletteLogic(
@@ -810,6 +895,42 @@ void main() {
       expect(logic.value, isA<BrowsingState>());
       expect(outputs, hasLength(1));
       binding.dispose();
+      logic.dispose();
+    });
+
+    test('a query the field already has keeps the selection', () async {
+      const pick = ParamKey<String>('pick');
+      final logic =
+          PaletteLogic(
+              commands: [
+                simpleCommand('a.one'),
+                simpleCommand(
+                  'b.pick',
+                  next: (soFar) => ChoiceParam<String>.fixed(
+                    key: pick,
+                    label: 'Pick',
+                    options: const [
+                      Option(value: 'x', label: 'X'),
+                      Option(value: 'y', label: 'Y'),
+                    ],
+                  ),
+                ),
+              ],
+            )
+            ..start()
+            ..input(const OpenPalette())
+            ..input(const MoveSelection(1))
+            ..input(const QueryChanged(''));
+      expect(logic.value.selectedIndex, 1);
+
+      logic.input(const Activate());
+      await settle();
+      logic
+        ..input(const MoveSelection(1))
+        ..input(const OptionQueryChanged(''));
+      expect(logic.value, isA<CollectingState>());
+      expect(logic.value.selectedIndex, 1);
+
       logic.dispose();
     });
   });

@@ -8,7 +8,7 @@ import 'package:provider_protocol/provider_protocol.dart';
 /// A provider with no account APIs: it lists models from `GET /models` and
 /// serves completions from the same base URL.
 @dataSource
-final class OpenAiCompatProvider implements Provider {
+final class OpenAiCompatProvider with HostedModels implements Provider {
   OpenAiCompatProvider({
     required ProviderDescriptor descriptor,
     required Uri baseUrl,

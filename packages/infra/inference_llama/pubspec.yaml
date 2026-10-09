@@ -1,0 +1,32 @@
+name: inference_llama
+description: Local inference with llama.cpp.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  dart_mappable: ^4.3.0
+  ffi: ^2.1.4
+  inference:
+    path: ../inference
+  isolate_worker:
+    path: ../isolate_worker
+  llama_cpp_dart:
+    path: ../../ffi/llama_cpp_dart
+  meta: ^1.18.1
+  path: ^1.9.0
+  posix_dart:
+    path: ../../ffi/posix_dart
+  win32_dart:
+    path: ../../ffi/win32_dart
+
+dev_dependencies:
+  build_runner: ^2.4.12
+  dart_mappable_builder: ^4.3.0
+  mocktail: ^1.0.5
+  test: ^1.31.1
+  very_good_analysis: ^10.2.0

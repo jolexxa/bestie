@@ -1,0 +1,45 @@
+name: bestie_server
+description: >-
+  Bestie's local inference server: serves llama.cpp completions to one bestie
+  at a time over an extended OpenAI protocol.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+executables:
+  bestie_server:
+
+dependencies:
+  args: ^2.7.0
+  bestie_platform_abstractions:
+    path: ../data/bestie_platform_abstractions
+  completion_runtime:
+    path: ../infra/completion_runtime
+  file: ^7.0.1
+  good_intentions: ^0.8.0
+  inference:
+    path: ../infra/inference
+  inference_llama:
+    path: ../infra/inference_llama
+  inference_runtime:
+    path: ../infra/inference_runtime
+  inference_server:
+    path: ../infra/inference_server
+  intentions: ^0.1.0
+  llm_model_templates:
+    path: ../infra/llm_model_templates
+  local_inference_protocol:
+    path: ../infra/local_inference_protocol
+  path: ^1.9.1
+
+dev_dependencies:
+  coverage: ^1.15.0
+  llama_cpp_dart:
+    path: ../ffi/llama_cpp_dart
+  mocktail: ^1.0.5
+  test: ^1.31.1
+  very_good_analysis: ^10.2.0

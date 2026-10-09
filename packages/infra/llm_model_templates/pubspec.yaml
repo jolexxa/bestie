@@ -1,0 +1,19 @@
+name: llm_model_templates
+description: Prompt formatting and stream parsing dialects for Bestie models.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  llm_model_profiles:
+    path: ../llm_model_profiles
+  tool_protocol:
+    path: ../tool_protocol
+
+dev_dependencies:
+  test: ^1.31.1
+  very_good_analysis: ^10.2.0

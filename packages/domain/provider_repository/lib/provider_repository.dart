@@ -12,6 +12,7 @@ export 'src/models/provider_factories.dart'
 export 'src/models/provider_settings.dart' show ProviderSettings;
 export 'src/models/provider_status.dart'
     show
+        LoadingModel,
         ProviderStatus,
         ProviderStatusConnecting,
         ProviderStatusFailed,

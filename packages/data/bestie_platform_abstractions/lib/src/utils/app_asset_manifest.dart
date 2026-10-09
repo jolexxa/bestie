@@ -33,6 +33,7 @@ final class PosixAppAssets {
     required this.curl,
     required this.spawner,
     required this.editor,
+    required this.server,
     required this.shared,
   });
 
@@ -44,11 +45,20 @@ final class PosixAppAssets {
   /// The `bestie_edit` program behind the edit tool.
   final AppAsset editor;
 
+  /// The local inference server.
+  final AppAsset server;
+
   final SharedAppAssets shared;
 
   /// Every asset this platform ships — the single source of truth for both
   /// runtime resolution and release bundling.
-  List<AppAsset> get bundleAssets => [curl, spawner, editor, ...shared.all];
+  List<AppAsset> get bundleAssets => [
+    curl,
+    spawner,
+    editor,
+    server,
+    ...shared.all,
+  ];
 }
 
 /// The native assets Windows resolves at runtime and ships in its release
@@ -60,6 +70,7 @@ final class WindowsAppAssets {
     required this.conptyLibrary,
     required this.consoleHostExecutable,
     required this.editor,
+    required this.server,
     required this.shared,
   });
 
@@ -74,6 +85,9 @@ final class WindowsAppAssets {
   /// The `bestie_edit` program behind the edit tool.
   final AppAsset editor;
 
+  /// The local inference server.
+  final AppAsset server;
+
   final SharedAppAssets shared;
 
   /// Every asset this platform ships — the single source of truth for both
@@ -83,6 +97,7 @@ final class WindowsAppAssets {
     conptyLibrary,
     consoleHostExecutable,
     editor,
+    server,
     ...shared.all,
   ];
 }

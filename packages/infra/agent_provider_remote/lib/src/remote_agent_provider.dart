@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:agent_provider_protocol/agent_provider_protocol.dart';
+import 'package:agent_provider_remote/src/mapping/agent_identity_mapper.dart';
 import 'package:agent_provider_remote/src/pool/remote_pool_snapshot.dart';
 import 'package:agent_provider_remote/src/remote_agent.dart';
 import 'package:agent_provider_remote/src/remote_provider_options.dart';
@@ -13,19 +14,26 @@ import 'package:inference_protocol/inference_protocol.dart';
 import 'package:logic_blocks/logic_blocks.dart';
 
 /// Hosts agents whose steps are chat completions against an
-/// [InferenceClient].
+/// [InferenceClient], holding a session per agent through [AgentSessions].
 final class RemoteAgentProvider implements AgentProvider, RemoteAgentHost {
   RemoteAgentProvider({
     required InferenceClient client,
+    required AgentSessions sessions,
     required RemoteProviderOptions options,
   }) : _client = client,
-       _options = options;
+       _sessions = sessions,
+       _options = options {
+    _reports = sessions.pool.listen(_onReport);
+  }
 
   final InferenceClient _client;
+  final AgentSessions _sessions;
   final RemoteProviderOptions _options;
   final Map<AgentHandle, _AgentRecord> _records = {};
   final _pool = StreamController<ContextPoolSnapshot>.broadcast();
   final _spend = StreamController<double>.broadcast();
+  late final StreamSubscription<AgentPoolReport> _reports;
+  AgentPoolReport? _report;
   ContextPoolSnapshot? _lastSnapshot;
   var _nextAgentNumber = 1;
   var _disposed = false;
@@ -46,24 +54,55 @@ final class RemoteAgentProvider implements AgentProvider, RemoteAgentHost {
       .firstOrNull;
 
   @override
-  Future<StartPrimaryResult> startPrimary({required AgentConfig config}) async {
-    final rejection = _startRejection(config, AgentKind.primary);
-    if (rejection != null) {
-      return StartPrimaryRejected(reason: rejection);
-    }
-    return StartPrimaryStarted(_register(AgentKind.primary, config, null));
-  }
+  Future<StartPrimaryResult> startPrimary({
+    required AgentConfig config,
+  }) async => switch (await _start(AgentKind.primary, config, null)) {
+    _StartAdmitted(:final agent) => StartPrimaryStarted(agent),
+    _StartRefused(:final reason) => StartPrimaryRejected(reason: reason),
+  };
 
   @override
   Future<StartSubagentResult> startSubagent({
     required AgentConfig config,
     String? label,
-  }) async {
-    final rejection = _startRejection(config, AgentKind.subagent);
-    if (rejection != null) {
-      return StartSubagentRejected(reason: rejection);
-    }
-    return StartSubagentStarted(_register(AgentKind.subagent, config, label));
+  }) async => switch (await _start(AgentKind.subagent, config, label)) {
+    _StartAdmitted(:final agent) => StartSubagentStarted(agent),
+    _StartRefused(:final reason) => StartSubagentRejected(reason: reason),
+  };
+
+  Future<_StartOutcome> _start(
+    AgentKind kind,
+    AgentConfig config,
+    String? label,
+  ) async {
+    final rejection = _startRejection(config, kind);
+    if (rejection != null) return _StartRefused(rejection);
+    final handle = AgentHandle(
+      id: '${kind.name}:${_nextAgentNumber++}',
+      kind: kind,
+      label: label,
+    );
+    return switch (await _sessions.open(toAgentIdentity(handle))) {
+      AgentSessionOpened() => _admit(handle, config),
+      AgentSessionNoCapacity() => const _StartRefused(
+        AgentRuntimeRejectionReason.noSequenceCapacity,
+      ),
+      AgentSessionInsufficientClaim() => const _StartRefused(
+        AgentRuntimeRejectionReason.insufficientClaimSpace,
+      ),
+      AgentSessionFailed() => const _StartRefused(
+        AgentRuntimeRejectionReason.schedulerFailure,
+      ),
+    };
+  }
+
+  /// Checks again once the session is held, because the provider may have
+  /// been disposed or filled up while the endpoint was answering.
+  Future<_StartOutcome> _admit(AgentHandle handle, AgentConfig config) async {
+    final rejection = _startRejection(config, handle.kind);
+    if (rejection == null) return _StartAdmitted(_register(handle, config));
+    await _sessions.close(toAgentIdentity(handle));
+    return _StartRefused(rejection);
   }
 
   AgentRuntimeRejectionReason? _startRejection(
@@ -85,12 +124,7 @@ final class RemoteAgentProvider implements AgentProvider, RemoteAgentHost {
     return null;
   }
 
-  RemoteAgent _register(AgentKind kind, AgentConfig config, String? label) {
-    final handle = AgentHandle(
-      id: '${kind.name}:${_nextAgentNumber++}',
-      kind: kind,
-      label: label,
-    );
+  RemoteAgent _register(AgentHandle handle, AgentConfig config) {
     final record = _AgentRecord(handle: handle, config: config);
     _records[handle] = record;
     _emitPool();
@@ -121,7 +155,7 @@ final class RemoteAgentProvider implements AgentProvider, RemoteAgentHost {
     }
     _records.remove(agent.handle);
     await _closeRecord(record);
-    _emitPool();
+    await _sessions.close(toAgentIdentity(agent.handle));
     return const DisposeAgentDisposed();
   }
 
@@ -129,12 +163,15 @@ final class RemoteAgentProvider implements AgentProvider, RemoteAgentHost {
   Future<DisposeProviderResult> dispose() async {
     if (_disposed) return const DisposeProviderSucceeded();
     _disposed = true;
+    await _reports.cancel();
     final records = _records.values.toList();
     _records.clear();
     for (final record in records) {
       if (record.isRunning) _cancelTurn(record);
       await _closeRecord(record);
+      await _sessions.close(toAgentIdentity(record.handle));
     }
+    await _sessions.dispose();
     await _pool.close();
     await _spend.close();
     await _client.close();
@@ -346,9 +383,16 @@ final class RemoteAgentProvider implements AgentProvider, RemoteAgentHost {
     await record.events.close();
   }
 
+  void _onReport(AgentPoolReport report) {
+    _report = report;
+    _emitPool();
+  }
+
   void _emitPool() {
-    final snapshot = synthesizePoolSnapshot(
-      contextWindow: contextWindow,
+    final report = _report;
+    if (report == null) return;
+    final snapshot = poolSnapshotOf(
+      report: report,
       usageByAgent: {
         for (final record in _records.values) record.handle: record.usage,
       },
@@ -357,6 +401,22 @@ final class RemoteAgentProvider implements AgentProvider, RemoteAgentHost {
     _lastSnapshot = snapshot;
     _pool.add(snapshot);
   }
+}
+
+sealed class _StartOutcome {
+  const _StartOutcome();
+}
+
+final class _StartAdmitted extends _StartOutcome {
+  const _StartAdmitted(this.agent);
+
+  final RemoteAgent agent;
+}
+
+final class _StartRefused extends _StartOutcome {
+  const _StartRefused(this.reason);
+
+  final AgentRuntimeRejectionReason reason;
 }
 
 final class _AgentRecord {

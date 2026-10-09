@@ -54,6 +54,10 @@ void main() {
       request.reasoning,
       const InferenceReasoningEffort(InferenceEffort.high),
     );
+    expect(
+      request.agent,
+      const AgentIdentity(id: 'primary:1', kind: AgentIdentityKind.primary),
+    );
   });
 
   test('summary asks for a fold that opens with the prefill', () {
@@ -93,6 +97,10 @@ void main() {
     expect(
       request.reasoning,
       const InferenceReasoningEffort(InferenceEffort.low),
+    );
+    expect(
+      request.agent,
+      const AgentIdentity(id: 'primary:1', kind: AgentIdentityKind.primary),
     );
   });
 

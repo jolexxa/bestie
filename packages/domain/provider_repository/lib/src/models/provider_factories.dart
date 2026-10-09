@@ -1,7 +1,7 @@
 import 'package:agent_provider_protocol/agent_provider_protocol.dart'
     show AgentProvider;
 import 'package:inference_protocol/inference_protocol.dart'
-    show InferenceClient, InferenceEndpoint;
+    show AgentSessions, InferenceClient, InferenceEndpoint;
 import 'package:intentions/intentions.dart';
 import 'package:provider_protocol/provider_protocol.dart' show Provider;
 import 'package:provider_repository/src/models/provider_account.dart';
@@ -13,10 +13,12 @@ typedef ProviderFactory = Provider Function(ProviderAccount account);
 typedef InferenceClientFactory =
     InferenceClient Function(InferenceEndpoint endpoint);
 
-/// Builds the agent provider that runs agents over an inference client.
+/// Builds the agent provider that runs agents over an inference client,
+/// holding each agent's session through the provider's [AgentSessions].
 typedef RemoteAgentProviderSpawner =
     AgentProvider Function({
       required InferenceClient client,
+      required AgentSessions sessions,
       required String modelId,
       required int contextWindow,
       required int maxAgents,

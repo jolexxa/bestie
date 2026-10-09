@@ -17,6 +17,7 @@ final class ProviderConfigKeys {
     required this.customBaseUrl,
     required this.customApiKey,
     required this.customContextWindow,
+    required this.localContextCap,
     required this.model,
     required this.maxAgents,
     required this.sampling,
@@ -35,6 +36,13 @@ final class ProviderConfigKeys {
       path: const ['provider', 'custom', 'contextWindow'],
       codec: ConfigCodecs.integers,
       defaultValue: () => defaultCustomContextWindow,
+      effect: ConfigEffect.onCommit,
+    ),
+    localContextCap: ConfigKey<int>(
+      id: 'provider.local.context_cap',
+      path: const ['provider', 'local', 'contextCap'],
+      codec: ConfigCodecs.integers,
+      defaultValue: () => 0,
       effect: ConfigEffect.onCommit,
     ),
     model: ConfigKey<String>(
@@ -74,11 +82,17 @@ final class ProviderConfigKeys {
   final ConfigKey<String> customBaseUrl;
   final ConfigKey<String> customApiKey;
   final ConfigKey<int> customContextWindow;
+
+  /// The most context a local model may run with; 0 for as much as fits.
+  final ConfigKey<int> localContextCap;
+
   final ConfigKey<String> model;
   final ConfigKey<int> maxAgents;
   final ProviderSamplingConfigKeys sampling;
 
-  /// Keys whose change means a different provider session.
+  /// Keys whose change means a different provider session. The local
+  /// models settings are read whenever a model is activated, so changing
+  /// them leaves the running model be.
   Iterable<ConfigKeyBase> get sessionKeys => [
     openRouterApiKey,
     fireworksApiKey,

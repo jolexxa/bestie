@@ -5,12 +5,25 @@
 # artifacts, or the GitHub release.
 #
 # Usage:
-#   tool/local_build.sh [version]
+#   tool/local_build.sh [--llama-from-build <dir>] [version]
 #
+#   --llama-from-build <dir>
+#             Optional. Stage the llama.cpp libraries from a local CMake build
+#             of the fork instead of the pinned release. Those libraries only
+#             suit this machine, so never ship the resulting archive.
 #   version   Optional. Written into bestie_version.dart before compiling.
 #             Defaults to the latest v* git tag (minus the `v`), or 0.0.0-dev.
 
 set -euo pipefail
+
+llama_from_build=""
+version=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --llama-from-build) llama_from_build="$(cd "$2" && pwd)"; shift 2 ;;
+    *) version="$1"; shift ;;
+  esac
+done
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
@@ -41,7 +54,6 @@ esac
 echo "==> Building for ${platform} (${asset_os}/${asset_arch})"
 
 # --- Version ----------------------------------------------------------------
-version="${1:-}"
 if [ -z "$version" ]; then
   latest="$(git tag -l 'v*' --sort=-v:refname | head -n1 || true)"
   version="${latest#v}"
@@ -60,6 +72,13 @@ dart pub get
 echo "==> Downloading assets"
 dart ./tool/download_curl_assets.dart --os "$asset_os"
 dart ./tool/download_cert_assets.dart
+
+if [ -n "$llama_from_build" ]; then
+  echo "==> Staging llama.cpp libraries from ${llama_from_build} (this machine only)"
+  dart ./tool/download_llama_assets.dart --from-build "$llama_from_build"
+else
+  dart ./tool/download_llama_assets.dart --os "$asset_os"
+fi
 
 if [ "$asset_os" = "windows" ]; then
   dart ./tool/download_openconsole_assets.dart
@@ -86,10 +105,7 @@ dart tool/set_version.dart "$version"
 rm -f "${bundle_dir}/lib/.gitkeep"
 
 # `dart build cli` only bundles the hook-driven code assets (the dylibs).
-# Every other shipped file (cacert.pem, shell/bin, spawner,
-# CREDITS.md) is staged from the bundleAssets manifest here, which also
-# verifies each declared asset actually landed.
-echo "==> Staging app assets (cacert, shell, spawner, credits)"
+echo "==> Staging app assets and bestie_server"
 dart tool/bundle_assets.dart --os "$asset_os" "$bundle_dir"
 
 echo "==> Staging licenses"

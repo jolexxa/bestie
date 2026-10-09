@@ -52,7 +52,7 @@ class ConfigRow extends StatelessComponent {
 
     final display = _display(theme);
     final value = display.value;
-    final displayValue = _displayValue(value);
+    final displayValue = _displayValue(display);
     final validation = field.validateValue(value);
     final overridden = display.overridden;
     final source = display.source;
@@ -153,8 +153,10 @@ class ConfigRow extends StatelessComponent {
   static const _mask = '••••••••';
 
   /// Secrets stay masked while browsing; editing shows the real text.
-  String _displayValue(Object? value) {
-    final formatted = field.formatValue(value);
+  String _displayValue(_ConfigRowDisplay display) {
+    final unsetLabel = field.unsetLabel;
+    if (display.isDefault && unsetLabel != null) return unsetLabel;
+    final formatted = field.formatValue(display.value);
     return field.secret && formatted.isNotEmpty ? _mask : formatted;
   }
 
@@ -176,6 +178,7 @@ class ConfigRow extends StatelessComponent {
       value: inspected.value,
       source: source,
       overridden: resolver.isExplicitBase(address),
+      isDefault: inspected.isDefault,
     );
   }
 
@@ -237,14 +240,17 @@ final class _ConfigRowDisplay {
     required this.value,
     required this.source,
     required this.overridden,
+    required this.isDefault,
   });
 
   const _ConfigRowDisplay.empty()
     : value = null,
       source = null,
-      overridden = false;
+      overridden = false,
+      isDefault = false;
 
   final Object? value;
   final OriginLabel? source;
   final bool overridden;
+  final bool isDefault;
 }

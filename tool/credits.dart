@@ -60,6 +60,14 @@ String _licenseUrl(License l) => switch (l) {
   License.other => 'https://spdx.org/licenses/',
 };
 
+String _licenseIntro(License license) => switch (license) {
+  License.other =>
+    'The following components are licensed under their own terms.',
+  _ =>
+    'The following components are licensed under the '
+        '[${_licenseName(license)}](${_licenseUrl(license)}).',
+};
+
 /// A credited component.
 class Dep {
   Dep(this.name, this.license, this.copyright, {this.url, this.note});
@@ -105,6 +113,16 @@ final _manualDeps = <Dep>[
         'available under the MPL-2.0 and, per the CCADB Data Usage Terms, the '
         'Community Data License Agreement - Permissive, Version 2.0, which '
         'requires attribution to the Common CA Database (CCADB).',
+  ),
+  Dep(
+    'range_request',
+    License.bsd3,
+    '2025, Kyohei Ito',
+    url: 'https://pub.dev/packages/range_request',
+    note:
+        "The chunk queue and worker pool of Bestie's resumable model "
+        'downloader (`model_downloader`) are derived from the design of '
+        "`range_request`'s `ChunkFetcher`.",
   ),
 
   // -- Native libraries bundled inside curl-impersonate --------------------
@@ -165,6 +183,39 @@ final _manualDeps = <Dep>[
     note:
         "Bestie ships Microsoft's redistributable ConPTY — `conpty.dll` and the "
         '`OpenConsole.exe` console host it launches.',
+  ),
+
+  // -- Local inference server (bestie_server) ------------------------------
+  Dep(
+    'llama.cpp',
+    License.mit,
+    'The ggml authors',
+    url: 'https://github.com/ggml-org/llama.cpp',
+    note:
+        'Bestie ships the llama.cpp and ggml libraries, built from the '
+        'hobbyfarm-ai/llama.cpp fork, so `bestie_server` can run GGUF models '
+        'on your machine.',
+  ),
+  Dep(
+    'LLVM OpenMP',
+    License.apache2,
+    'The LLVM Project contributors',
+    url: 'https://github.com/llvm/llvm-project/tree/main/openmp',
+    note:
+        'On Windows, Bestie ships the LLVM OpenMP runtime (`libomp.dll`) that '
+        "ggml's CPU backends use for threading. It is licensed under the "
+        'Apache License v2.0 with LLVM Exceptions.',
+  ),
+  Dep(
+    'Microsoft Visual C++ Runtime',
+    License.other,
+    'Microsoft Corporation',
+    url:
+        'https://learn.microsoft.com/en-us/visualstudio/releases/2026/redistribution',
+    note:
+        'On Windows, Bestie ships `msvcp140.dll`, `vcruntime140.dll` and '
+        '`vcruntime140_1.dll` beside the llama.cpp libraries, as '
+        'Distributable Code under the Visual Studio licence terms.',
   ),
 
   // -- Native helper (spawner PTY helper, Rust) ----------------------------
@@ -334,10 +385,7 @@ String _render(List<Dep> deps) {
     buf
       ..writeln('## ${_licenseName(license)}')
       ..writeln()
-      ..writeln(
-        'The following components are licensed under the '
-        '[${_licenseName(license)}](${_licenseUrl(license)}).',
-      )
+      ..writeln(_licenseIntro(license))
       ..writeln();
 
     final noted = group.where((d) => d.note != null).toList()

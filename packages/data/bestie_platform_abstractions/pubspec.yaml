@@ -11,9 +11,10 @@ environment:
 dependencies:
   file: ^7.0.1
   intentions: ^0.1.0
+  meta: ^1.15.0
   path: ^1.9.1
-  real_paths:
-    path: ../../infra/real_paths
+  path_plus:
+    path: ../../infra/path_plus
 
 dev_dependencies:
   mocktail: ^1.0.4

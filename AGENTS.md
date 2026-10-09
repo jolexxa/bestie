@@ -47,15 +47,17 @@ dart run melos run format:check --no-select   # CI formatting check
 dart run melos run coverage --no-select       # tests + lcov coverage report
 dart run melos run codegen --no-select        # build_runner code generation
 dart run melos run ffigen --no-select         # standard ffigen packages
+dart run melos run assets:llama               # llama.cpp libs for this host (dart tool/update_llama.dart <tag> to bump the pin)
 dart run melos run ffigen_posix_macos         # POSIX macOS bindings
 dart run melos run ffigen_posix_linux         # POSIX Linux bindings
 dart run melos run build:spawner              # build the spawner PTY helper (Rust, POSIX only)
 dart run melos run build:sidecars             # build every Rust sidecar (brush, coreutils, ripgrep, findutils, sed, bestie_edit)
 dart run melos run build:edit                 # build just bestie_edit (also build:brush, build:coreutils, build:ripgrep, build:findutils, build:sed)
-dart run melos run checks:edit                # cargo fmt / clippy / test for the bestie_edit crate
-dart run melos run checks:guard               # cargo fmt / clippy / test for the bestie_guard sandbox crate
+dart run melos run checks:rust                # cargo fmt / clippy / test for bestie_edit, bestie_guard, spawner (dart tool/check_crates.dart edit to pick)
 dart run melos run setup                      # full fresh-clone bootstrap (host-aware; see below)
-dart run melos run checks --no-select         # full CI check sequence
+dart run melos run checks:static              # CI static job: version placeholder, format, analyze
+dart run melos run checks:test                # CI test job: Dart tests + Rust crate checks
+dart run melos run checks                     # everything CI runs, plus 100% coverage
 dart run melos run credits                    # regenerate CREDITS.md from shipped dependencies
 ```
 
@@ -71,6 +73,7 @@ Native libraries for FFI packages are not checked into git — the one exception
 
 ```bash
 dart tool/download_curl_assets.dart         # curl-impersonate native libs
+dart tool/download_llama_assets.dart        # llama.cpp libs from the pinned fork release (--from-build <dir> for a local build)
 dart tool/download_openconsole_assets.dart  # Windows console host (conpty.dll + OpenConsole.exe)
 dart run melos run build:spawner            # `spawner` PTY helper (Rust → packages/ffi/posix_spawner/assets/native/<os>/<arch>/spawner)
 dart run melos run build:sidecars           # brush, coreutils, ripgrep, findutils, sed (Rust → packages/infra/agent_shell/assets/native/<os>/<arch>/shell/bin)
@@ -95,7 +98,7 @@ We have a directory that you may clone packages into to take a look, ./external.
 
 ## About
 
-Bestie is a terminal chat app that runs against hosted, OpenAI-compatible inference endpoints — OpenRouter and Fireworks AI are built in, and one custom OpenAI-compatible endpoint (a local llama.cpp server, say) can be configured — with API keys and a `provider:model` id in `~/.bestie/bestie.json`. Model facts the endpoint leaves out come from the models.dev catalog, cached under `~/.bestie/cache`. Bestie supports tool calls, reasoning models, parallel subagents, and conversation compaction.
+Bestie is a terminal chat app that runs against hosted, OpenAI-compatible inference endpoints — OpenRouter and Fireworks AI are built in, and one custom OpenAI-compatible endpoint (a local llama.cpp server, say) can be configured — with API keys and a `provider:model` id in `~/.bestie/bestie.json`. Model facts the endpoint leaves out come from the models.dev catalog, cached under `~/.bestie/cache`. A built-in `local` provider runs GGUF models from `~/.bestie/models` (and any `models.paths`) through `bestie_server`, a llama.cpp sidecar that ships beside the app and that bestie starts on demand. Bestie supports tool calls, reasoning models, parallel subagents, and conversation compaction.
 
 ## Agents
 

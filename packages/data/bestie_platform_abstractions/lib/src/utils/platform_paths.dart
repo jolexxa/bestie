@@ -1,6 +1,6 @@
 import 'package:file/file.dart';
 import 'package:path/path.dart' as p;
-import 'package:real_paths/real_paths.dart';
+import 'package:path_plus/path_plus.dart';
 
 /// Resolves the current user's home directory from [environment].
 String resolveHomeDir(Map<String, String> environment) {
@@ -76,3 +76,20 @@ String managedLogFileFor(String bestieDir, p.Context context) =>
 /// Uncaught-error black box.
 String crashLogFileFor(String bestieDir, p.Context context) =>
     context.join(logsDirFor(bestieDir, context), 'crash.log');
+
+/// Directory holding downloaded models and the model index.
+String modelsDirFor(String bestieDir, p.Context context) =>
+    context.join(bestieDir, 'models');
+
+/// Directory holding the files running helper processes leave for bestie.
+String runDirFor(String bestieDir, p.Context context) =>
+    context.join(bestieDir, 'run');
+
+/// The file the running local inference server holds locked and names its
+/// port in.
+String inferenceLockFileFor(String bestieDir, p.Context context) =>
+    context.join(runDirFor(bestieDir, context), 'inference.lock');
+
+/// The local inference server's log, appended to by every run.
+String serverLogFileFor(String bestieDir, p.Context context) =>
+    context.join(logsDirFor(bestieDir, context), 'server.log');

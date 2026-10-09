@@ -1,4 +1,6 @@
+import 'package:characters/characters.dart';
 import 'package:humanizer/humanizer.dart';
+import 'package:nocterm/nocterm.dart' show UnicodeWidth;
 
 // humanizer renders binary magnitudes (powers of 1024) with IEC symbols by
 // default. We keep the binary math but drop the "i" from the symbol so sizes
@@ -135,5 +137,25 @@ extension TruncateFormatting on String {
   String truncate({int maxLength = 64}) {
     if (length <= maxLength) return this;
     return '${substring(0, maxLength)}…';
+  }
+
+  /// The leading graphemes that fit in [cells] terminal cells.
+  String clipCells(int cells) {
+    final clipped = StringBuffer();
+    var used = 0;
+    for (final grapheme in characters) {
+      used += UnicodeWidth.graphemeWidth(grapheme);
+      if (used > cells) break;
+      clipped.write(grapheme);
+    }
+    return clipped.toString();
+  }
+
+  /// This text when it fits in [cells] terminal cells, else as much as fits
+  /// with a trailing ellipsis.
+  String ellipsizeCells(int cells) {
+    if (UnicodeWidth.stringWidth(this) <= cells) return this;
+    if (cells < 1) return '';
+    return '${clipCells(cells - 1)}…';
   }
 }

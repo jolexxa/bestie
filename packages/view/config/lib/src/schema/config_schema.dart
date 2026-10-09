@@ -2,6 +2,7 @@ import 'package:bestie_chat_use_case/bestie_chat_use_case.dart';
 import 'package:bestie_config_view/src/schema/app_config_contribution.dart';
 import 'package:bestie_config_view/src/schema/bestie_config_keys.dart';
 import 'package:bestie_config_view/src/schema/config_layout.dart';
+import 'package:bestie_local_models_use_case/bestie_local_models_use_case.dart';
 import 'package:bestie_mascot_use_case/bestie_mascot_use_case.dart';
 import 'package:bestie_provider_use_case/bestie_provider_use_case.dart';
 import 'package:bestie_sandbox_use_case/bestie_sandbox_use_case.dart';
@@ -36,6 +37,7 @@ ConfigSchema buildConfigSchema({
   final shell = ShellConfigContribution();
   final sandbox = SandboxConfigContribution();
   final provider = ProviderConfigContribution();
+  final localModels = LocalModelsConfigContribution();
 
   final contributions = <ConfigContribution>[
     app,
@@ -45,6 +47,7 @@ ConfigSchema buildConfigSchema({
     shell,
     sandbox,
     provider,
+    localModels,
   ];
 
   final keys = BestieConfigKeys(
@@ -52,6 +55,7 @@ ConfigSchema buildConfigSchema({
     mascot: mascot.configKeys,
     chat: chat.configKeys,
     provider: provider.configKeys,
+    localModels: localModels.configKeys,
     shell: shell.configKeys,
     sandbox: sandbox.configKeys,
     tools: tools.configKeys,

@@ -37,7 +37,7 @@ Future<ProbeOutcome> probeProvider(
   required ProviderModelRef model,
 }) async {
   final provider = connection.provider;
-  if (!provider.endpoints.containsKey(InferenceProtocolId.openAiCompat)) {
+  if (!provider.protocols.contains(InferenceProtocolId.openAiCompat)) {
     return ProbeFailed(
       ProviderFailure(
         kind: InferenceFailureKind.badRequest,

@@ -6,7 +6,7 @@ import 'package:provider_protocol/provider_protocol.dart';
 /// OpenRouter: an OpenAI-compatible inference endpoint plus the account
 /// APIs (credits, key metadata, model catalog) behind one API key.
 @dataSource
-final class OpenRouterProvider implements Provider {
+final class OpenRouterProvider with HostedModels implements Provider {
   OpenRouterProvider({
     required openrouter.OpenRouter client,
     required String apiKey,
@@ -75,10 +75,13 @@ final class OpenRouterProvider implements Provider {
     }
   }
 
+  /// The models that answer in text, the only ones a chat can use.
   @override
   Future<ProviderModelsResult> models() async {
     try {
-      final models = await _client.models.list();
+      final models = await _client.models.list(
+        outputModalities: {openrouter.Modality.text},
+      );
       return ProviderModelsListed([
         for (final model in models) _toProviderModel(model),
       ]);

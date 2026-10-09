@@ -50,6 +50,21 @@ void main() {
       expect(field.adjust(2, 5), 2);
     });
 
+    test('shows the default unless given an unset label', () {
+      expect(field.unsetLabel, isNull);
+      expect(
+        NumericField<double>(
+          label: 'Temp',
+          description: 'sampling',
+          min: 0,
+          max: 2,
+          step: 0.1,
+          unsetLabel: 'model default',
+        ).unsetLabel,
+        'model default',
+      );
+    });
+
     test('format uses step precision', () {
       expect(field.format(0.7), '0.7');
       expect(field.format(1.25), '1.3');
@@ -211,6 +226,30 @@ void main() {
         maxLines: 8,
       );
       expect(multi.maxLines, 8);
+    });
+  });
+
+  group('ListField', () {
+    final field = ListField(label: 'Paths', description: 'one per line');
+
+    test('edits one value per line', () {
+      expect(field.format(['/models', '/more']), '/models\n/more');
+      expect(field.parse(' /models \n\n  \n/more\n'), ['/models', '/more']);
+      expect(field.parse(''), isEmpty);
+    });
+
+    test('is never adjusted and always valid', () {
+      expect(field.adjust(['/models'], 1), ['/models']);
+      expect(field.validate(['/models']), isA<Valid>());
+    });
+
+    test('spans several lines unless told otherwise', () {
+      expect(field.maxLines, 4);
+      expect(field.customEditable, isTrue);
+      expect(
+        ListField(label: 'Paths', description: 'd', maxLines: 2).maxLines,
+        2,
+      );
     });
   });
 }
