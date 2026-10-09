@@ -1,3 +1,4 @@
+import 'package:bestie_platform_abstractions/src/models/program_command.dart';
 import 'package:bestie_platform_abstractions/src/utils/platform_paths.dart';
 import 'package:intentions/intentions.dart';
 import 'package:path/path.dart' as p;
@@ -26,6 +27,7 @@ abstract class OSPlatform {
     required this.curlLibraryPath,
     required this.caCertPath,
     required this.creditsPath,
+    required this.serverExecutable,
   });
 
   final OSKind os;
@@ -53,6 +55,9 @@ abstract class OSPlatform {
   /// on the config overlay's Credits page.
   final String creditsPath;
 
+  /// How to start the local inference server.
+  final ProgramCommand serverExecutable;
+
   /// Path semantics of the OS this platform describes, not of the host.
   p.Context get _pathContext => os == OSKind.windows ? p.windows : p.posix;
 
@@ -74,6 +79,18 @@ abstract class OSPlatform {
   /// Cached copy of the external model catalog.
   String get modelCatalogCacheFile =>
       modelCatalogCacheFileFor(bestieDir, _pathContext);
+
+  /// Downloaded models and the model index.
+  String get modelsDir => modelsDirFor(bestieDir, _pathContext);
+
+  /// Files running helper processes leave for bestie.
+  String get runDir => runDirFor(bestieDir, _pathContext);
+
+  /// Where the running local inference server says which port it serves.
+  String get inferenceLockFile => inferenceLockFileFor(bestieDir, _pathContext);
+
+  /// The local inference server's log.
+  String get serverLogFile => serverLogFileFor(bestieDir, _pathContext);
 }
 
 @model
@@ -89,6 +106,7 @@ class MacOSPlatform extends OSPlatform {
     required super.curlLibraryPath,
     required super.caCertPath,
     required super.creditsPath,
+    required super.serverExecutable,
   }) : super(os: OSKind.macos);
 }
 
@@ -105,6 +123,7 @@ class WindowsPlatform extends OSPlatform {
     required super.curlLibraryPath,
     required super.caCertPath,
     required super.creditsPath,
+    required super.serverExecutable,
   }) : super(os: OSKind.windows);
 }
 
@@ -121,5 +140,6 @@ class LinuxPlatform extends OSPlatform {
     required super.curlLibraryPath,
     required super.caCertPath,
     required super.creditsPath,
+    required super.serverExecutable,
   }) : super(os: OSKind.linux);
 }

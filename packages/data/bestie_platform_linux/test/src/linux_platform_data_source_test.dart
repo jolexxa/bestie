@@ -48,6 +48,13 @@ const _assets = PosixAppAssets(
     bundleUnit: AssetBundleUnit.ownerNativeDir,
     missingMessage: 'Editor not found.',
   ),
+  server: AppAsset(
+    path: 'bestie_server',
+    packageOwner: 'packages/bestie_server',
+    bundleSubdir: 'bin',
+    sourceScript: 'packages/bestie_server/bin/bestie_server.dart',
+    missingMessage: 'Server not found.',
+  ),
   shared: _shared,
 );
 
@@ -116,6 +123,22 @@ void main() {
         expect(
           platform.creditsPath,
           resolver.pathFor(_assets.shared.credits),
+        );
+      });
+
+      test('describes how to start the server', () {
+        final fs = MemoryFileSystem.test();
+        final resolver = _mirror(fs, bundled: bundled);
+        _createAssets(fs, resolver);
+
+        final platform = _dataSource(fs, bundled: bundled).loadPlatform();
+
+        expect(
+          platform.serverExecutable,
+          resolver.commandFor(
+            _assets.server,
+            dartExecutable: '/opt/Bestie/bin/bestie',
+          ),
         );
       });
     });
@@ -207,6 +230,7 @@ void main() {
         _assets.shared.caCert,
         _assets.shared.credits,
         _assets.shared.shellBin,
+        _assets.server,
       ]),
     );
   });

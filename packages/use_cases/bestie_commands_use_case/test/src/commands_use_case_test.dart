@@ -15,7 +15,7 @@ Command _command(String id) => Command(
   description: '',
   group: 'Test',
   availability: Stream.value(const Available()),
-  invoke: (_) async => const CommandRan(),
+  body: CommandFlow(invoke: (_) async => const CommandRan()),
 );
 
 void main() {

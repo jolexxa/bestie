@@ -32,7 +32,7 @@ class ProviderUseCase implements CommandContribution {
         description: 'Re-check the remaining provider balance',
         group: 'Provider',
         availability: _readyAvailability(),
-        invoke: _refreshCreditsInvoke,
+        body: CommandFlow(invoke: _refreshCreditsInvoke),
       ),
       Command(
         id: 'provider.select_model',
@@ -42,8 +42,7 @@ class ProviderUseCase implements CommandContribution {
         tier: CommandTier.primary,
         group: 'Provider',
         availability: _idleAvailability(),
-        next: _selectModelFlow,
-        invoke: _selectModelInvoke,
+        body: CommandFlow(next: _selectModelFlow, invoke: _selectModelInvoke),
       ),
       Command(
         id: 'provider.reconnect',
@@ -52,7 +51,7 @@ class ProviderUseCase implements CommandContribution {
         description: 'Reopen the connection to the configured providers',
         group: 'Provider',
         availability: _idleAvailability(),
-        invoke: _reconnectInvoke,
+        body: CommandFlow(invoke: _reconnectInvoke),
       ),
     ]);
     _providers.configure(settings);
@@ -84,9 +83,10 @@ class ProviderUseCase implements CommandContribution {
   };
 
   /// The session settings as configured right now; accounts are listed in
-  /// the order their models should appear, the user's own endpoint first.
+  /// the order their models should appear, the user's own models first.
   ProviderSettings get settings => ProviderSettings(
     accounts: [
+      const ProviderAccount(descriptor: localDescriptor, apiKey: ''),
       ProviderAccount(
         descriptor: customDescriptor,
         apiKey: _resolve(_configKeys.customApiKey),

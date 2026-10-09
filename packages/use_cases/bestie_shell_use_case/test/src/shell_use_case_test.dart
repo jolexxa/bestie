@@ -82,6 +82,10 @@ class _StubConfig implements ConfigKeyResolver {
   T resolve<T>(ConfigAddress<T> address) => inspect(address).value;
 }
 
+extension on Command {
+  CommandFlow get flow => body as CommandFlow;
+}
+
 void main() {
   const environment = ShellEnvironment(
     userland: ShellUserland(
@@ -350,14 +354,15 @@ void main() {
       final cmd = command(useCase);
       expect(await firstGate(cmd), isA<Available>());
 
-      final param = cmd.next(const Answers.empty())! as ChoiceParam<String>;
+      final param =
+          cmd.flow.next(const Answers.empty())! as ChoiceParam<String>;
       final options = await param.options.first;
       expect(options.single.value, 'shell:0');
       expect(options.single.label, 'brush');
 
       final answers = const Answers.empty().put(param.key, 'shell:0');
-      expect(cmd.next(answers), isNull);
-      expect(await cmd.invoke(answers), isA<CommandRan>());
+      expect(cmd.flow.next(answers), isNull);
+      expect(await cmd.flow.invoke(answers), isA<CommandRan>());
       verify(() => repository.close('shell:0')).called(1);
     });
 
@@ -368,7 +373,7 @@ void main() {
         'shell:0',
       );
       expect(
-        await command(useCaseWith()).invoke(answers),
+        await command(useCaseWith()).flow.invoke(answers),
         isA<CommandRejected>(),
       );
     });

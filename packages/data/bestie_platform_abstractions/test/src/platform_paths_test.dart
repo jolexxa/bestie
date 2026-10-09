@@ -100,6 +100,19 @@ void main() {
       expect(crashLogFileFor(bestieDir, p.posix), '$logsDir/crash.log');
     });
 
+    test('keeps local inference files in models, run, and logs', () {
+      expect(modelsDirFor(bestieDir, p.posix), '$bestieDir/models');
+      expect(runDirFor(bestieDir, p.posix), '$bestieDir/run');
+      expect(
+        inferenceLockFileFor(bestieDir, p.posix),
+        '$bestieDir/run/inference.lock',
+      );
+      expect(
+        serverLogFileFor(bestieDir, p.posix),
+        '$bestieDir/logs/server.log',
+      );
+    });
+
     test('a windows layout joins with backslashes', () {
       final winDir = bestieDirFor(r'C:\Users\cow', p.windows);
 

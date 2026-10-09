@@ -23,6 +23,10 @@ const _enforcement = SandboxEnforcement(
 
 const _grantsKey = 'app.sandbox_write_grants';
 
+extension on Command {
+  CommandFlow get flow => body as CommandFlow;
+}
+
 void main() {
   setUpAll(() {
     registerFallbackValue(const SandboxSpec(workspaceRoot: '/'));
@@ -417,14 +421,14 @@ void main() {
       final windows = useCaseWith(sandboxModel: SandboxPlatformModel.windows);
       setup(windows);
       expect(
-        resetCommand(windows).running,
+        resetCommand(windows).flow.running,
         'Resetting the Windows sandbox. This can take a while. Please be '
         'patient.',
       );
 
       final posix = useCaseWith();
       setup(posix);
-      expect(resetCommand(posix).running, 'Resetting the sandbox…');
+      expect(resetCommand(posix).flow.running, 'Resetting the sandbox…');
     });
 
     test('are available when ready or failed, not mid-initialization', () {
@@ -455,7 +459,9 @@ void main() {
       final useCase = useCaseWith();
       setup(useCase);
 
-      final result = await resetCommand(useCase).invoke(const Answers.empty());
+      final result = await resetCommand(
+        useCase,
+      ).flow.invoke(const Answers.empty());
 
       expect(result, isA<CommandRan>());
       verify(() => sandboxes.reset()).called(1);
@@ -468,7 +474,9 @@ void main() {
       final useCase = useCaseWith();
       setup(useCase);
 
-      final result = await resetCommand(useCase).invoke(const Answers.empty());
+      final result = await resetCommand(
+        useCase,
+      ).flow.invoke(const Answers.empty());
 
       expect(
         result,
@@ -492,7 +500,7 @@ void main() {
 
         final result = await forgetCommand(
           useCase,
-        ).invoke(const Answers.empty());
+        ).flow.invoke(const Answers.empty());
 
         expect(result, isA<CommandRan>());
         expect(config[_grantsKey], isNull);
@@ -516,7 +524,9 @@ void main() {
       final useCase = useCaseWith();
       setup(useCase);
 
-      final result = await forgetCommand(useCase).invoke(const Answers.empty());
+      final result = await forgetCommand(
+        useCase,
+      ).flow.invoke(const Answers.empty());
 
       expect(result, isA<CommandRejected>());
       verifyNever(() => sandboxes.replan(any()));

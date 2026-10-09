@@ -124,7 +124,8 @@ jobs:
           # `dart build cli` only bundles the hook-driven code assets (the
           # native libraries). Stage every other shipped asset (cacert.pem,
           # shell/bin, spawner, bestie_edit, CREDITS.md) from the platform's
-          # `bundleAssets` manifest; this also verifies each landed.
+          # `bundleAssets` manifest, and build bestie_server beside the
+          # bundle to merge in its executable and llama.cpp libraries.
           rm -f "${bundle_dir}/lib/.gitkeep"
           dart tool/bundle_assets.dart --os "${{ matrix.asset_os }}" "${bundle_dir}"
 

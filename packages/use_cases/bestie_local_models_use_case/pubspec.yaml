@@ -1,0 +1,51 @@
+name: bestie_local_models_use_case
+description: >-
+  Local models in the palette: download GGUFs from Hugging Face, browse the
+  installed library and the local server, and manage model folders.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  agent_repository:
+    path: ../../domain/agent_repository
+  clock: ^1.1.1
+  collection: ^1.19.0
+  command_protocol:
+    path: ../../infra/command_protocol
+  config_protocol:
+    path: ../../infra/config_protocol
+  config_repository:
+    path: ../../domain/config_repository
+  inference_protocol:
+    path: ../../infra/inference_protocol
+  intentions: ^0.1.0
+  local_inference_protocol:
+    path: ../../infra/local_inference_protocol
+  local_models_repository:
+    path: ../../domain/local_models_repository
+  local_server_repository:
+    path: ../../domain/local_server_repository
+  path: ^1.9.1
+  platform_repository:
+    path: ../../domain/platform_repository
+  provider_protocol:
+    path: ../../infra/provider_protocol
+  provider_repository:
+    path: ../../domain/provider_repository
+  rxdart: ^0.28.0
+
+dev_dependencies:
+  agent_provider_protocol:
+    path: ../../infra/agent_provider_protocol
+  bestie_platform_abstractions:
+    path: ../../data/bestie_platform_abstractions
+  coverage: ^1.15.0
+  fake_async: ^1.3.2
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

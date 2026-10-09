@@ -1,0 +1,26 @@
+name: local_server_repository
+description: >-
+  What bestie's local inference server is doing for this window: whether this
+  window holds it, the model it is loading or serving, and the agents leased
+  on it.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  intentions: ^0.1.0
+  local_inference_client:
+    path: ../../data/local_inference_client
+  local_inference_protocol:
+    path: ../../infra/local_inference_protocol
+  rxdart: ^0.28.0
+
+dev_dependencies:
+  coverage: ^1.15.0
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

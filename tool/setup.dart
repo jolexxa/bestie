@@ -27,6 +27,13 @@ Future<void> main() async {
     stdout.writeln('\n$ordinal ${step.name}');
     stdout.writeln('    ${step.executable} ${step.arguments.join(' ')}');
     final code = await runCommand(step.executable, step.arguments);
+    if (code != 0 && step.optionalReason != null) {
+      stderr.writeln(
+        '\nwarning: "${step.name}" failed (exit $code); continuing because '
+        '${step.optionalReason}.',
+      );
+      continue;
+    }
     if (code != 0) {
       stderr.writeln('\nsetup failed at "${step.name}" (exit $code).');
       exitCode = code;
@@ -58,6 +65,12 @@ List<SetupStep> _setupSteps() {
         'tool/download_curl_assets.dart',
         if (Platform.isWindows) ...['--os', 'windows'],
       ],
+    ),
+    SetupStep(
+      name: 'llama.cpp libraries',
+      executable: 'dart',
+      arguments: const ['tool/download_llama_assets.dart'],
+      optionalReason: 'the llama.cpp FFI tests skip without these libraries',
     ),
     SetupStep(
       name: 'CA certificate bundle',
@@ -102,6 +115,7 @@ class SetupStep {
     required this.arguments,
     this.skipOnHost = false,
     this.skipReason = '',
+    this.optionalReason,
   });
 
   /// Human-readable step label.
@@ -118,4 +132,8 @@ class SetupStep {
 
   /// Why the step is skipped, shown when [skipOnHost] is set.
   final String skipReason;
+
+  /// Why setup may carry on when this step fails, or null when a failure
+  /// stops setup.
+  final String? optionalReason;
 }

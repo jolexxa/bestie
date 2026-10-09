@@ -24,8 +24,16 @@ sealed class ProviderStatus {
     ProviderSessionData data,
   ) => switch (state) {
     UnconfiguredState() => const ProviderStatusUnconfigured(),
-    ConnectingState() => ProviderStatusConnecting(
+    ConnectingState() || RecoveringState() => ProviderStatusConnecting(
       model: data.settings!.model!,
+    ),
+    ActivatingState() => ProviderStatusConnecting(
+      model: data.settings!.model!,
+      loading: LoadingModel.of(
+        data.model!,
+        providerName: data.connection!.provider.displayName,
+        progress: data.activationProgress,
+      ),
     ),
     ReadyState() => ProviderStatusReady(
       model: data.model!,
@@ -52,12 +60,51 @@ final class ProviderStatusUnconfigured extends ProviderStatus {
   const ProviderStatusUnconfigured();
 }
 
-/// Validating the key and looking the model up.
+/// Validating the key, looking the model up, and getting it ready.
 @model
 final class ProviderStatusConnecting extends ProviderStatus {
-  const ProviderStatusConnecting({required this.model});
+  const ProviderStatusConnecting({required this.model, this.loading});
 
   final ProviderModelRef model;
+
+  /// The model being loaded, once its provider reports progress.
+  final LoadingModel? loading;
+}
+
+/// A model on its way into memory.
+@model
+final class LoadingModel {
+  const LoadingModel({
+    required this.name,
+    required this.providerName,
+    required this.contextWindow,
+    required this.progress,
+  });
+
+  final String name;
+
+  final String providerName;
+
+  /// The context the model was asked to run with.
+  final int contextWindow;
+
+  /// From 0 to 1.
+  final double progress;
+
+  /// [model] at [progress], or null while nothing has been reported.
+  static LoadingModel? of(
+    ResolvedModel model, {
+    required String providerName,
+    required double? progress,
+  }) => switch (progress) {
+    null => null,
+    final double progress => LoadingModel(
+      name: model.name,
+      providerName: providerName,
+      contextWindow: model.contextWindow,
+      progress: progress,
+    ),
+  };
 }
 
 /// Agents can run.

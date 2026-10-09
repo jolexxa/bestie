@@ -41,13 +41,112 @@ package "bestie" {
   class ConversationStore << dataSource >>
   class DateTimeTools << repository >>
   class DiskSpaceDataSource << dataSource >>
+  class DownloadLedgerStore << dataSource >>
   class EditDataSource << dataSource >>
   class ExecutableLinkDataSource << dataSource >>
   class FilesDataSource << dataSource >>
   class FsTools << repository >>
+  class GgufReader << dataSource >>
+  class HubClient << dataSource >>
   class InteractiveTerminalView << view >>
+  package "LocalInferenceClient" as _LocalInferenceClient {
+    class LocalInferenceClient << dataSource >>
+    class AttachHeld << dataSource >>
+    LocalInferenceClient +-- AttachHeld
+    class AttachOutcome << dataSource >>
+    LocalInferenceClient +-- AttachOutcome
+    class AttachSettled << dataSource >>
+    LocalInferenceClient +-- AttachSettled
+    class LoadSettled << dataSource >>
+    LocalInferenceClient +-- LoadSettled
+    class LocalAgentSessions << dataSource >>
+    LocalInferenceClient +-- LocalAgentSessions
+    class LocalProvider << dataSource >>
+    LocalInferenceClient +-- LocalProvider
+    class LocalServerLink << dataSource >>
+    LocalInferenceClient +-- LocalServerLink
+    class ModelIndexFile << dataSource >>
+    LocalInferenceClient +-- ModelIndexFile
+    class ModelStatusReported << dataSource >>
+    LocalInferenceClient +-- ModelStatusReported
+    class OwnerSession << dataSource >>
+    LocalInferenceClient +-- OwnerSession
+    class OwnerSessionOpened << dataSource >>
+    LocalInferenceClient +-- OwnerSessionOpened
+    class ServerApi << dataSource >>
+    LocalInferenceClient +-- ServerApi
+    class ServerAttacher << dataSource >>
+    LocalInferenceClient +-- ServerAttacher
+    class ServerConnectionData << dataSource >>
+    LocalInferenceClient +-- ServerConnectionData
+    class ServerConnectionLogic << dataSource >>
+    LocalInferenceClient +-- ServerConnectionLogic
+    class ServerConnectionState << dataSource >>
+    LocalInferenceClient +-- ServerConnectionState
+    class ServerDiscovery << dataSource >>
+    LocalInferenceClient +-- ServerDiscovery
+    class ServerDiscoveryResult << dataSource >>
+    LocalInferenceClient +-- ServerDiscoveryResult
+    class ServerSpawner << dataSource >>
+    LocalInferenceClient +-- ServerSpawner
+    class SessionEnded << dataSource >>
+    LocalInferenceClient +-- SessionEnded
+    class SessionLeases << dataSource >>
+    LocalInferenceClient +-- SessionLeases
+    class SessionStarted << dataSource >>
+    LocalInferenceClient +-- SessionStarted
+  }
+  package "LocalModelsRepository" as _LocalModelsRepository {
+    class LocalModelsRepository << repository >>
+    class DownloadLogic << repository >>
+    LocalModelsRepository +-- DownloadLogic
+    class DownloadQueue << repository >>
+    LocalModelsRepository +-- DownloadQueue
+    class LedgerWriter << repository >>
+    LocalModelsRepository +-- LedgerWriter
+    class ModelScanner << repository >>
+    LocalModelsRepository +-- ModelScanner
+    class RepoResolver << repository >>
+    LocalModelsRepository +-- RepoResolver
+    class RepoSearcher << repository >>
+    LocalModelsRepository +-- RepoSearcher
+    class ScanLogic << repository >>
+    LocalModelsRepository +-- ScanLogic
+    class ScanState << repository >>
+    LocalModelsRepository +-- ScanState
+  }
+  package "LocalModelsUseCase" as _LocalModelsUseCase {
+    class LocalModelsUseCase << useCase >>
+    class DeleteModelPane << useCase >>
+    LocalModelsUseCase +-- DeleteModelPane
+    class DownloadPane << useCase >>
+    LocalModelsUseCase +-- DownloadPane
+    class InstalledPane << useCase >>
+    LocalModelsUseCase +-- InstalledPane
+    class LocalModelsOperations << useCase >>
+    LocalModelsUseCase +-- LocalModelsOperations
+    class ModelDetailsPane << useCase >>
+    LocalModelsUseCase +-- ModelDetailsPane
+    class QuantPane << useCase >>
+    LocalModelsUseCase +-- QuantPane
+  }
+  class LocalServerRepository << repository >>
   class MascotUseCase << useCase >>
   class MetasearchClient << dataSource >>
+  package "ModelDownloader" as _ModelDownloader {
+    class ModelDownloader << dataSource >>
+    class ChunkedFileDownloader << dataSource >>
+    ModelDownloader +-- ChunkedFileDownloader
+    class FileHasher << dataSource >>
+    ModelDownloader +-- FileHasher
+    class FileOutcome << dataSource >>
+    ModelDownloader +-- FileOutcome
+    class FileProgress << dataSource >>
+    ModelDownloader +-- FileProgress
+    class FileTransfer << dataSource >>
+    ModelDownloader +-- FileTransfer
+  }
+  class ModelIndexStore << dataSource >>
   class OSPlatformRepository << repository >>
   class PaletteCubit << viewModel >>
   class ProviderRepository << repository >>
@@ -144,6 +243,8 @@ package "bestie" {
   AppTerminalEnvironmentUseCase --> OSPlatformRepository
   ArxivTools --> ArxivSearchClient
   ArxivTools --> FilesDataSource
+  AttachHeld --> OwnerSession
+  AttachSettled --> AttachOutcome
   ChatCubit --> ChatLogic
   ChatCubit --> ChatUseCase
   ChatLogic --> ChatUseCase
@@ -153,24 +254,76 @@ package "bestie" {
   ChatUseCase --> AgentRepository
   ChatUseCase --> ConfigRepository
   ChatUseCase --> ProviderRepository
+  ChunkedFileDownloader --> FileHasher
   ConfigCubit --> ConfigUseCase
   ConfigLogic --> ConfigUseCase
   ConfigRepository --> ConfigDataSource
   ConfigSession --> ConfigRepository
   ConfigUseCase --> ConfigRepository
   ConfigUseCase --> ConfigSession
+  DeleteModelPane --> LocalModelsOperations
+  DownloadLogic --> ModelDownloader
+  DownloadPane --> LocalModelsOperations
+  DownloadQueue --> DownloadLedgerStore
+  DownloadQueue --> DownloadLogic
+  DownloadQueue --> LedgerWriter
+  DownloadQueue --> ModelDownloader
+  FileTransfer --> FileOutcome
+  FileTransfer --> FileProgress
   FsTools --> EditDataSource
+  InstalledPane --> LocalModelsOperations
   InteractiveTerminalView --> ShellPaneCubit
+  LedgerWriter --> DownloadLedgerStore
+  LoadSettled --> OwnerSession
+  LocalAgentSessions --> LocalServerLink
+  LocalInferenceClient --> ModelIndexFile
+  LocalInferenceClient --> ServerConnectionData
+  LocalInferenceClient --> ServerConnectionLogic
+  LocalInferenceClient --> ServerConnectionState
+  LocalInferenceClient --> ServerSpawner
+  LocalModelsOperations --> AgentRepository
+  LocalModelsOperations --> ConfigRepository
+  LocalModelsOperations --> LocalModelsRepository
+  LocalModelsOperations --> LocalServerRepository
+  LocalModelsOperations --> OSPlatformRepository
+  LocalModelsOperations --> ProviderRepository
+  LocalModelsRepository --> DownloadLedgerStore
+  LocalModelsRepository --> DownloadQueue
+  LocalModelsRepository --> HubClient
+  LocalModelsRepository --> ModelDownloader
+  LocalModelsRepository --> ModelIndexStore
+  LocalModelsRepository --> RepoResolver
+  LocalModelsRepository --> RepoSearcher
+  LocalModelsRepository --> ScanLogic
+  LocalModelsRepository --> ScanState
+  LocalModelsUseCase --> AgentRepository
+  LocalModelsUseCase --> ConfigRepository
+  LocalModelsUseCase --> DownloadPane
+  LocalModelsUseCase --> LocalModelsOperations
+  LocalModelsUseCase --> LocalModelsRepository
+  LocalModelsUseCase --> LocalServerRepository
+  LocalModelsUseCase --> OSPlatformRepository
+  LocalModelsUseCase --> ProviderRepository
+  LocalProvider --> LocalServerLink
+  LocalProvider --> ModelIndexFile
+  LocalServerRepository --> LocalInferenceClient
   MascotUseCase --> ConfigRepository
+  ModelDetailsPane --> LocalModelsOperations
+  ModelScanner --> GgufReader
+  ModelStatusReported --> OwnerSession
   OSPlatformRepository --> ClipboardDataSource
   OSPlatformRepository --> DiskSpaceDataSource
   OSPlatformRepository --> SystemInfoDataSource
   OSPlatformRepository --> TerminalEnvironmentDataSource
+  OwnerSessionOpened --> OwnerSession
   PaletteCubit --> CommandsUseCase
   PendingToolCalls --> ConversationStore
   ProviderUseCase --> AgentRepository
   ProviderUseCase --> ConfigRepository
   ProviderUseCase --> ProviderRepository
+  QuantPane --> LocalModelsOperations
+  RepoResolver --> HubClient
+  RepoSearcher --> HubClient
   RouterCubit --> AppShellUseCase
   RouterLogic --> AppShellUseCase
   SandboxRepository --> SandboxReadinessLogic
@@ -178,6 +331,23 @@ package "bestie" {
   SandboxUseCase --> ConfigRepository
   SandboxUseCase --> SandboxRepository
   SandboxUseCase --> WriteAccessQueue
+  ScanLogic --> ModelScanner
+  ScanState --> ModelScanner
+  ServerAttacher --> ServerDiscovery
+  ServerConnectionData --> AttachHeld
+  ServerConnectionData --> AttachOutcome
+  ServerConnectionData --> SessionLeases
+  ServerConnectionLogic --> ServerApi
+  ServerConnectionLogic --> ServerAttacher
+  ServerConnectionState --> ServerApi
+  ServerConnectionState --> ServerAttacher
+  ServerConnectionState --> ServerConnectionData
+  ServerDiscovery --> ServerApi
+  ServerDiscovery --> ServerDiscoveryResult
+  ServerDiscovery --> ServerSpawner
+  SessionEnded --> OwnerSession
+  SessionLeases --> ServerApi
+  SessionStarted --> OwnerSession
   Settlement --> JobReporter
   ShellCallIndex --> ShellRepository
   ShellPaneCubit --> ShellPaneLogic

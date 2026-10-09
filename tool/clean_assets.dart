@@ -18,6 +18,7 @@ import 'src/helpers.dart';
 /// downloads or builds native assets.
 const _assetDirs = <String>[
   'packages/ffi/curl_impersonate_dart/assets',
+  'packages/ffi/llama_cpp_dart/assets',
   'packages/ffi/posix_spawner/assets',
   'packages/infra/agent_shell/assets',
   'packages/infra/bestie_edit/assets',

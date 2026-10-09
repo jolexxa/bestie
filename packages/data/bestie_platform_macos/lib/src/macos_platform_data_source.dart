@@ -74,6 +74,10 @@ class MacOSPlatformDataSource {
       curlLibraryPath: resolver.resolve(assets.curl),
       caCertPath: resolver.resolve(assets.shared.caCert),
       creditsPath: resolver.resolve(assets.shared.credits),
+      serverExecutable: resolver.commandFor(
+        assets.server,
+        dartExecutable: platform.resolvedExecutable,
+      ),
     );
   }
 

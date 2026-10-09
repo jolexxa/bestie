@@ -1,0 +1,22 @@
+name: inference_runtime
+description: >-
+  Claim-aware sequence runtime over inference: allocation, scheduling and
+  materialization on a shared KV heap.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  inference:
+    path: ../inference
+  isolate_worker:
+    path: ../isolate_worker
+
+dev_dependencies:
+  mocktail: ^1.0.5
+  test: ^1.31.1
+  very_good_analysis: ^10.2.0

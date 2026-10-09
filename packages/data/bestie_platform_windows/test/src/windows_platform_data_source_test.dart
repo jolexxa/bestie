@@ -55,6 +55,13 @@ const _assets = WindowsAppAssets(
     bundleUnit: AssetBundleUnit.ownerNativeDir,
     missingMessage: 'Editor not found.',
   ),
+  server: AppAsset(
+    path: 'bestie_server.exe',
+    packageOwner: 'packages/bestie_server',
+    bundleSubdir: 'bin',
+    sourceScript: 'packages/bestie_server/bin/bestie_server.dart',
+    missingMessage: 'Server not found.',
+  ),
   shared: _shared,
 );
 
@@ -115,6 +122,24 @@ void _createAssets(MemoryFileSystem fs, AppAssetResolver resolver) {
 }
 
 void main() {
+  for (final bundled in [false, true]) {
+    test('describes how to start the server (bundled: $bundled)', () {
+      final fs = MemoryFileSystem.test();
+      final resolver = _mirror(fs, bundled: bundled);
+      _createAssets(fs, resolver);
+
+      final platform = _dataSource(fs, bundled: bundled).loadPlatform();
+
+      expect(
+        platform.serverExecutable,
+        resolver.commandFor(
+          _assets.server,
+          dartExecutable: '/opt/bestie/bestie.exe',
+        ),
+      );
+    });
+  }
+
   test('resolves the curl library from the source tree', () {
     final fs = MemoryFileSystem.test();
     final resolver = _mirror(fs, bundled: false);
@@ -313,6 +338,7 @@ void main() {
         _assets.shared.caCert,
         _assets.shared.credits,
         _assets.shared.shellBin,
+        _assets.server,
       ]),
     );
   });

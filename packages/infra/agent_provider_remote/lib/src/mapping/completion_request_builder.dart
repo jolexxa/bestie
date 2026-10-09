@@ -1,3 +1,4 @@
+import 'package:agent_provider_remote/src/mapping/agent_identity_mapper.dart';
 import 'package:agent_provider_remote/src/mapping/sampling_mapper.dart';
 import 'package:agent_provider_remote/src/mapping/summary_prompt_builder.dart';
 import 'package:agent_provider_remote/src/mapping/tool_mapper.dart';
@@ -25,6 +26,7 @@ final class CompletionRequestBuilder {
       maxOutputTokens: data.maxOutputTokens,
     ),
     reasoning: toInferenceReasoning(data.config.reasoningMode),
+    agent: toAgentIdentity(data.handle),
   );
 
   CompletionRequest summary(RemoteTurnData data) {
@@ -47,6 +49,7 @@ final class CompletionRequestBuilder {
         maxOutputTokens: data.summaryMaxOutputTokens,
       ),
       reasoning: toInferenceReasoning(data.config.compactionReasoningMode),
+      agent: toAgentIdentity(data.handle),
     );
   }
 }

@@ -262,16 +262,18 @@ class SandboxUseCase implements CommandContribution, ToolResponder {
     glyph: '⟲',
     description: 'Reverse every sandbox grant on this machine and rebuild',
     group: 'Sandbox',
-    running: sandboxModel == SandboxPlatformModel.windows
-        ? 'Resetting the Windows sandbox. This can take a while. Please be '
-              'patient.'
-        : 'Resetting the sandbox…',
     availability: gatedAvailability(
       () => readiness,
       readinessStream,
       _restingGate,
     ),
-    invoke: _resetInvoke,
+    body: CommandFlow(
+      invoke: _resetInvoke,
+      running: sandboxModel == SandboxPlatformModel.windows
+          ? 'Resetting the Windows sandbox. This can take a while. Please be '
+                'patient.'
+          : 'Resetting the sandbox…',
+    ),
   );
 
   Command get _forgetWriteGrantsCommand => Command(
@@ -282,13 +284,15 @@ class SandboxUseCase implements CommandContribution, ToolResponder {
         'Take back every directory beyond the workspace the agent was '
         'allowed to write to',
     group: 'Sandbox',
-    running: 'Rebuilding the sandbox…',
     availability: gatedAvailability(
       () => readiness,
       readinessStream,
       _restingGate,
     ),
-    invoke: _forgetWriteGrantsInvoke,
+    body: CommandFlow(
+      invoke: _forgetWriteGrantsInvoke,
+      running: 'Rebuilding the sandbox…',
+    ),
   );
 
   Availability _restingGate(SandboxReadiness readiness) => switch (readiness) {

@@ -53,6 +53,22 @@ Map<String, Object?> _chunk({
   'usage': ?usage,
 };
 
+const _primary = AgentIdentity(
+  id: 'primary:1',
+  kind: AgentIdentityKind.primary,
+);
+
+const _helper = AgentIdentity(
+  id: 'subagent:2',
+  kind: AgentIdentityKind.subagent,
+);
+
+CompletionRequest _requestFrom(AgentIdentity agent) => CompletionRequest(
+  model: 'test/model',
+  messages: const [InferenceUserMessage('hi')],
+  agent: agent,
+);
+
 const _usage = {
   'prompt_tokens': 10,
   'completion_tokens': 5,
@@ -333,7 +349,7 @@ void main() {
       expect(body.containsKey('stop'), isFalse);
     });
 
-    test('maps every reasoning effort by name in both dialects', () async {
+    test('maps every reasoning effort by name in every dialect', () async {
       for (final effort in InferenceEffort.values) {
         for (final dialect in InferenceDialect.values) {
           final client = clientFor(
@@ -351,7 +367,7 @@ void main() {
               .drain<void>();
           final body = jsonDecode(bodies.last) as Map<String, Object?>;
           switch (dialect) {
-            case InferenceDialect.openAi:
+            case InferenceDialect.openAi || InferenceDialect.bestie:
               expect(body['reasoning_effort'], effort.name);
               expect(body.containsKey('reasoning'), isFalse);
             case InferenceDialect.openRouter:
@@ -393,10 +409,9 @@ void main() {
                 )
                 .drain<void>();
             final body = jsonDecode(bodies.last) as Map<String, Object?>;
-            final field = switch (dialectCase.key) {
-              InferenceDialect.openAi => 'reasoning_effort',
-              InferenceDialect.openRouter => 'reasoning',
-            };
+            final field = dialectCase.key == InferenceDialect.openAi
+                ? 'reasoning_effort'
+                : 'reasoning';
             expect(
               body[field],
               reasoningCase.value,
@@ -411,6 +426,115 @@ void main() {
         }
       },
     );
+
+    test('asks the bestie server for thinking by template switch', () async {
+      final cases = <InferenceReasoning, Object?>{
+        const InferenceReasoningDefault(): null,
+        const InferenceReasoningEnabled(): {'enable_thinking': true},
+        const InferenceReasoningDisabled(): {'enable_thinking': false},
+        const InferenceReasoningEffort(InferenceEffort.low): null,
+      };
+      for (final reasoningCase in cases.entries) {
+        final client = clientFor(
+          respond: streamBody(_sse([_chunk(content: 'ok')])),
+          dialect: InferenceDialect.bestie,
+        );
+        await client
+            .complete(
+              CompletionRequest(
+                model: 'm',
+                messages: const [],
+                reasoning: reasoningCase.key,
+              ),
+            )
+            .drain<void>();
+        final body = jsonDecode(bodies.last) as Map<String, Object?>;
+        expect(
+          body['chat_template_kwargs'],
+          reasoningCase.value,
+          reason: '${reasoningCase.key}',
+        );
+        expect(
+          body['reasoning_effort'],
+          reasoningCase.key is InferenceReasoningEffort ? 'low' : null,
+        );
+        expect(body.containsKey('reasoning'), isFalse);
+      }
+    });
+
+    test('sends no template switches to hosted dialects', () async {
+      for (final dialect in [
+        InferenceDialect.openAi,
+        InferenceDialect.openRouter,
+      ]) {
+        final client = clientFor(
+          respond: streamBody(_sse([_chunk(content: 'ok')])),
+          dialect: dialect,
+        );
+        await client
+            .complete(
+              const CompletionRequest(
+                model: 'm',
+                messages: [],
+                reasoning: InferenceReasoningEnabled(),
+              ),
+            )
+            .drain<void>();
+        final body = jsonDecode(bodies.last) as Map<String, Object?>;
+        expect(body.containsKey('chat_template_kwargs'), isFalse);
+      }
+    });
+
+    test('names the agent on every bestie completion', () async {
+      final client = clientFor(
+        respond: streamBody(_sse([_chunk(content: 'ok')])),
+        headers: const {'X-Title': 'bestie'},
+        dialect: InferenceDialect.bestie,
+      );
+
+      await client.complete(_requestFrom(_helper)).drain<void>();
+      await client.complete(_requestFrom(_primary)).drain<void>();
+
+      expect(requests.map((sent) => sent.headers['X-Bestie-Agent']), [
+        'subagent:2',
+        'primary:1',
+      ]);
+      expect(
+        requests.map((sent) => sent.headers['X-Title']),
+        everyElement('bestie'),
+      );
+    });
+
+    test('sends no agent header for an anonymous bestie completion', () async {
+      final client = clientFor(
+        respond: streamBody(_sse([_chunk(content: 'ok')])),
+        dialect: InferenceDialect.bestie,
+      );
+
+      await client.complete(request).drain<void>();
+
+      expect(requests.single.headers.containsKey('X-Bestie-Agent'), isFalse);
+    });
+
+    test('never names the agent to a hosted dialect', () async {
+      for (final dialect in [
+        InferenceDialect.openAi,
+        InferenceDialect.openRouter,
+      ]) {
+        final client = clientFor(
+          respond: streamBody(_sse([_chunk(content: 'ok')])),
+          dialect: dialect,
+        );
+
+        await client.complete(_requestFrom(_primary)).drain<void>();
+
+        expect(
+          requests.last.headers.keys.map((name) => name.toLowerCase()),
+          isNot(contains('x-bestie-agent')),
+          reason: '$dialect',
+        );
+      }
+    });
 
     test('streams reasoning deltas from either reasoning field', () async {
       final client = clientFor(

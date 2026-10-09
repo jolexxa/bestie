@@ -213,4 +213,28 @@ void main() {
       expect(multi.maxLines, 8);
     });
   });
+
+  group('ListField', () {
+    final field = ListField(label: 'Paths', description: 'one per line');
+
+    test('edits one value per line', () {
+      expect(field.format(['/models', '/more']), '/models\n/more');
+      expect(field.parse(' /models \n\n  \n/more\n'), ['/models', '/more']);
+      expect(field.parse(''), isEmpty);
+    });
+
+    test('is never adjusted and always valid', () {
+      expect(field.adjust(['/models'], 1), ['/models']);
+      expect(field.validate(['/models']), isA<Valid>());
+    });
+
+    test('spans several lines unless told otherwise', () {
+      expect(field.maxLines, 4);
+      expect(field.customEditable, isTrue);
+      expect(
+        ListField(label: 'Paths', description: 'd', maxLines: 2).maxLines,
+        2,
+      );
+    });
+  });
 }

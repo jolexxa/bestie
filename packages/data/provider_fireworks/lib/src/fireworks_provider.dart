@@ -40,14 +40,27 @@ final class FireworksProvider implements Provider {
   String get displayName => _inference.displayName;
 
   @override
-  Map<InferenceProtocolId, InferenceEndpoint> get endpoints =>
-      _inference.endpoints;
+  Set<InferenceProtocolId> get protocols => _inference.protocols;
 
   @override
   Future<KeyInfoResult> keyInfo() => _inference.keyInfo();
 
   @override
   Future<ProviderModelsResult> models() => _inference.models();
+
+  @override
+  Stream<void> get modelsChanged => _inference.modelsChanged;
+
+  @override
+  ModelActivation activate(ModelActivationRequest request) =>
+      _inference.activate(request);
+
+  @override
+  AgentSessions openSessions({required int contextWindow}) =>
+      _inference.openSessions(contextWindow: contextWindow);
+
+  @override
+  Future<void> deactivate() => _inference.deactivate();
 
   @override
   Future<CreditsResult> credits() async {

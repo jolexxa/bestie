@@ -20,6 +20,10 @@ TerminalOverride stubOverride() {
   return override;
 }
 
+extension on Command {
+  CommandFlow get flow => body as CommandFlow;
+}
+
 void main() {
   const capturedKeys = {InputCapture.controlKeys, InputCapture.editingKeys};
 
@@ -164,7 +168,10 @@ void main() {
         final command = commandById('app.recaptureInput');
         expect(await firstGate(command), isA<Available>());
 
-        expect(await command.invoke(const Answers.empty()), isA<CommandRan>());
+        expect(
+          await command.flow.invoke(const Answers.empty()),
+          isA<CommandRan>(),
+        );
         verify(() => platform.captureInput(capturedKeys)).called(1);
       },
     );
@@ -177,7 +184,10 @@ void main() {
       final sub = useCase.exitRequested.listen(codes.add);
       addTearDown(sub.cancel);
 
-      expect(await command.invoke(const Answers.empty()), isA<CommandRan>());
+      expect(
+        await command.flow.invoke(const Answers.empty()),
+        isA<CommandRan>(),
+      );
       await Future<void>.delayed(Duration.zero);
       expect(codes, [0]);
     });

@@ -1,5 +1,7 @@
 import 'package:inference_protocol/inference_protocol.dart'
     show InferenceDialect;
+import 'package:local_inference_protocol/local_inference_protocol.dart'
+    show bestieServerName;
 import 'package:provider_protocol/provider_protocol.dart'
     show ProviderDescriptor;
 
@@ -28,4 +30,12 @@ const ProviderDescriptor customDescriptor = ProviderDescriptor(
   requiresApiKey: false,
   dialect: InferenceDialect.openAi,
   requiresBaseUrl: true,
+);
+
+/// The models in bestie's own index, run by bestie's local inference server.
+const ProviderDescriptor localDescriptor = ProviderDescriptor(
+  id: 'local',
+  displayName: bestieServerName,
+  requiresApiKey: false,
+  dialect: InferenceDialect.bestie,
 );

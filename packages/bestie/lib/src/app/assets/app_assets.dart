@@ -45,6 +45,18 @@ const posixEditor = AppAsset(
       '`dart tool/build_sidecar.dart edit` from the repo root.',
 );
 
+/// The local inference server, built from `packages/bestie_server`.
+const posixServer = AppAsset(
+  path: 'bestie_server',
+  packageOwner: 'packages/bestie_server',
+  bundleSubdir: 'bin',
+  bundleUnit: AssetBundleUnit.ownerCliBundle,
+  sourceScript: _serverScript,
+  missingMessage: 'Local inference server (`bestie_server`) not found.',
+);
+
+const _serverScript = 'packages/bestie_server/bin/bestie_server.dart';
+
 /// The native assets bestie resolves and ships on macOS.
 const macOSAppAssets = PosixAppAssets(
   curl: AppAsset(
@@ -55,6 +67,7 @@ const macOSAppAssets = PosixAppAssets(
   ),
   spawner: posixSpawner,
   editor: posixEditor,
+  server: posixServer,
   shared: sharedAppAssets,
 );
 
@@ -68,6 +81,7 @@ const linuxAppAssets = PosixAppAssets(
   ),
   spawner: posixSpawner,
   editor: posixEditor,
+  server: posixServer,
   shared: sharedAppAssets,
 );
 
@@ -102,6 +116,14 @@ const windowsAppAssets = WindowsAppAssets(
     missingMessage:
         'Editor (`bestie_edit.exe`) not found. Run '
         '`dart tool/build_sidecar.dart edit` from the repo root.',
+  ),
+  server: AppAsset(
+    path: 'bestie_server.exe',
+    packageOwner: 'packages/bestie_server',
+    bundleSubdir: 'bin',
+    bundleUnit: AssetBundleUnit.ownerCliBundle,
+    sourceScript: _serverScript,
+    missingMessage: 'Local inference server (`bestie_server.exe`) not found.',
   ),
   shared: sharedAppAssets,
 );

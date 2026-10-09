@@ -32,6 +32,7 @@ class PaletteCubit extends LogicBloc<PaletteState> {
   void submitText(String text) => input(SubmitText(text));
   void submitChoice() => input(const SubmitChoice());
   void back() => input(const Back());
+  void pressPaneKey(String char) => input(PaneKeyPressed(char));
   void requestClose() => input(const RequestClose());
 
   /// Called by the hosting view when the palette becomes visible.

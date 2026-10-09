@@ -17,7 +17,7 @@ class AppShellUseCase implements CommandContribution {
         tier: CommandTier.primary,
         group: 'App',
         availability: alwaysAvailable(),
-        invoke: _openConfigInvoke,
+        body: CommandFlow(invoke: _openConfigInvoke),
       ),
     ]);
   }

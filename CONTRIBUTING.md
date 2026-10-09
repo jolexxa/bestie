@@ -44,6 +44,9 @@ Without the native assets, FFI-dependent tests and features are skipped or unava
 > dart tool/download_curl_assets.dart --tag v2.0.0a5
 > ```
 
+> [!NOTE]
+> The llama.cpp libraries come from the [hobbyfarm-ai/llama.cpp](https://github.com/hobbyfarm-ai/llama.cpp) fork. Bump it with `dart tool/update_llama.dart <tag>`, or stage a local build of the fork with `dart tool/download_llama_assets.dart --from-build <llama.cpp>/build`.
+
 ## 3. Run
 
 For day-to-day development:

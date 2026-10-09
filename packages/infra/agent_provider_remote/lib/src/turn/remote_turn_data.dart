@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:agent_provider_protocol/agent_provider_protocol.dart';
 import 'package:clock/clock.dart';
 import 'package:inference_protocol/inference_protocol.dart';
@@ -39,6 +41,9 @@ final class StepFrame {
 
   final TranscriptEntryId entryId;
   final List<TranscriptBlock> blocks = [];
+
+  /// How much output each of [blocks] holds, in characters.
+  final List<int> _outputLengths = [];
   final List<ToolCall> toolCalls = [];
   InferenceStopReason? stop;
   _OpenBlockKind? _openKind;
@@ -62,9 +67,11 @@ final class StepFrame {
       _openStartedAt = at;
       _openText.clear();
       blocks.add(_openBlock(at));
+      _outputLengths.add(0);
     }
     _openText.write(text);
     blocks[blocks.length - 1] = _openBlock(at);
+    _outputLengths[_outputLengths.length - 1] = _openText.length;
     return _openId;
   }
 
@@ -89,8 +96,25 @@ final class StepFrame {
         stat: BlockStat(startedAt: at, endedAt: at),
       ),
     );
+    _outputLengths.add(
+      toolCall.name.length + jsonEncode(toolCall.arguments).length,
+    );
     toolCalls.add(toolCall);
     return id;
+  }
+
+  /// Shares the [completionTokens] the step decoded among its blocks by how
+  /// much of the output each one holds, so every block's stat carries its
+  /// part and the parts add up to the whole.
+  void shareTokens(int completionTokens) {
+    final outputLength = _outputLengths.fold(0, (sum, length) => sum + length);
+    var before = 0;
+    for (var index = 0; index < blocks.length; index++) {
+      final start = completionTokens * before ~/ outputLength;
+      before += _outputLengths[index];
+      final end = completionTokens * before ~/ outputLength;
+      blocks[index] = blocks[index].copyWith.stat!(tokenCount: end - start);
+    }
   }
 
   TranscriptEntry toEntry() =>

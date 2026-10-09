@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:inference_protocol/inference_protocol.dart'
     show InferenceFailureKind;
 import 'package:intentions/intentions.dart';
@@ -23,15 +24,26 @@ class ProviderRepository {
   ProviderRepository({
     required ProviderSessionFactories factories,
     required ModelCatalog catalog,
+    Clock clock = const Clock(),
+    StartTimer startTimer = Timer.new,
   }) : _catalog = catalog {
-    _logic = ProviderSessionLogic(factories: factories, catalog: catalog)
-      ..start();
+    _logic = ProviderSessionLogic(
+      factories: factories,
+      catalog: catalog,
+      recovery: RecoveryPolicy(clock: clock, startTimer: startTimer),
+    )..start();
     _statusController = BehaviorSubject<ProviderStatus>.seeded(_project());
     _binding = _logic.bind()
       ..onState<ProviderSessionState>((_) => _publish())
       ..onOutput<ProviderSessionChanged>((_) => _publish())
-      ..onOutput<ProviderHandleReleased>(
-        (released) => unawaited(released.handle.dispose()),
+      ..onOutput<ProviderHandleReleased>((released) {
+        _reloadsStartingController.add(null);
+        unawaited(released.handle.dispose());
+      })
+      ..onOutput<ActivationStarted>(_followActivation)
+      ..onOutput<ProvidersReplaced>(_followModels)
+      ..onOutput<ProviderDeactivated>(
+        (deactivated) => unawaited(deactivated.provider.deactivate()),
       );
   }
 
@@ -47,6 +59,8 @@ class ProviderRepository {
   final _reloadsStartingController = StreamController<void>.broadcast(
     sync: true,
   );
+  StreamSubscription<double>? _activationProgress;
+  StreamSubscription<String>? _modelChanges;
 
   ProviderSessionData get _data => _logic.get<ProviderSessionData>();
 
@@ -66,14 +80,18 @@ class ProviderRepository {
   /// Adopt [settings]; a no-op when nothing changed.
   void configure(ProviderSettings settings) {
     if (settings == _data.settings) return;
-    _announceReload();
     _logic.input(ConfigureProvider(settings));
   }
 
   /// Retry the current settings.
   void reconnect() {
-    _announceReload();
     _logic.input(const ReconnectProvider());
+  }
+
+  /// Stops running the chosen model and lets its provider go, until the
+  /// settings change or a reconnect.
+  void stop() {
+    _logic.input(const StopProvider());
   }
 
   Provider? get _provider => _data.connection?.provider;
@@ -114,6 +132,8 @@ class ProviderRepository {
   /// Releases the live agent provider and closes every stream.
   Future<void> dispose() async {
     final handle = _data.handle;
+    await _activationProgress?.cancel();
+    await _modelChanges?.cancel();
     _binding.dispose();
     _logic
       ..stop()
@@ -154,8 +174,21 @@ class ProviderRepository {
     ),
   );
 
-  void _announceReload() {
-    if (status.provider != null) _reloadsStartingController.add(null);
+  void _followActivation(ActivationStarted started) {
+    unawaited(_activationProgress?.cancel());
+    _activationProgress = started.progress.listen(
+      (progress) => _logic.input(
+        ActivationProgressed(attempt: started.attempt, progress: progress),
+      ),
+    );
+  }
+
+  void _followModels(ProvidersReplaced replaced) {
+    unawaited(_modelChanges?.cancel());
+    _modelChanges = MergeStream([
+      for (final provider in replaced.providers)
+        provider.modelsChanged.map((_) => provider.id),
+    ]).listen((providerId) => _logic.input(ModelsChanged(providerId)));
   }
 
   ProviderStatus _project() => ProviderStatus.fromState(_logic.value, _data);

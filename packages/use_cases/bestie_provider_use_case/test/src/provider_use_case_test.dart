@@ -141,6 +141,10 @@ final class _Harness {
   ).captured.cast<ProviderSettings>();
 }
 
+extension on Command {
+  CommandFlow get flow => body as CommandFlow;
+}
+
 void main() {
   group('ProviderConfigContribution', () {
     test('contributes every provider key as a global entry', () {
@@ -153,6 +157,7 @@ void main() {
         keys.customBaseUrl,
         keys.customApiKey,
         keys.customContextWindow,
+        keys.localContextCap,
         keys.model,
         keys.maxAgents,
         keys.sampling.temperature,
@@ -181,6 +186,8 @@ void main() {
         'contextWindow',
       ]);
       expect(keys.sampling.topP.path, ['provider', 'sampling', 'topP']);
+      expect(keys.localContextCap.path, ['provider', 'local', 'contextCap']);
+      expect(keys.localContextCap.defaultValue(), 0);
     });
 
     test('masks every API key', () {
@@ -193,6 +200,7 @@ void main() {
           true,
           false,
           true,
+          false,
           false,
           false,
           false,
@@ -209,6 +217,7 @@ void main() {
       expect(harness.configured, [
         ProviderSettings(
           accounts: [
+            const ProviderAccount(descriptor: localDescriptor, apiKey: ''),
             const ProviderAccount(
               descriptor: customDescriptor,
               apiKey: '',
@@ -249,6 +258,13 @@ void main() {
         harness.useCase.settings.model,
         const ProviderModelRef(providerId: 'custom', modelId: 'local'),
       );
+    });
+
+    test('offers local models without an account to set up', () {
+      final local = _Harness().useCase.settings.accountFor('local')!;
+
+      expect(local.descriptor, localDescriptor);
+      expect(local.isUsable, isTrue);
     });
 
     test('ignores a custom endpoint that is not an absolute URL', () {
@@ -316,7 +332,7 @@ void main() {
         final command = harness.command('provider.refresh_credits');
         final availability = <Availability>[];
         expect(
-          await command.invoke(const Answers.empty()),
+          await command.flow.invoke(const Answers.empty()),
           isA<CommandRejected>(),
         );
         final subscription = command.availability.listen(availability.add);
@@ -350,6 +366,7 @@ void main() {
 
         final result = await harness
             .command('provider.refresh_credits')
+            .flow
             .invoke(const Answers.empty());
         await pumpEventQueue();
 
@@ -370,6 +387,7 @@ void main() {
 
         final result = await harness
             .command('provider.refresh_credits')
+            .flow
             .invoke(const Answers.empty());
 
         expect(
@@ -392,6 +410,7 @@ void main() {
 
         final result = await harness
             .command('provider.refresh_credits')
+            .flow
             .invoke(const Answers.empty());
 
         expect(
@@ -463,7 +482,7 @@ void main() {
         await pumpEventQueue();
 
         expect(
-          await command.invoke(
+          await command.flow.invoke(
             const Answers.empty().put(
               const ParamKey<String>('model'),
               'openrouter:other/model',
@@ -499,7 +518,7 @@ void main() {
         expect(availability, [isA<Unavailable>(), isA<Available>()]);
         harness.status = const ProviderStatusUnconfigured();
         expect(
-          await command.invoke(
+          await command.flow.invoke(
             const Answers.empty().put(
               const ParamKey<String>('model'),
               'x',
@@ -534,7 +553,7 @@ void main() {
         final command = harness.command('provider.select_model');
 
         final param =
-            command.next(const Answers.empty())! as ChoiceParam<String>;
+            command.flow.next(const Answers.empty())! as ChoiceParam<String>;
         final options = (await param.options.toList()).single;
         expect(options.map((option) => option.value), [
           'openrouter:org/model',
@@ -554,8 +573,8 @@ void main() {
           param.key,
           'fireworks:accounts/fireworks/models/kimi',
         );
-        expect(command.next(answers), isNull);
-        expect(await command.invoke(answers), isA<CommandRan>());
+        expect(command.flow.next(answers), isNull);
+        expect(await command.flow.invoke(answers), isA<CommandRan>());
         expect(
           harness.config['provider.model'],
           'fireworks:accounts/fireworks/models/kimi',
@@ -570,7 +589,7 @@ void main() {
         final command = harness.command('provider.select_model');
 
         final param =
-            command.next(const Answers.empty())! as ChoiceParam<String>;
+            command.flow.next(const Answers.empty())! as ChoiceParam<String>;
         final options = await param.options.toList();
 
         expect(options.single, isEmpty);
@@ -585,7 +604,7 @@ void main() {
         final command = harness.command('provider.reconnect');
 
         expect(
-          await command.invoke(const Answers.empty()),
+          await command.flow.invoke(const Answers.empty()),
           isA<CommandRejected>().having(
             (rejected) => rejected.reason,
             'reason',
@@ -600,11 +619,14 @@ void main() {
         final command = harness.command('provider.reconnect');
 
         expect(
-          await command.invoke(const Answers.empty()),
+          await command.flow.invoke(const Answers.empty()),
           isA<CommandRejected>(),
         );
         harness.becomeFailed();
-        expect(await command.invoke(const Answers.empty()), isA<CommandRan>());
+        expect(
+          await command.flow.invoke(const Answers.empty()),
+          isA<CommandRan>(),
+        );
         verify(harness.repository.reconnect).called(1);
       });
     });

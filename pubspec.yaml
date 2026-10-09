@@ -135,6 +135,10 @@ melos:
       description: Download the Mozilla CA certificate bundle for curl-impersonate.
       run: dart tool/download_cert_assets.dart
 
+    assets:llama:
+      description: Stage the pinned llama.cpp release libraries for this host.
+      run: dart tool/download_llama_assets.dart
+
     assets:openconsole:
       description: Download Microsoft's redistributable ConPTY (conpty.dll + OpenConsole.exe).
       run: dart tool/download_openconsole_assets.dart
@@ -144,9 +148,10 @@ melos:
       run: dart tool/clean_assets.dart
 
     assets:
-      description: Download all native assets (curl-impersonate, CA certs, console host).
+      description: Download all native assets (curl-impersonate, llama.cpp, CA certs, console host).
       run: >
         dart tool/download_curl_assets.dart &&
+        dart tool/download_llama_assets.dart &&
         dart tool/download_cert_assets.dart &&
         dart tool/download_openconsole_assets.dart
 

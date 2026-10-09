@@ -29,6 +29,10 @@ runs:
       shell: bash
       run: dart tool/download_curl_assets.dart --os ${{ inputs.os }}
 
+    - name: ⬇️ Download llama.cpp libraries
+      shell: bash
+      run: dart tool/download_llama_assets.dart --os ${{ inputs.os }}
+
     - name: ⬇️ Download CA certificate bundle
       shell: bash
       run: dart tool/download_cert_assets.dart

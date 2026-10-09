@@ -170,11 +170,11 @@ void main() {
     cubit.openSession(toolCount: 0);
     await Future<void>.delayed(Duration.zero);
 
-    // App -> Agent -> Provider. Sampling temperature sits below the five
-    // account rows and max agents.
+    // App -> Agent -> Provider. Sampling temperature sits below the two
+    // local model rows, the five account rows and max agents.
     cubit.changePage(1);
     cubit.changePage(1);
-    cubit.moveSelection(6);
+    cubit.moveSelection(8);
     cubit.adjustValue(1);
     cubit.adjustValue(1);
     await Future<void>.delayed(Duration.zero);
@@ -194,16 +194,35 @@ void main() {
     cubit.openSession(toolCount: 0);
     await Future<void>.delayed(Duration.zero);
 
-    // App -> Agent -> Provider. Max agents follows the five account rows.
+    // App -> Agent -> Provider. Max agents follows the two local model
+    // rows and the five account rows.
     cubit.changePage(1);
     cubit.changePage(1);
-    cubit.moveSelection(5);
+    cubit.moveSelection(7);
     cubit.adjustValue(1);
     await Future<void>.delayed(Duration.zero);
     cubit.closeSession();
     await Future<void>.delayed(Duration.zero);
 
     expect(_hasUserValue(repo, keys.provider.maxAgents.global), true);
+  });
+
+  test('local context cap writes through the config use case', () async {
+    final cubit = _buildCubit(useCase: useCase, layout: layout);
+    addTearDown(cubit.close);
+
+    cubit.openSession(toolCount: 0);
+    await Future<void>.delayed(Duration.zero);
+
+    // App -> Agent -> Provider. The context cap comes first.
+    cubit.changePage(1);
+    cubit.changePage(1);
+    cubit.adjustValue(1);
+    await Future<void>.delayed(Duration.zero);
+    cubit.closeSession();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(_hasUserValue(repo, keys.provider.localContextCap.global), true);
   });
 
   test('opaque text config ignores inline adjust', () async {

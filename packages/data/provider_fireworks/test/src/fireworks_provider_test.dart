@@ -72,31 +72,61 @@ void main() {
 
   group('delegation', () {
     test(
-      'identity, endpoints, models and key info come from inference',
+      'identity, protocols, models and key info come from inference',
       () async {
-        final endpoints = {
-          InferenceProtocolId.openAiCompat: InferenceEndpoint(
-            baseUrl: Uri.parse('https://api.fireworks.ai/inference/v1'),
-            apiKey: 'fw-key',
-          ),
-        };
+        const protocols = {InferenceProtocolId.openAiCompat};
         const models = ProviderModelsListed([]);
         const keyInfo = KeyInfoUnsupported();
+        const changes = Stream<void>.empty();
         when(() => inference.id).thenReturn('fireworks');
         when(() => inference.displayName).thenReturn('Fireworks AI');
-        when(() => inference.endpoints).thenReturn(endpoints);
+        when(() => inference.protocols).thenReturn(protocols);
+        when(() => inference.modelsChanged).thenAnswer((_) => changes);
         when(inference.models).thenAnswer((_) async => models);
         when(inference.keyInfo).thenAnswer((_) async => keyInfo);
         final provider = providerFor((_) => throw StateError('no calls'));
 
         expect(provider.id, 'fireworks');
         expect(provider.displayName, 'Fireworks AI');
-        expect(provider.endpoints, same(endpoints));
+        expect(provider.protocols, same(protocols));
+        expect(provider.modelsChanged, same(changes));
         expect(await provider.models(), same(models));
         expect(await provider.keyInfo(), same(keyInfo));
         expect(requests, isEmpty);
       },
     );
+
+    test('models run where inference runs them', () async {
+      const request = ModelActivationRequest(
+        modelId: 'accounts/fireworks/models/glm',
+        contextWindow: 8192,
+        maxAgents: 2,
+      );
+      final activation = ModelActivation(
+        progress: const Stream.empty(),
+        result: Future.value(
+          ModelActivated(
+            contextWindow: 8192,
+            endpoint: InferenceEndpoint(
+              baseUrl: Uri.parse('https://api.fireworks.ai/inference/v1'),
+            ),
+          ),
+        ),
+      );
+      final sessions = PerAgentWindowSessions(contextWindow: 8192);
+      when(() => inference.activate(request)).thenReturn(activation);
+      when(
+        () => inference.openSessions(contextWindow: 8192),
+      ).thenReturn(sessions);
+      when(inference.deactivate).thenAnswer((_) async {});
+      final provider = providerFor((_) => throw StateError('no calls'));
+
+      expect(provider.activate(request), same(activation));
+      expect(provider.openSessions(contextWindow: 8192), same(sessions));
+      await provider.deactivate();
+
+      verify(inference.deactivate).called(1);
+    });
   });
 
   group('credits', () {

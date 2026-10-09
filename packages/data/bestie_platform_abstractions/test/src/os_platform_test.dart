@@ -1,6 +1,8 @@
 import 'package:bestie_platform_abstractions/bestie_platform_abstractions.dart';
 import 'package:test/test.dart';
 
+const _server = ProgramCommand(executable: '/opt/bestie_server');
+
 void main() {
   // Each variant fixes its own [OSKind] rather than taking one, so a platform
   // cannot be constructed claiming to be an operating system it isn't.
@@ -17,6 +19,7 @@ void main() {
         curlLibraryPath: '/opt/libcurl.dylib',
         caCertPath: '/opt/cacert.pem',
         creditsPath: '/opt/CREDITS.md',
+        serverExecutable: _server,
       );
 
       expect(platform.os, OSKind.macos);
@@ -35,6 +38,7 @@ void main() {
         curlLibraryPath: r'C:\opt\libcurl.dll',
         caCertPath: r'C:\opt\cacert.pem',
         creditsPath: r'C:\opt\CREDITS.md',
+        serverExecutable: _server,
       );
 
       expect(platform.os, OSKind.windows);
@@ -53,6 +57,7 @@ void main() {
         curlLibraryPath: '/opt/libcurl.so',
         caCertPath: '/opt/cacert.pem',
         creditsPath: '/opt/CREDITS.md',
+        serverExecutable: _server,
       );
 
       expect(platform.os, OSKind.linux);
@@ -72,6 +77,7 @@ void main() {
       curlLibraryPath: '/opt/libcurl.so',
       caCertPath: '/opt/cacert.pem',
       creditsPath: '/opt/CREDITS.md',
+      serverExecutable: _server,
     );
 
     expect(platform.homeDir, '/home/cow');
@@ -90,5 +96,10 @@ void main() {
     expect(platform.curlLibraryPath, '/opt/libcurl.so');
     expect(platform.caCertPath, '/opt/cacert.pem');
     expect(platform.creditsPath, '/opt/CREDITS.md');
+    expect(platform.serverExecutable, _server);
+    expect(platform.modelsDir, '/home/cow/.bestie/models');
+    expect(platform.runDir, '/home/cow/.bestie/run');
+    expect(platform.inferenceLockFile, '/home/cow/.bestie/run/inference.lock');
+    expect(platform.serverLogFile, '/home/cow/.bestie/logs/server.log');
   });
 }

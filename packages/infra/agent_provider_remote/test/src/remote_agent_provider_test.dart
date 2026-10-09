@@ -10,6 +10,18 @@ import '../helpers.dart';
 
 final class _MockInferenceClient extends Mock implements InferenceClient {}
 
+final class _MockAgentSessions extends Mock implements AgentSessions {}
+
+const _primaryIdentity = AgentIdentity(
+  id: 'primary:1',
+  kind: AgentIdentityKind.primary,
+);
+
+const _helperIdentity = AgentIdentity(
+  id: 'subagent:2',
+  kind: AgentIdentityKind.subagent,
+);
+
 const _usage = InferenceUsageReported(promptTokens: 40, completionTokens: 20);
 
 const _finished = InferenceCompletionFinished(InferenceStopReason.stop);
@@ -33,12 +45,32 @@ const List<InferenceEvent> _toolReply = [
   InferenceCompletionFinished(InferenceStopReason.toolCalls),
 ];
 
+/// An endpoint that opens every session and reports each one, claiming
+/// [_claimFor] tokens, whenever the set of open sessions changes.
 final class _Harness {
-  _Harness({int maxAgents = 4, int contextWindow = 1000}) {
+  _Harness({
+    int maxAgents = 4,
+    int contextWindow = 1000,
+    this.reservesSubagentClaims = false,
+  }) : _contextWindow = contextWindow {
     registerFallbackValue(const CompletionRequest(model: '', messages: []));
+    registerFallbackValue(_primaryIdentity);
     when(client.close).thenAnswer((_) async {});
+    when(sessions.dispose).thenAnswer((_) async {});
+    when(() => sessions.pool).thenAnswer((_) => reports.stream);
+    when(() => sessions.open(any())).thenAnswer((invocation) async {
+      final agent = invocation.positionalArguments.single as AgentIdentity;
+      openSessions.add(agent);
+      reportOpenSessions();
+      return AgentSessionOpened(claimedTokens: _claimFor(agent));
+    });
+    when(() => sessions.close(any())).thenAnswer((invocation) async {
+      openSessions.remove(invocation.positionalArguments.single);
+      reportOpenSessions();
+    });
     provider = RemoteAgentProvider(
       client: client,
+      sessions: sessions,
       options: RemoteProviderOptions(
         modelId: 'test/model',
         contextWindow: contextWindow,
@@ -48,7 +80,15 @@ final class _Harness {
     provider.pool.listen(snapshots.add);
   }
 
+  final int _contextWindow;
+
+  /// Whether reports reserve each subagent's claim out of the primary's
+  /// share, the way a shared local context does.
+  final bool reservesSubagentClaims;
   final client = _MockInferenceClient();
+  final sessions = _MockAgentSessions();
+  final reports = StreamController<AgentPoolReport>.broadcast();
+  final List<AgentIdentity> openSessions = [];
   late final RemoteAgentProvider provider;
   final List<ContextPoolSnapshot> snapshots = [];
   final List<CompletionRequest> requests = [];
@@ -67,6 +107,24 @@ final class _Harness {
       return queue.removeAt(0);
     });
   }
+
+  int _claimFor(AgentIdentity agent) =>
+      agent.kind == AgentIdentityKind.primary ? 0 : _contextWindow;
+
+  void reportOpenSessions() => reports.add(
+    AgentPoolReport(
+      contextSize: _contextWindow,
+      reservedTokens: reservesSubagentClaims
+          ? openSessions
+                .where((agent) => agent.kind == AgentIdentityKind.subagent)
+                .fold(0, (total, agent) => total + _claimFor(agent))
+          : 0,
+      agents: [
+        for (final agent in openSessions)
+          AgentPoolEntry(agent: agent, claimedTokens: _claimFor(agent)),
+      ],
+    ),
+  );
 
   void serveReplies(List<List<InferenceEvent>> replies) =>
       serve([for (final reply in replies) Stream.fromIterable(reply)]);
@@ -137,14 +195,204 @@ void main() {
         },
       );
 
-      test('emits a synthesized pool snapshot per registration', () async {
+      test('opens a session per agent, naming it to the endpoint', () async {
+        final harness = _Harness();
+
+        await harness.startPrimary();
+        await harness.startSubagent(label: 'helper');
+
+        verifyInOrder([
+          () => harness.sessions.open(_primaryIdentity),
+          () => harness.sessions.open(_helperIdentity),
+        ]);
+      });
+
+      test('emits nothing until the endpoint reports its pool', () async {
+        final harness = _Harness();
+        when(
+          () => harness.sessions.open(any()),
+        ).thenAnswer((_) async => const AgentSessionOpened(claimedTokens: 0));
+
+        await harness.startPrimary();
+        await pumpEventQueue();
+
+        expect(harness.snapshots, isEmpty);
+      });
+
+      test('leaves out agents the endpoint has not reported yet', () async {
+        final harness = _Harness();
+        when(
+          () => harness.sessions.open(any()),
+        ).thenAnswer((_) async => const AgentSessionOpened(claimedTokens: 0));
+        harness.reports.add(
+          const AgentPoolReport(
+            contextSize: 4096,
+            reservedTokens: 0,
+            agents: [],
+          ),
+        );
+        await pumpEventQueue();
+
+        await harness.startPrimary();
+        await pumpEventQueue();
+
+        expect(harness.snapshots.single.leases, isEmpty);
+      });
+
+      test('reads context, reservations and claims from the report', () async {
+        final harness = _Harness();
+        final primary = await harness.startPrimary();
+        final helper = await harness.startSubagent();
+
+        harness.reports.add(
+          const AgentPoolReport(
+            contextSize: 8192,
+            reservedTokens: 2048,
+            agents: [
+              AgentPoolEntry(agent: _primaryIdentity, claimedTokens: 6144),
+              AgentPoolEntry(agent: _helperIdentity, claimedTokens: 2048),
+            ],
+          ),
+        );
+        await pumpEventQueue();
+
+        expect(
+          harness.snapshots.last,
+          ContextPoolSnapshot(
+            contextSize: 8192,
+            reservedClaims: 2048,
+            leases: [
+              PoolLeaseOccupancy(
+                handle: primary.agent.handle,
+                residentTokens: 0,
+                claimTokens: 6144,
+              ),
+              PoolLeaseOccupancy(
+                handle: helper.agent.handle,
+                residentTokens: 0,
+                claimTokens: 2048,
+              ),
+            ],
+          ),
+        );
+      });
+
+      test('rejects an agent the endpoint has no session for', () async {
+        final harness = _Harness();
+        await harness.startPrimary();
+        when(
+          () => harness.sessions.open(any()),
+        ).thenAnswer((_) async => const AgentSessionNoCapacity());
+
+        final result = await harness.provider.startSubagent(config: config());
+
+        expect(
+          result,
+          _rejected<StartSubagentRejected>(
+            AgentRuntimeRejectionReason.noSequenceCapacity,
+          ),
+        );
+      });
+
+      test('rejects an agent the endpoint could not be asked about', () async {
+        final harness = _Harness();
+        when(() => harness.sessions.open(any())).thenAnswer(
+          (_) async => const AgentSessionFailed(message: 'unreachable'),
+        );
+
+        final result = await harness.provider.startPrimary(config: config());
+
+        expect(
+          result,
+          _rejected<StartPrimaryRejected>(
+            AgentRuntimeRejectionReason.schedulerFailure,
+          ),
+        );
+        verifyNever(() => harness.sessions.close(any()));
+      });
+
+      test('rejects an agent the endpoint has no context for', () async {
+        final harness = _Harness();
+        when(
+          () => harness.sessions.open(any()),
+        ).thenAnswer((_) async => const AgentSessionInsufficientClaim());
+
+        final result = await harness.provider.startPrimary(config: config());
+
+        expect(
+          result,
+          _rejected<StartPrimaryRejected>(
+            AgentRuntimeRejectionReason.insufficientClaimSpace,
+          ),
+        );
+        verifyNever(() => harness.sessions.close(any()));
+        expect(
+          await harness.provider.startSubagent(config: config()),
+          _rejected<StartSubagentRejected>(
+            AgentRuntimeRejectionReason.primaryAgentRequired,
+          ),
+        );
+      });
+
+      test(
+        'releases a session opened while the provider was disposed',
+        () async {
+          final harness = _Harness();
+          final opened = Completer<AgentSessionResult>();
+          when(
+            () => harness.sessions.open(any()),
+          ).thenAnswer((_) => opened.future);
+
+          final pending = harness.provider.startPrimary(config: config());
+          await harness.provider.dispose();
+          opened.complete(const AgentSessionOpened(claimedTokens: 0));
+
+          expect(
+            await pending,
+            _rejected<StartPrimaryRejected>(
+              AgentRuntimeRejectionReason.disposed,
+            ),
+          );
+          verify(() => harness.sessions.close(_primaryIdentity)).called(1);
+        },
+      );
+
+      test('admits one primary when two race for a session', () async {
+        final harness = _Harness();
+
+        final results = await Future.wait([
+          harness.provider.startPrimary(config: config()),
+          harness.provider.startPrimary(config: config()),
+        ]);
+
+        expect(results.first, isA<StartPrimaryStarted>());
+        expect(
+          results.last,
+          _rejected<StartPrimaryRejected>(
+            AgentRuntimeRejectionReason.primaryAgentAlreadyCreated,
+          ),
+        );
+        verify(
+          () => harness.sessions.close(
+            const AgentIdentity(
+              id: 'primary:2',
+              kind: AgentIdentityKind.primary,
+            ),
+          ),
+        ).called(1);
+      });
+
+      test('emits a pool snapshot each time the pool changes', () async {
         final harness = _Harness();
 
         final primary = await harness.startPrimary();
         final helper = await harness.startSubagent();
         await pumpEventQueue();
 
-        expect(harness.snapshots, hasLength(2));
+        expect(
+          harness.snapshots.map((snapshot) => snapshot.leases.length),
+          [0, 1, 2],
+        );
         final snapshot = harness.snapshots.last;
         expect(snapshot.contextSize, 1000);
         expect(snapshot.reservedClaims, 0);
@@ -718,12 +966,28 @@ void main() {
         expect(result, const DisposeAgentDisposed());
         expect(started.eventTypes, [AgentEnded]);
         expect(harness.snapshots.last.leases, isEmpty);
+        verify(() => harness.sessions.close(_primaryIdentity)).called(1);
         expect(
           await harness.provider.disposeAgent(started.agent),
           _rejected<DisposeAgentRejected>(
             AgentRuntimeRejectionReason.unknownAgent,
           ),
         );
+      });
+
+      test('emits one snapshot for the closed session', () async {
+        final harness = _Harness(reservesSubagentClaims: true);
+        await harness.startPrimary();
+        final helper = await harness.startSubagent();
+        await pumpEventQueue();
+        final before = harness.snapshots.length;
+
+        await harness.provider.disposeAgent(helper.agent);
+        await pumpEventQueue();
+
+        expect(harness.snapshots, hasLength(before + 1));
+        expect(harness.snapshots.last.leases, hasLength(1));
+        expect(harness.snapshots.last.reservedClaims, 0);
       });
 
       test('rejects while a turn is live', () async {
@@ -762,6 +1026,10 @@ void main() {
         ]);
         expect(idle.eventTypes, [AgentEnded]);
         verify(harness.client.close).called(1);
+        verify(() => harness.sessions.close(_primaryIdentity)).called(1);
+        verify(() => harness.sessions.close(_helperIdentity)).called(1);
+        verify(harness.sessions.dispose).called(1);
+        expect(harness.reports.hasListener, isFalse);
         expect(
           await harness.provider.dispose(),
           const DisposeProviderSucceeded(),

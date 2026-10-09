@@ -32,6 +32,10 @@ const _idle = ConversationIdle(
   conversationPhase: ConversationPhase.idle,
 );
 
+extension on Command {
+  CommandFlow get flow => body as CommandFlow;
+}
+
 void main() {
   setUpAll(() {
     registerFallbackValue(_FakeAgentProvider());
@@ -80,6 +84,7 @@ void main() {
     late StreamController<void> reloadsStartingController;
     late StreamController<ContextPoolSnapshot> poolController;
     late StreamController<List<SubagentSummary>> subagentsController;
+    late StreamController<ProviderStatus> statusController;
 
     ProviderStatusReady stubReadyPrimary({bool supportsReasoning = false}) {
       final ready = _ready(supportsReasoning: supportsReasoning);
@@ -98,6 +103,7 @@ void main() {
       reloadsStartingController = StreamController<void>.broadcast();
       poolController = StreamController<ContextPoolSnapshot>.broadcast();
       subagentsController = StreamController<List<SubagentSummary>>.broadcast();
+      statusController = StreamController<ProviderStatus>.broadcast();
 
       when(() => agents.primary).thenReturn(session);
       when(() => agents.workingDirectory).thenReturn('/work');
@@ -140,7 +146,7 @@ void main() {
       ).thenAnswer((_) => reloadsStartingController.stream);
       when(
         () => providers.statusStream,
-      ).thenAnswer((_) => const Stream.empty());
+      ).thenAnswer((_) => statusController.stream);
       stubReadyPrimary();
       sampling = const SamplingOptions(seed: 0);
 
@@ -162,7 +168,105 @@ void main() {
       await reloadsStartingController.close();
       await poolController.close();
       await subagentsController.close();
+      await statusController.close();
       await config.dispose();
+    });
+
+    group('loading card', () {
+      const model = ProviderModelRef(
+        providerId: 'local',
+        modelId: 'qwen3-8b',
+      );
+
+      setUp(
+        () => when(() => session.setLiveModelStatus(any())).thenReturn(null),
+      );
+
+      test('shows the model loading while its provider loads it', () async {
+        statusController.add(
+          const ProviderStatusConnecting(
+            model: model,
+            loading: LoadingModel(
+              name: 'Qwen 3 8B',
+              providerName: 'Local models',
+              contextWindow: 40960,
+              progress: 0.62,
+            ),
+          ),
+        );
+        await pumpEventQueue();
+
+        verify(
+          () => session.setLiveModelStatus(
+            const ModelSnapshot(
+              modelId: 'qwen3-8b',
+              displayName: 'Qwen 3 8B',
+              contextSize: 40960,
+              provider: 'Local models',
+              phase: ModelCardPhase.loading,
+              progress: 0.62,
+            ),
+          ),
+        ).called(1);
+      });
+
+      test('shows the loading card on the primary a reload swaps in', () async {
+        final placeholder = _MockAgentSession();
+        when(() => placeholder.setLiveModelStatus(any())).thenReturn(null);
+        when(() => placeholder.stream).thenAnswer((_) => const Stream.empty());
+        when(() => placeholder.state).thenReturn(_idle);
+        when(() => agents.bindProvider(null)).thenAnswer((_) async {
+          when(() => agents.primary).thenReturn(placeholder);
+          primaryController.add(placeholder);
+        });
+        const loading = LoadingModel(
+          name: 'Qwen3 1.7B',
+          providerName: 'Bestie Server',
+          contextWindow: 40960,
+          progress: 0,
+        );
+
+        reloadsStartingController.add(null);
+        await pumpEventQueue();
+        statusController
+          ..add(const ProviderStatusConnecting(model: model))
+          ..add(const ProviderStatusConnecting(model: model, loading: loading))
+          ..add(
+            ProviderStatusConnecting(
+              model: model,
+              loading: LoadingModel(
+                name: loading.name,
+                providerName: loading.providerName,
+                contextWindow: loading.contextWindow,
+                progress: 0.62,
+              ),
+            ),
+          );
+        await pumpEventQueue();
+
+        verify(
+          () => placeholder.setLiveModelStatus(
+            const ModelSnapshot(
+              modelId: 'qwen3-8b',
+              displayName: 'Qwen3 1.7B',
+              contextSize: 40960,
+              provider: 'Bestie Server',
+              phase: ModelCardPhase.loading,
+              progress: 0.62,
+            ),
+          ),
+        ).called(1);
+        verifyNever(() => session.setLiveModelStatus(any()));
+      });
+
+      test('shows nothing before progress or once the model is up', () async {
+        statusController
+          ..add(const ProviderStatusConnecting(model: model))
+          ..add(_ready(supportsReasoning: false));
+        await pumpEventQueue();
+
+        verify(() => session.setLiveModelStatus(null)).called(2);
+      });
     });
 
     group('agent configuration', () {
@@ -543,15 +647,18 @@ void main() {
 
     // ── Viewed session (primary vs subagent) ────────────────
 
-    ({_MockAgentSession session, StreamController<ConversationState> ctrl})
-    stubSubagent(String id, ConversationState state) {
+    /// Stubs subagent [id] and returns the controller that feeds its stream.
+    StreamController<ConversationState> stubSubagent(
+      String id,
+      ConversationState state,
+    ) {
       final subagent = _MockAgentSession();
       final ctrl = StreamController<ConversationState>.broadcast();
       addTearDown(ctrl.close);
       when(() => subagent.stream).thenAnswer((_) => ctrl.stream);
       when(() => subagent.state).thenReturn(state);
       when(() => agents.sessionFor(id)).thenReturn(subagent);
-      return (session: subagent, ctrl: ctrl);
+      return ctrl;
     }
 
     test('defaults to viewing the primary', () {
@@ -581,7 +688,7 @@ void main() {
     });
 
     test('a viewed subagent ticks the stream; unviewing detaches it', () async {
-      final sub = stubSubagent('subagent:x', _idle);
+      final subagentStates = stubSubagent('subagent:x', _idle);
       final ticks = <ConversationState>[];
       final listener = useCase.conversationStream.listen(ticks.add);
 
@@ -590,7 +697,7 @@ void main() {
       final afterView = ticks.length;
       expect(afterView, greaterThan(0));
 
-      sub.ctrl.add(_idle); // subagent update flows through
+      subagentStates.add(_idle); // subagent update flows through
       await Future<void>.delayed(Duration.zero);
       expect(ticks.length, greaterThan(afterView));
 
@@ -598,7 +705,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       final afterUnview = ticks.length;
 
-      sub.ctrl.add(_idle); // must no longer tick
+      subagentStates.add(_idle); // must no longer tick
       await Future<void>.delayed(Duration.zero);
       expect(ticks.length, afterUnview);
 
@@ -1109,7 +1216,7 @@ void main() {
           expect(await firstGate(command), isA<Available>());
 
           expect(
-            await command.invoke(const Answers.empty()),
+            await command.flow.invoke(const Answers.empty()),
             isA<CommandRan>(),
           );
 
@@ -1130,7 +1237,7 @@ void main() {
           final gate = await firstGate(command);
           expect((gate as Unavailable).reason, 'turn in progress');
           expect(
-            await command.invoke(const Answers.empty()),
+            await command.flow.invoke(const Answers.empty()),
             isA<CommandRejected>(),
           );
           await Future<void>.delayed(Duration.zero);
@@ -1152,7 +1259,7 @@ void main() {
           final command = commandById('chat.load');
           expect(await firstGate(command), isA<Available>());
 
-          final param = command.next(const Answers.empty())!;
+          final param = command.flow.next(const Answers.empty())!;
           expect(param, isA<ChoiceParam<String>>());
           final choice = param as ChoiceParam<String>;
           expect(choice.filter, isA<SearchFilter<String>>());
@@ -1162,7 +1269,7 @@ void main() {
           expect(options.single.label, startsWith('~/proj · '));
 
           final answers = const Answers.empty().put(conversationKey, 'then');
-          expect(command.next(answers), isNull);
+          expect(command.flow.next(answers), isNull);
         });
 
         test('loads the pick', () async {
@@ -1172,7 +1279,7 @@ void main() {
           final answers = const Answers.empty().put(conversationKey, 'then');
 
           expect(
-            await commandById('chat.load').invoke(answers),
+            await commandById('chat.load').flow.invoke(answers),
             isA<CommandRan>(),
           );
           verify(() => agents.load('then')).called(1);
@@ -1184,7 +1291,7 @@ void main() {
           ).thenAnswer((_) async => const ConversationNotFound());
           final answers = const Answers.empty().put(conversationKey, 'gone');
 
-          final result = await commandById('chat.load').invoke(answers);
+          final result = await commandById('chat.load').flow.invoke(answers);
           expect(result, isA<CommandRejected>());
           expect(
             (result as CommandRejected).reason,
@@ -1201,7 +1308,7 @@ void main() {
           final gate = await firstGate(command);
           expect((gate as Unavailable).reason, 'no model loaded');
           final answers = const Answers.empty().put(conversationKey, 'x');
-          expect(await command.invoke(answers), isA<CommandRejected>());
+          expect(await command.flow.invoke(answers), isA<CommandRejected>());
           verifyNever(() => agents.load(any()));
         });
 
@@ -1258,11 +1365,11 @@ void main() {
 
         test('runs when idle with foldable history', () async {
           final command = commandById('chat.compact');
-          expect(command.next(const Answers.empty()), isNull);
+          expect(command.flow.next(const Answers.empty()), isNull);
           expect(await firstGate(command), isA<Available>());
 
           expect(
-            await command.invoke(const Answers.empty()),
+            await command.flow.invoke(const Answers.empty()),
             isA<CommandRan>(),
           );
           verify(() => session.beginCompactionTurn(any())).called(1);
@@ -1278,7 +1385,7 @@ void main() {
           expect(gate, isA<Unavailable>());
           expect((gate as Unavailable).reason, 'no model loaded');
           expect(
-            await command.invoke(const Answers.empty()),
+            await command.flow.invoke(const Answers.empty()),
             isA<CommandRejected>().having(
               (rejected) => rejected.reason,
               'reason',
@@ -1299,7 +1406,7 @@ void main() {
           expect(gate, isA<Unavailable>());
           expect((gate as Unavailable).reason, 'turn in progress');
           expect(
-            await command.invoke(const Answers.empty()),
+            await command.flow.invoke(const Answers.empty()),
             isA<CommandRejected>(),
           );
         });
@@ -1314,7 +1421,7 @@ void main() {
           expect(gate, isA<Unavailable>());
           expect((gate as Unavailable).reason, 'nothing to compact');
           expect(
-            await command.invoke(const Answers.empty()),
+            await command.flow.invoke(const Answers.empty()),
             isA<CommandRejected>(),
           );
         });
@@ -1342,13 +1449,16 @@ void main() {
         expect(idleGate, isA<Unavailable>());
         expect((idleGate as Unavailable).reason, 'no turn running');
         expect(
-          await command.invoke(const Answers.empty()),
+          await command.flow.invoke(const Answers.empty()),
           isA<CommandRejected>(),
         );
 
         when(() => session.state).thenReturn(turnInFlight);
         expect(await firstGate(command), isA<Available>());
-        expect(await command.invoke(const Answers.empty()), isA<CommandRan>());
+        expect(
+          await command.flow.invoke(const Answers.empty()),
+          isA<CommandRan>(),
+        );
         verify(() => session.cancel()).called(1);
       });
 
@@ -1356,13 +1466,13 @@ void main() {
         final command = commandById('chat.clear');
         expect(await firstGate(command), isA<Available>());
 
-        final confirm = command.next(const Answers.empty())!;
+        final confirm = command.flow.next(const Answers.empty())!;
         expect(confirm, isA<ConfirmParam>());
         expect((confirm as ConfirmParam).danger, isTrue);
 
         final answers = const Answers.empty().put(confirm.key, true);
-        expect(command.next(answers), isNull);
-        expect(await command.invoke(answers), isA<CommandRan>());
+        expect(command.flow.next(answers), isNull);
+        expect(await command.flow.invoke(answers), isA<CommandRan>());
         verify(agents.clear).called(1);
       });
 
@@ -1381,7 +1491,7 @@ void main() {
             const ParamKey<bool>('clearConfirm'),
             true,
           );
-          expect(await command.invoke(answers), isA<CommandRejected>());
+          expect(await command.flow.invoke(answers), isA<CommandRejected>());
           verifyNever(agents.clear);
         },
       );

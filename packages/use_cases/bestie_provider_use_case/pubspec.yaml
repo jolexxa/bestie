@@ -22,6 +22,8 @@ dependencies:
   inference_protocol:
     path: ../../infra/inference_protocol
   intentions: ^0.1.0
+  local_inference_protocol:
+    path: ../../infra/local_inference_protocol
   meta: ^1.18.0
   provider_protocol:
     path: ../../infra/provider_protocol

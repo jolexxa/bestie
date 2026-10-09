@@ -25,6 +25,7 @@ const _platform = LinuxPlatform(
   curlLibraryPath: '/opt/libcurl.so',
   caCertPath: '/opt/cacert.pem',
   creditsPath: '/opt/CREDITS.md',
+  serverExecutable: ProgramCommand(executable: '/opt/bestie_server'),
 );
 
 const _snapshot = SystemInfoSnapshot(

@@ -4,6 +4,11 @@
 
 Bestie is a native terminal coding agent harness that gives you total visibility into what it's doing. Bestie can't sneak anything past you.
 
+> [!TIP]
+> ✨🦾💖 _Now with unlimited, free AI!_
+>
+> The new `bestie_server` operates llama.cpp at a low level to provide token-precise bookkeeping for multiple streams of inference, enabling you to use subagents that compact over time, all without fear of KV cache overruns.
+
 https://github.com/user-attachments/assets/11e6ffce-0eb2-46d5-a97b-fa9d3fbb1ef9
 
 Bestie supports Windows x64, Apple Silicon, and Linux x64.
@@ -29,7 +34,9 @@ You can help! Try it out, file some issues, write some code, or send me an angry
     - [x] 🎆 fireworks.ai
     - [x] 🛣️ openrouter.ai
     - [x] 🏠 OpenAI-compatible servers
+    - [x] 🦙 local GGUF models
   - [x] 🖥️ terminal emulator / multiplexer (for your convenience)
+  - [x] ⏪ rewind conversation
 - 🤖 For robots:
   - [x] ⏳ background jobs
   - [x] 🐚 agentic terminal shells
@@ -71,6 +78,41 @@ This downloads the latest release for your platform and installs it to `~/.local
 > Windows users should have developer mode turned on. They will also need to approve a one-time elevation prompt on the first run and wait a few minutes for the one-time sandbox initialization to complete (it takes a bit to provision wide-read access on Windows). On better operating systems, the first startup is instantaneous after any OS-notarization verifications complete (looking at you, Apple).
 >
 > Lastly, Windows users will be subjected to a (typically shorter) additional sandbox setup per-directory the first time bestie runs in that directory, with wait time depending on the contents. If you don't like this, please use a better (unix) operating system. Our sandbox approach was chosen for its simplicity and compatibility with Windows 10, in addition to only requiring administrator elevation on the very first run of the app.
+
+## 🦙 Local Models
+
+Bestie can run GGUF models on your own machine. Bring your own, or download them from Hugging Face through the command palette.
+
+Bestie finds models in two places:
+
+- `~/.bestie/models/` is where Bestie saves models you download and manage through it.
+- `models.paths` lists any other folders to search, such as an LM Studio or Hugging Face cache.
+
+Bestie runs Qwen, gpt-oss, Gemma 4, and GLM-4 models. Anything else shows up with the reason it can't run. Multimodal models aren't supported yet.
+
+Models run using `bestie_server`, a small llama.cpp server that ships beside `bestie`. Bestie automatically manages its lifecycle and keeps the model you've selected loaded while Bestie is running. Only one instance of Bestie can use it at once.
+
+## ⚙️ Configuration
+
+Press `Ctrl+O` to open the options menu inside Bestie.
+
+Everything you change is saved to `~/.bestie/bestie.json`. You can edit that file by hand, too—just make sure Bestie is closed first.
+
+Every field is optional. The [schema](./bestie.schema.json) lists every field with a description and its default.
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/jolexxa/bestie/main/bestie.schema.json",
+  "provider": {
+    "model": "openrouter:openai/gpt-4o-mini",
+    "openrouter": { "apiKey": "your-api-key" }
+  },
+  "models": { "paths": ["/Users/me/.lmstudio/models"] },
+  "app": { "sandboxNetworkTier": "local" }
+}
+```
+
+Models are named `provider:model`. The providers are `openrouter`, `fireworks`, `custom`, and `local`.
 
 ## 😭 On Creating Coding Agents
 

@@ -1,3 +1,4 @@
+import 'package:inference_protocol/src/models/agent_identity.dart';
 import 'package:inference_protocol/src/models/inference_message.dart';
 import 'package:inference_protocol/src/models/inference_reasoning.dart';
 import 'package:inference_protocol/src/models/inference_sampling.dart';
@@ -14,6 +15,7 @@ final class CompletionRequest {
     this.sampling = const InferenceSampling(),
     this.reasoning = const InferenceReasoningDefault(),
     this.stopSequences = const [],
+    this.agent,
   });
 
   final String model;
@@ -27,4 +29,7 @@ final class CompletionRequest {
   final InferenceReasoning reasoning;
 
   final List<String> stopSequences;
+
+  /// The agent asking, for endpoints that keep per-agent state.
+  final AgentIdentity? agent;
 }

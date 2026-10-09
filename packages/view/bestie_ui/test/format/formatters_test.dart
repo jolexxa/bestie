@@ -109,4 +109,33 @@ void main() {
       expect('abcdef'.truncate(maxLength: 3), 'abc…');
     });
   });
+
+  group('clipCells', () {
+    test('keeps the leading graphemes that fit in the cells', () {
+      expect('abcdef'.clipCells(3), 'abc');
+      expect('abc'.clipCells(5), 'abc');
+      expect('abc'.clipCells(0), '');
+    });
+
+    test('counts wide glyphs as two cells and never splits one', () {
+      expect('日本語'.clipCells(4), '日本');
+      expect('日本語'.clipCells(3), '日');
+    });
+  });
+
+  group('ellipsizeCells', () {
+    test('passes text that fits through unchanged', () {
+      expect('abc'.ellipsizeCells(3), 'abc');
+    });
+
+    test('ends overflowing text with an ellipsis inside the cells', () {
+      expect('abcdef'.ellipsizeCells(4), 'abc…');
+      expect('日本語'.ellipsizeCells(5), '日本…');
+      expect('日本語'.ellipsizeCells(4), '日…');
+    });
+
+    test('leaves nothing when there is no room at all', () {
+      expect('abc'.ellipsizeCells(0), '');
+    });
+  });
 }

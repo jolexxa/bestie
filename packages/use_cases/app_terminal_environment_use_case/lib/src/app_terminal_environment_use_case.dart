@@ -27,7 +27,7 @@ class AppTerminalEnvironmentUseCase implements CommandContribution {
         description: 'Re-enable mouse and keyboard reporting',
         group: 'App',
         availability: alwaysAvailable(),
-        invoke: _recaptureInvoke,
+        body: CommandFlow(invoke: _recaptureInvoke),
       ),
       Command(
         id: 'app.quit',
@@ -37,7 +37,7 @@ class AppTerminalEnvironmentUseCase implements CommandContribution {
         description: 'Exit the app',
         group: 'App',
         availability: alwaysAvailable(),
-        invoke: _quitInvoke,
+        body: CommandFlow(invoke: _quitInvoke),
       ),
     ]);
   }

@@ -199,6 +199,182 @@ void main() {
     });
   });
 
+  test('command rows show live statuses beside their titles', () async {
+    final open = StreamController<bool>.broadcast();
+    final downloads = StreamController<CommandStatus?>.broadcast();
+    final server = StreamController<CommandStatus?>.broadcast();
+    addTearDown(open.close);
+    addTearDown(downloads.close);
+    addTearDown(server.close);
+    final commands = catalogOf([
+      simpleCommand(
+        'models.installed',
+        title: 'Installed models',
+        group: 'Local Models',
+        glyph: '▤',
+        tier: CommandTier.primary,
+        description: 'Manage installed and downloading models',
+        status: downloads.stream,
+      ),
+      simpleCommand(
+        'models.download',
+        title: 'Download models',
+        group: 'Local Models',
+        glyph: '↓',
+        description: 'Search Hugging Face for GGUFs',
+      ),
+      simpleCommand(
+        'models.stop',
+        title: 'Stop local server',
+        group: 'Local Models',
+        glyph: '⏻',
+        description: 'Unload the model, free its memory and stop',
+        availability: Stream.value(const Unavailable('turn in progress')),
+        status: server.stream,
+      ),
+      simpleCommand(
+        'tools.stopJobs',
+        title: 'Stop jobs',
+        group: 'Tools',
+        glyph: '■',
+        description: 'Cancel every job',
+        shortcut: 'Ctrl+K',
+      ),
+    ]);
+
+    await testNocterm('palette statuses', (tester) async {
+      await pumpPalette(
+        tester,
+        commands: commands,
+        openChanges: open.stream,
+        onCloseRequested: () {},
+      );
+      open.add(true);
+      await tester.settle();
+
+      String line(String containing) => tester.terminalState
+          .getText()
+          .split('\n')
+          .firstWhere((line) => line.contains(containing));
+
+      expect(line('Installed models'), isNot(contains('↓ 2')));
+      downloads.add(
+        const CommandStatus([
+          PaneSpan('↓ 2 · 48%', PaneTone.info),
+        ], progress: .48),
+      );
+      server.add(
+        const CommandStatus([
+          PaneSpan('● Qwen3 1.7B ready', PaneTone.success),
+        ]),
+      );
+      await tester.settle();
+
+      // The status ends at the bar, which ends a cell short of the
+      // scrollbar rail where shortcuts do.
+      final installed = line('Installed models');
+      expect(installed, contains('↓ 2 · 48% ▕██░░░'));
+      final row = tester.terminalState
+          .getText()
+          .split('\n')
+          .indexOf(
+            installed,
+          );
+      final percent = installed.indexOf('48%');
+      expect(
+        tester.terminalState.getCellAt(percent, row)?.style.color,
+        appThemeDefault.info,
+      );
+      expect(tester.terminalState.getCellAt(68, row)?.char, '░');
+      expect(
+        tester.terminalState.getCellAt(64, row)?.style.color,
+        appThemeDefault.loading,
+      );
+
+      // An unavailable command still shows its status, and its reason.
+      final ready = line('Stop local server');
+      expect(ready, contains('● Qwen3 1.7B ready'));
+      expect(ready.trimRight(), endsWith('ready ││'));
+      final readyRow = tester.terminalState
+          .getText()
+          .split('\n')
+          .indexOf(
+            ready,
+          );
+      expect(
+        tester.terminalState.getCellAt(68, readyRow)?.style.color,
+        appThemeDefault.success,
+      );
+      expect(tester.terminalState.getText(), contains('turn in progress'));
+      expect(line('Stop jobs'), contains('Ctrl+K'));
+
+      server.add(
+        const CommandStatus([
+          PaneSpan('◑ loading Qwen3 1.7B 62%', PaneTone.loading),
+        ]),
+      );
+      await tester.settle();
+      expect(line('Stop local server'), contains('◑ loading Qwen3 1.7B 62%'));
+
+      // A status too long for the room left ellipsizes and leaves the bar
+      // and title whole.
+      server.add(
+        const CommandStatus([
+          PaneSpan('◑ loading ', PaneTone.loading),
+          PaneSpan('Qwen3-Coder-30B-A3B-Instruct-1M 62%', PaneTone.emphasis),
+        ]),
+      );
+      downloads.add(
+        const CommandStatus([
+          PaneSpan('↓ 12 downloads · 7% of 210 GB in flight', PaneTone.info),
+        ], progress: .07),
+      );
+      await tester.settle();
+      final long = line('Stop local server');
+      expect(long, contains('Stop local server  ◑ loading Qwen3-Coder'));
+      expect(long, contains('…'));
+      expect(long, isNot(contains('62%')));
+      expect(long.trimRight(), endsWith('… ││'));
+      final busy = line('Installed models');
+      expect(busy, contains('Installed models  ↓ 12 downloads'));
+      expect(busy, contains('… ▕'));
+      expect(busy, contains('▕░░░░░'));
+
+      // Clearing the status empties the slot.
+      downloads.add(null);
+      await tester.settle();
+      expect(line('Installed models'), isNot(contains('↓')));
+    });
+  });
+
+  test('a status and a shortcut share the row end', () async {
+    final open = StreamController<bool>.broadcast();
+    addTearDown(open.close);
+    final commands = catalogOf([
+      simpleCommand(
+        'tools.stopJobs',
+        title: 'Stop jobs',
+        group: 'Tools',
+        shortcut: 'Ctrl+K',
+        status: Stream.value(
+          const CommandStatus([PaneSpan('2 running', PaneTone.info)]),
+        ),
+      ),
+    ]);
+
+    await testNocterm('palette status with shortcut', (tester) async {
+      await pumpPalette(
+        tester,
+        commands: commands,
+        openChanges: open.stream,
+        onCloseRequested: () {},
+      );
+      open.add(true);
+      await tester.settle();
+      expect(tester.terminalState.getText(), contains('2 running  Ctrl+K'));
+    });
+  });
+
   test('unavailable commands cannot be run and rejections surface', () async {
     final open = StreamController<bool>.broadcast();
     addTearDown(open.close);

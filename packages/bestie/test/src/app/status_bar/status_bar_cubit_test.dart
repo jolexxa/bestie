@@ -291,6 +291,20 @@ void main() {
       );
       expect(
         providerReading(
+          const ProviderStatusConnecting(
+            model: _modelRef,
+            loading: LoadingModel(
+              name: 'Qwen 3 8B',
+              providerName: 'Local models',
+              contextWindow: 40960,
+              progress: 0.62,
+            ),
+          ),
+        ),
+        'loading Qwen 3 8B 62%',
+      );
+      expect(
+        providerReading(
           const ProviderStatusFailed(
             model: _modelRef,
             failure: ProviderFailure(

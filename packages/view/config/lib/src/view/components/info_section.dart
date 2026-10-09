@@ -6,6 +6,7 @@ import 'package:bestie_provider_use_case/bestie_provider_use_case.dart';
 import 'package:bestie_ui/bestie_ui.dart';
 import 'package:blocterm/blocterm.dart';
 import 'package:intentions/intentions.dart';
+import 'package:meta/meta.dart';
 import 'package:nocterm/nocterm.dart';
 import 'package:platform_repository/platform_repository.dart';
 import 'package:provider_protocol/provider_protocol.dart';
@@ -144,7 +145,7 @@ class InfoSection extends StatelessComponent {
     ),
     InfoRow(kind: InfoRowKind.provider) => _wrappingLabeled(
       label: 'Provider',
-      value: _providerSummary(provider.status),
+      value: providerSummary(provider.status),
       selected: selected,
       hovered: hovered,
       showSeparator: showSeparator,
@@ -235,15 +236,6 @@ class InfoSection extends StatelessComponent {
       ),
     ],
   );
-
-  static String _providerSummary(ProviderStatus status) => switch (status) {
-    ProviderStatusUnconfigured() => 'Not configured',
-    ProviderStatusConnecting(:final model) =>
-      'Connecting to ${model.qualified}…',
-    ProviderStatusReady(:final providerName, :final model) =>
-      '$providerName · ${model.name} (${model.id})',
-    ProviderStatusFailed(:final failure) => 'Failed: ${failure.message}',
-  };
 
   static String _creditsSummary(CreditsResult? credits) => switch (credits) {
     null => 'Not fetched yet — run "Refresh credits" from the palette.',
@@ -370,3 +362,16 @@ class InfoSection extends StatelessComponent {
     );
   }
 }
+
+/// Where the provider stands, as the Info page reads it.
+@visibleForTesting
+String providerSummary(ProviderStatus status) => switch (status) {
+  ProviderStatusUnconfigured() => 'Not configured',
+  ProviderStatusConnecting(loading: final loading?) =>
+    'Loading ${loading.providerName} · ${loading.name} '
+        '${(loading.progress * 100).round()}%',
+  ProviderStatusConnecting(:final model) => 'Connecting to ${model.qualified}…',
+  ProviderStatusReady(:final providerName, :final model) =>
+    '$providerName · ${model.name} (${model.id})',
+  ProviderStatusFailed(:final failure) => 'Failed: ${failure.message}',
+};

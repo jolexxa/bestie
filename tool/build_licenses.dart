@@ -74,8 +74,10 @@ String _render(List<_Section> sections) {
     ..writeln(
       'This file aggregates the verbatim LICENSE (and where present, NOTICE)\n'
       "text of every third-party component that ships inside this Bestie\n"
-      'release archive — the Dart CLI binary and its transitive runtime\n'
-      'packages, the bundled native library (curl-impersonate),\n'
+      'release archive — the Dart CLI binaries (bestie and bestie_server)\n'
+      'and their transitive runtime packages, the bundled native libraries\n'
+      '(curl-impersonate, llama.cpp and ggml, and on Windows the LLVM\n'
+      'OpenMP and Microsoft Visual C++ runtimes),\n'
       'the spawner PTY helper, the Windows console host (conpty.dll and\n'
       'OpenConsole.exe), and the statically linked Rust sidecars (brush,\n'
       'uutils coreutils, ripgrep, uutils findutils, uutils sed, and the\n'

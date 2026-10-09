@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:agent_provider_protocol/agent_provider_protocol.dart'
     show AgentProvider, DisposeProviderSucceeded;
+import 'package:clock/clock.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:inference_protocol/inference_protocol.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider_protocol/provider_protocol.dart';
@@ -16,15 +18,19 @@ final class _MockAgentProvider extends Mock implements AgentProvider {}
 
 final class _MockModelCatalog extends Mock implements ModelCatalog {}
 
+final class _MockAgentSessions extends Mock implements AgentSessions {}
+
 final class _SpawnCall {
   const _SpawnCall({
     required this.client,
+    required this.sessions,
     required this.modelId,
     required this.contextWindow,
     required this.maxAgents,
   });
 
   final InferenceClient client;
+  final AgentSessions sessions;
   final String modelId;
   final int contextWindow;
   final int maxAgents;
@@ -165,7 +171,7 @@ const _offline = ProviderFailure(
 );
 
 final class _Harness {
-  _Harness() {
+  _Harness({Clock clock = const Clock()}) {
     when(
       () => catalog.modelsFor(any()),
     ).thenAnswer((_) async => const CatalogListed([]));
@@ -182,6 +188,7 @@ final class _Harness {
         agentProviderSpawner:
             ({
               required client,
+              required sessions,
               required modelId,
               required contextWindow,
               required maxAgents,
@@ -189,6 +196,7 @@ final class _Harness {
               spawns.add(
                 _SpawnCall(
                   client: client,
+                  sessions: sessions,
                   modelId: modelId,
                   contextWindow: contextWindow,
                   maxAgents: maxAgents,
@@ -198,6 +206,7 @@ final class _Harness {
             },
       ),
       catalog: catalog,
+      clock: clock,
     );
     repository.statusStream.listen(statuses.add);
     repository.reloadsStarting.listen((_) => reloads++);
@@ -206,6 +215,7 @@ final class _Harness {
   late final ProviderRepository repository;
   final catalog = _MockModelCatalog();
   final client = _MockInferenceClient();
+  final sessions = _MockAgentSessions();
   final List<Provider> providers = [];
   final List<AgentProvider> handles = [];
   final List<ProviderAccount> accounts = [];
@@ -222,8 +232,12 @@ final class _Harness {
 
   /// Queues a provider whose probe resolves the way the stubs say.
   _MockProvider stageProvider({
+    String id = 'openrouter',
     String displayName = 'Example',
-    Map<InferenceProtocolId, InferenceEndpoint>? endpoints,
+    Set<InferenceProtocolId> protocols = const {
+      InferenceProtocolId.openAiCompat,
+    },
+    Stream<void> modelsChanged = const Stream.empty(),
     KeyInfoResult keyInfo = const KeyInfoFetched(_keyInfo),
     ProviderModelsResult models = const ProviderModelsListed([
       _model,
@@ -231,19 +245,38 @@ final class _Harness {
     ]),
     List<ProviderModelsResult>? modelsSequence,
     Completer<KeyInfoResult>? keyInfoGate,
+    ModelActivation Function(ModelActivationRequest request)? activate,
   }) {
     final listings = [...?modelsSequence];
     final provider = _MockProvider();
+    when(() => provider.id).thenReturn(id);
+    when(provider.deactivate).thenAnswer((_) async {});
     when(() => provider.displayName).thenReturn(displayName);
-    when(() => provider.endpoints).thenReturn(
-      endpoints ?? {InferenceProtocolId.openAiCompat: _endpoint},
-    );
+    when(() => provider.protocols).thenReturn(protocols);
+    when(() => provider.modelsChanged).thenAnswer((_) => modelsChanged);
     when(
       provider.keyInfo,
     ).thenAnswer((_) => keyInfoGate?.future ?? Future.value(keyInfo));
     when(
       provider.models,
     ).thenAnswer((_) async => listings.isEmpty ? models : listings.removeAt(0));
+    when(() => provider.activate(any())).thenAnswer((invocation) {
+      final request =
+          invocation.positionalArguments.single as ModelActivationRequest;
+      return activate?.call(request) ??
+          ModelActivation(
+            progress: const Stream.empty(),
+            result: Future.value(
+              ModelActivated(
+                contextWindow: request.contextWindow,
+                endpoint: _endpoint,
+              ),
+            ),
+          );
+    });
+    when(
+      () => provider.openSessions(contextWindow: any(named: 'contextWindow')),
+    ).thenReturn(sessions);
     providers.add(provider);
     return provider;
   }
@@ -263,6 +296,16 @@ final class _Harness {
 }
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(
+      const ModelActivationRequest(
+        modelId: 'fallback',
+        contextWindow: 1,
+        maxAgents: 1,
+      ),
+    );
+  });
+
   group('ProviderAccount', () {
     test('is usable once the descriptor has what it needs', () {
       expect(_openRouterAccount.isUsable, isTrue);
@@ -512,14 +555,26 @@ void main() {
       expect(harness.endpoints, [_endpoint]);
       final spawn = harness.spawns.single;
       expect(spawn.client, harness.client);
+      expect(spawn.sessions, harness.sessions);
       expect(spawn.modelId, 'org/model');
       expect(spawn.contextWindow, 8192);
       expect(spawn.maxAgents, 3);
       expect(harness.statusTypes, [
         ProviderStatusUnconfigured,
         ProviderStatusConnecting,
+        ProviderStatusConnecting,
         ProviderStatusReady,
       ]);
+      verify(
+        () => provider.activate(
+          const ModelActivationRequest(
+            modelId: 'org/model',
+            contextWindow: 8192,
+            maxAgents: 3,
+          ),
+        ),
+      ).called(1);
+      verify(() => provider.openSessions(contextWindow: 8192)).called(1);
       expect(harness.reloads, 0);
       verify(provider.keyInfo).called(1);
       verify(provider.models).called(1);
@@ -615,27 +670,21 @@ void main() {
 
       final failed = harness.repository.status as ProviderStatusFailed;
       expect(failed.failure, _failure);
-      verify(provider.models).called(2);
+      verify(provider.models).called(1);
     });
 
-    test('retries a listing that failed while connecting', () async {
+    test('lists again after a listing failed', () async {
       final harness = _Harness();
-      final gate = Completer<KeyInfoResult>();
       final provider = harness.stageProvider(
-        keyInfoGate: gate,
         modelsSequence: const [
           ProviderModelsFailed(_failure),
           ProviderModelsListed([_model]),
         ],
       );
-      harness
-        ..stageHandle()
-        ..repository.configure(_settings);
-      await pumpEventQueue();
-      gate.complete(const KeyInfoFetched(_keyInfo));
+      harness.repository.configure(_settings);
       await pumpEventQueue();
 
-      expect(harness.repository.status, isA<ProviderStatusReady>());
+      expect(harness.repository.status, isA<ProviderStatusFailed>());
       final result = await harness.repository.models();
       expect(result.models.single.model, _model);
       verify(provider.models).called(2);
@@ -726,7 +775,7 @@ void main() {
 
     test('fails when the provider has no OpenAI-compatible endpoint', () async {
       final harness = _Harness();
-      final provider = harness.stageProvider(endpoints: const {});
+      final provider = harness.stageProvider(protocols: const {});
       harness.repository.configure(_settings);
       await pumpEventQueue();
 
@@ -736,6 +785,9 @@ void main() {
         'Example offers no OpenAI-compatible endpoint.',
       );
       verifyNever(provider.keyInfo);
+      verifyNever(provider.models);
+      verifyNever(() => provider.activate(any()));
+      expect(harness.spawns, isEmpty);
     });
 
     test(
@@ -871,19 +923,30 @@ void main() {
       expect(harness.accounts.last, _otherOpenRouterAccount);
     });
 
-    test('lists every usable account as soon as it is configured', () async {
+    test('lists an account only once its models are asked for', () async {
       final harness = _Harness();
       final gate = Completer<KeyInfoResult>();
       final openRouter = harness.stageProvider(keyInfoGate: gate);
       final custom = harness.stageProvider(keyInfoGate: gate);
-      harness.repository.configure(
-        _settingsFor(accounts: [_openRouterAccount, _customReadyAccount]),
-      );
+      harness
+        ..stageHandle()
+        ..repository.configure(
+          _settingsFor(accounts: [_openRouterAccount, _customReadyAccount]),
+        );
       await pumpEventQueue();
 
-      verify(openRouter.models).called(1);
-      verify(custom.models).called(1);
+      verifyNever(openRouter.models);
+      verifyNever(custom.models);
       expect(harness.repository.status, isA<ProviderStatusConnecting>());
+
+      gate.complete(const KeyInfoFetched(_keyInfo));
+      await pumpEventQueue();
+      verify(openRouter.models).called(1);
+      verifyNever(custom.models);
+
+      await harness.repository.models();
+      verifyNever(openRouter.models);
+      verify(custom.models).called(1);
     });
 
     test('clearing settings mid-connection abandons the probe', () async {
@@ -917,6 +980,691 @@ void main() {
 
       expect(harness.repository.status, isA<ProviderStatusReady>());
       expect(harness.accounts, hasLength(2));
+    });
+
+    group('activation', () {
+      test(
+        'reports loading progress, then runs on the activated window',
+        () async {
+          final harness = _Harness();
+          final progress = StreamController<double>();
+          final result = Completer<ModelActivationResult>();
+          final provider = harness.stageProvider(
+            activate: (_) => ModelActivation(
+              progress: progress.stream,
+              result: result.future,
+            ),
+          );
+          harness
+            ..stageHandle()
+            ..repository.configure(_settings);
+          await pumpEventQueue();
+
+          final activating = harness.repository.status;
+          expect(
+            activating,
+            isA<ProviderStatusConnecting>().having(
+              (status) => status.loading,
+              'loading',
+              isNull,
+            ),
+          );
+
+          progress.add(0.62);
+          await pumpEventQueue();
+          final loading =
+              (harness.repository.status as ProviderStatusConnecting).loading!;
+          expect(loading.name, 'Model');
+          expect(loading.providerName, isNotEmpty);
+          expect(loading.progress, 0.62);
+
+          result.complete(
+            ModelActivated(contextWindow: 4096, endpoint: _endpoint),
+          );
+          await progress.close();
+          await pumpEventQueue();
+
+          final ready = harness.repository.status as ProviderStatusReady;
+          expect(ready.contextWindow, 4096);
+          expect(ready.model.name, 'Model');
+          expect(harness.spawns.single.contextWindow, 4096);
+          verify(() => provider.openSessions(contextWindow: 4096)).called(1);
+        },
+      );
+
+      test('fails when the provider cannot ready the model', () async {
+        final harness = _Harness()
+          ..stageProvider(
+            activate: (_) => ModelActivation(
+              progress: const Stream.empty(),
+              result: Future.value(const ModelActivationFailed(_offline)),
+            ),
+          );
+        harness.repository.configure(_settings);
+        await pumpEventQueue();
+
+        final failed = harness.repository.status as ProviderStatusFailed;
+        expect(failed.failure, _offline);
+        expect(harness.spawns, isEmpty);
+      });
+
+      test('ignores an activation abandoned for newer settings', () async {
+        final harness = _Harness();
+        final progress = StreamController<double>.broadcast();
+        final result = Completer<ModelActivationResult>();
+        final stale = harness.stageProvider(
+          activate: (_) =>
+              ModelActivation(progress: progress.stream, result: result.future),
+        );
+        harness.repository.configure(_settings);
+        await pumpEventQueue();
+        when(
+          stale.keyInfo,
+        ).thenAnswer((_) => Completer<KeyInfoResult>().future);
+
+        harness.repository.configure(_settingsFor(maxAgents: 2));
+        progress.add(0.5);
+        result.complete(
+          ModelActivated(contextWindow: 4096, endpoint: _endpoint),
+        );
+        await pumpEventQueue();
+
+        expect(
+          harness.repository.status,
+          isA<ProviderStatusConnecting>().having(
+            (status) => status.loading,
+            'loading',
+            isNull,
+          ),
+        );
+        expect(harness.spawns, isEmpty);
+        await progress.close();
+      });
+
+      test('ignores progress reported under an older attempt', () async {
+        final harness = _Harness();
+        final first = StreamController<double>.broadcast();
+        final second = Completer<ModelActivationResult>();
+        final activations = [
+          ModelActivation(
+            progress: first.stream,
+            result: Completer<ModelActivationResult>().future,
+          ),
+          ModelActivation(
+            progress: const Stream.empty(),
+            result: second.future,
+          ),
+        ];
+        harness.stageProvider(activate: (_) => activations.removeAt(0));
+        harness.repository.configure(_settings);
+        await pumpEventQueue();
+
+        harness.repository.configure(_settingsFor(maxAgents: 2));
+        await pumpEventQueue();
+        first.add(0.9);
+        await pumpEventQueue();
+
+        expect(
+          (harness.repository.status as ProviderStatusConnecting).loading,
+          isNull,
+        );
+        await first.close();
+      });
+
+      group('when the model is lost', () {
+        final restarted = InferenceEndpoint(
+          baseUrl: Uri.parse('http://127.0.0.1:5151/v1'),
+          headers: const {'X-Bestie-Owner': 'new-token'},
+        );
+
+        ModelActivation activation(
+          int contextWindow, {
+          InferenceEndpoint? endpoint,
+          Future<void>? lost,
+        }) => ModelActivation(
+          progress: const Stream.empty(),
+          result: Future.value(
+            ModelActivated(
+              contextWindow: contextWindow,
+              endpoint: endpoint ?? _endpoint,
+            ),
+          ),
+          lost: lost,
+        );
+
+        test('waits, then activates again on a fresh agent provider at the '
+            'endpoint the new activation names', () {
+          fakeAsync((async) {
+            final harness = _Harness(clock: async.getClock(DateTime(2026)));
+            final lost = Completer<void>();
+            final activations = [
+              activation(4096, lost: lost.future),
+              activation(2048, endpoint: restarted),
+            ];
+            final provider = harness.stageProvider(
+              activate: (_) => activations.removeAt(0),
+            );
+            final stale = harness.stageHandle();
+            final fresh = harness.stageHandle();
+            harness.repository.configure(_settings);
+            async.flushMicrotasks();
+            expect(harness.repository.status.provider, same(stale));
+
+            lost.complete();
+            async.flushMicrotasks();
+
+            expect(harness.reloads, 1);
+            verify(stale.dispose).called(1);
+            expect(harness.repository.status, isA<ProviderStatusConnecting>());
+            verify(() => provider.activate(any())).called(1);
+
+            async.elapse(const Duration(seconds: 1));
+
+            verify(() => provider.activate(any())).called(1);
+            expect(harness.endpoints, [_endpoint, restarted]);
+            expect(harness.spawns.last.contextWindow, 2048);
+            final ready = harness.repository.status as ProviderStatusReady;
+            expect(ready.provider, same(fresh));
+            expect(ready.contextWindow, 2048);
+            verifyNever(provider.deactivate);
+          });
+        });
+
+        test('doubles the wait with each loss in a row, then fails', () {
+          fakeAsync((async) {
+            final harness = _Harness(clock: async.getClock(DateTime(2026)));
+            var served = Completer<void>();
+            final provider = harness.stageProvider(
+              activate: (_) =>
+                  activation(4096, lost: (served = Completer<void>()).future),
+            );
+            final handles = [
+              for (var count = 0; count < 4; count++) harness.stageHandle(),
+            ];
+            harness.repository.configure(_settings);
+            async.flushMicrotasks();
+
+            for (final wait in const [1, 2, 4]) {
+              served.complete();
+              async
+                ..flushMicrotasks()
+                ..elapse(Duration(milliseconds: wait * 1000 - 1));
+              expect(
+                harness.repository.status,
+                isA<ProviderStatusConnecting>(),
+                reason: 'still waiting out ${wait}s',
+              );
+              async.elapse(const Duration(milliseconds: 1));
+              expect(harness.repository.status, isA<ProviderStatusReady>());
+            }
+            served.complete();
+            async.flushMicrotasks();
+
+            final failed = harness.repository.status as ProviderStatusFailed;
+            expect(failed.failure.kind, InferenceFailureKind.server);
+            expect(
+              failed.failure.message,
+              'Model stopped being served 4 times in a row. Reconnect to try '
+              'again.',
+            );
+            verify(() => provider.activate(any())).called(4);
+            for (final handle in handles) {
+              verify(handle.dispose).called(1);
+            }
+            async.elapse(const Duration(minutes: 1));
+            verifyNever(() => provider.activate(any()));
+          });
+        });
+
+        test('counts afresh once the model served for a while', () {
+          fakeAsync((async) {
+            final harness = _Harness(clock: async.getClock(DateTime(2026)));
+            var served = Completer<void>();
+            harness.stageProvider(
+              activate: (_) =>
+                  activation(4096, lost: (served = Completer<void>()).future),
+            );
+            for (var count = 0; count < 5; count++) {
+              harness.stageHandle();
+            }
+            harness.repository.configure(_settings);
+            async.flushMicrotasks();
+
+            for (final wait in const [1, 2, 4]) {
+              served.complete();
+              async
+                ..flushMicrotasks()
+                ..elapse(Duration(seconds: wait));
+            }
+            async.elapse(const Duration(minutes: 5));
+            served.complete();
+            async
+              ..flushMicrotasks()
+              ..elapse(const Duration(seconds: 1));
+
+            expect(harness.repository.status, isA<ProviderStatusReady>());
+          });
+        });
+
+        test('stops waiting when the settings change', () {
+          fakeAsync((async) {
+            final harness = _Harness(clock: async.getClock(DateTime(2026)));
+            final lost = Completer<void>();
+            final activations = [
+              activation(4096, lost: lost.future),
+              activation(2048),
+            ];
+            final provider = harness.stageProvider(
+              activate: (_) => activations.removeAt(0),
+            );
+            harness
+              ..stageHandle()
+              ..stageHandle()
+              ..repository.configure(_settings);
+            async.flushMicrotasks();
+            lost.complete();
+            async.flushMicrotasks();
+
+            harness.repository.configure(_settingsFor(maxAgents: 2));
+            async.flushMicrotasks();
+            verify(() => provider.activate(any())).called(2);
+            async.elapse(const Duration(seconds: 1));
+
+            verifyNever(() => provider.activate(any()));
+            expect(harness.repository.status, isA<ProviderStatusReady>());
+            expect(async.pendingTimers, isEmpty);
+          });
+        });
+      });
+
+      test('ignores a loss reported under an older attempt', () async {
+        final harness = _Harness();
+        final lost = Completer<void>();
+        final activations = [
+          ModelActivation(
+            progress: const Stream.empty(),
+            result: Future.value(
+              ModelActivated(contextWindow: 4096, endpoint: _endpoint),
+            ),
+            lost: lost.future,
+          ),
+          ModelActivation(
+            progress: const Stream.empty(),
+            result: Future.value(
+              ModelActivated(contextWindow: 4096, endpoint: _endpoint),
+            ),
+          ),
+        ];
+        final provider = harness.stageProvider(
+          activate: (_) => activations.removeAt(0),
+        );
+        harness
+          ..stageHandle()
+          ..stageHandle()
+          ..repository.configure(_settings);
+        await pumpEventQueue();
+        harness.repository.configure(_settingsFor(maxAgents: 2));
+        await pumpEventQueue();
+
+        lost.complete();
+        await pumpEventQueue();
+
+        verify(() => provider.activate(any())).called(2);
+        expect(harness.spawns, hasLength(2));
+        expect(harness.repository.status, isA<ProviderStatusReady>());
+      });
+
+      test('stops following progress once disposed', () async {
+        final harness = _Harness();
+        final progress = StreamController<double>();
+        harness.stageProvider(
+          activate: (_) => ModelActivation(
+            progress: progress.stream,
+            result: Completer<ModelActivationResult>().future,
+          ),
+        );
+        harness.repository.configure(_settings);
+        await pumpEventQueue();
+        expect(progress.hasListener, isTrue);
+
+        await harness.repository.dispose();
+
+        expect(progress.hasListener, isFalse);
+      });
+    });
+
+    test('LoadingModel reports nothing until progress arrives', () {
+      expect(
+        LoadingModel.of(_resolvedModel, providerName: 'Local', progress: null),
+        isNull,
+      );
+      final loading = LoadingModel.of(
+        _resolvedModel,
+        providerName: 'Local',
+        progress: 0.25,
+      )!;
+      expect(loading.name, 'Model');
+      expect(loading.providerName, 'Local');
+      expect(loading.contextWindow, _resolvedModel.contextWindow);
+      expect(loading.progress, 0.25);
+    });
+
+    group('deactivation', () {
+      const local = ProviderDescriptor(
+        id: 'local',
+        displayName: 'Local models',
+        requiresApiKey: false,
+        dialect: InferenceDialect.bestie,
+      );
+      const localAccount = ProviderAccount(descriptor: local, apiKey: '');
+      const localRef = ProviderModelRef(providerId: 'local', modelId: 'qwen');
+      const otherLocalRef = ProviderModelRef(
+        providerId: 'local',
+        modelId: 'gemma',
+      );
+      const localModels = ProviderModelsListed([
+        ProviderModel(
+          id: 'qwen',
+          name: 'Qwen',
+          contextLength: 8192,
+          supportsTools: true,
+        ),
+        ProviderModel(
+          id: 'gemma',
+          name: 'Gemma',
+          contextLength: 8192,
+          supportsTools: true,
+        ),
+      ]);
+
+      ProviderSettings localSettings({ProviderModelRef? model = localRef}) =>
+          ProviderSettings(
+            accounts: const [localAccount, _openRouterAccount],
+            model: model,
+            maxAgents: 3,
+          );
+
+      late _Harness harness;
+      late _MockProvider provider;
+
+      setUp(() async {
+        harness = _Harness();
+        provider = harness.stageProvider(id: 'local', models: localModels);
+        harness
+          ..stageProvider()
+          ..stageHandle()
+          ..stageHandle()
+          ..repository.configure(localSettings());
+        await pumpEventQueue();
+      });
+
+      test('lets the provider go once the session moves to another '
+          'provider', () async {
+        harness.repository.configure(localSettings(model: _modelRef));
+        await pumpEventQueue();
+
+        verify(provider.deactivate).called(1);
+        expect(harness.repository.status, isA<ProviderStatusReady>());
+      });
+
+      test('keeps the provider while the model changes within it', () async {
+        harness.repository.configure(localSettings(model: otherLocalRef));
+        await pumpEventQueue();
+
+        verifyNever(provider.deactivate);
+        verify(() => provider.activate(any())).called(2);
+      });
+
+      test('lets the provider go when no model is left to run', () async {
+        harness.repository.configure(localSettings(model: null));
+        await pumpEventQueue();
+
+        verify(provider.deactivate).called(1);
+        expect(harness.repository.status, isA<ProviderStatusUnconfigured>());
+      });
+
+      test('keeps the provider on a reconnect', () async {
+        harness
+          ..stageProvider(id: 'local', models: localModels)
+          ..stageProvider();
+
+        harness.repository.reconnect();
+        await pumpEventQueue();
+
+        verifyNever(provider.deactivate);
+        expect(harness.repository.status, isA<ProviderStatusReady>());
+      });
+    });
+
+    group('when the models a provider lists change', () {
+      const unlisted = ProviderModelsListed([_plainModel]);
+      const listed = ProviderModelsListed([_model, _plainModel]);
+
+      test('a model it did not offer yet can be used once it lists it '
+          '(use after download)', () async {
+        final harness = _Harness();
+        final changes = StreamController<void>.broadcast();
+        final provider = harness.stageProvider(
+          modelsSequence: [unlisted, listed],
+          modelsChanged: changes.stream,
+        );
+        harness
+          ..stageHandle()
+          ..repository.configure(_settings);
+        await pumpEventQueue();
+        expect(
+          (harness.repository.status as ProviderStatusFailed).failure.message,
+          'Model "org/model" is not offered by Example.',
+        );
+
+        changes.add(null);
+        await pumpEventQueue();
+
+        expect(harness.repository.status, isA<ProviderStatusReady>());
+        verify(provider.models).called(2);
+        await changes.close();
+      });
+
+      test('a probe under way starts over on the fresh listing', () async {
+        final harness = _Harness();
+        final changes = StreamController<void>.broadcast();
+        final catalogGate = Completer<CatalogResult>();
+        when(
+          () => harness.catalog.modelsFor(any()),
+        ).thenAnswer((_) => catalogGate.future);
+        harness
+          ..stageProvider(
+            modelsSequence: [unlisted, listed],
+            modelsChanged: changes.stream,
+          )
+          ..stageHandle()
+          ..repository.configure(_settings);
+        await pumpEventQueue();
+
+        changes.add(null);
+        await pumpEventQueue();
+        catalogGate.complete(const CatalogListed([]));
+        await pumpEventQueue();
+
+        expect(harness.repository.status, isA<ProviderStatusReady>());
+        await changes.close();
+      });
+
+      test('the model list is fetched again', () async {
+        final harness = _Harness();
+        final changes = StreamController<void>.broadcast();
+        final provider = harness.stageProvider(
+          modelsSequence: [listed, unlisted],
+          modelsChanged: changes.stream,
+        );
+        harness
+          ..stageHandle()
+          ..repository.configure(_settings);
+        await pumpEventQueue();
+
+        changes.add(null);
+        await pumpEventQueue();
+        final models = await harness.repository.models();
+
+        expect(
+          models.models
+              .where((listedModel) => listedModel.hasAccess)
+              .map((listedModel) => listedModel.model.id),
+          ['org/plain'],
+        );
+        expect(harness.repository.status, isA<ProviderStatusReady>());
+        verify(provider.models).called(2);
+        await changes.close();
+      });
+
+      test('a failure on another provider is left alone', () async {
+        final harness = _Harness();
+        final changes = StreamController<void>.broadcast();
+        final openRouter = harness.stageProvider(models: unlisted);
+        harness.stageProvider(id: 'custom', modelsChanged: changes.stream);
+        harness.repository.configure(
+          _settingsFor(accounts: [_openRouterAccount, _customReadyAccount]),
+        );
+        await pumpEventQueue();
+
+        changes.add(null);
+        await pumpEventQueue();
+
+        expect(harness.repository.status, isA<ProviderStatusFailed>());
+        verify(openRouter.models).called(1);
+        await changes.close();
+      });
+
+      test('a model that could not be readied is not retried', () async {
+        final harness = _Harness();
+        final changes = StreamController<void>.broadcast();
+        final provider = harness.stageProvider(
+          modelsChanged: changes.stream,
+          activate: (_) => ModelActivation(
+            progress: const Stream.empty(),
+            result: Future.value(const ModelActivationFailed(_offline)),
+          ),
+        );
+        harness.repository.configure(_settings);
+        await pumpEventQueue();
+
+        changes.add(null);
+        await pumpEventQueue();
+
+        expect(harness.repository.status, isA<ProviderStatusFailed>());
+        verify(() => provider.activate(any())).called(1);
+        await changes.close();
+      });
+
+      test('a replaced provider is no longer followed', () async {
+        final harness = _Harness();
+        final first = StreamController<void>.broadcast();
+        harness
+          ..stageProvider(modelsChanged: first.stream)
+          ..stageHandle()
+          ..repository.configure(_settings);
+        await pumpEventQueue();
+        expect(first.hasListener, isTrue);
+
+        harness
+          ..stageProvider()
+          ..stageHandle()
+          ..repository.configure(
+            _settingsFor(accounts: [_otherOpenRouterAccount]),
+          );
+        await pumpEventQueue();
+
+        expect(first.hasListener, isFalse);
+        await first.close();
+      });
+
+      test('nothing is followed once disposed', () async {
+        final harness = _Harness();
+        final changes = StreamController<void>.broadcast();
+        harness
+          ..stageProvider(modelsChanged: changes.stream)
+          ..stageHandle()
+          ..repository.configure(_settings);
+        await pumpEventQueue();
+
+        await harness.repository.dispose();
+
+        expect(changes.hasListener, isFalse);
+        await changes.close();
+      });
+    });
+
+    group('stop', () {
+      test('lets the running provider go until a reconnect', () async {
+        final harness = _Harness();
+        final provider = harness.stageProvider();
+        final handle = harness.stageHandle();
+        harness.repository.configure(_settings);
+        await pumpEventQueue();
+
+        harness.repository.stop();
+        await pumpEventQueue();
+
+        final failed = harness.repository.status as ProviderStatusFailed;
+        expect(failed.failure.kind, InferenceFailureKind.cancelled);
+        expect(
+          failed.failure.message,
+          'Stopped. Reconnect or pick a model to start again.',
+        );
+        expect(failed.model, _modelRef);
+        expect(harness.reloads, 1);
+        verify(handle.dispose).called(1);
+        verify(provider.deactivate).called(1);
+
+        harness
+          ..stageProvider()
+          ..stageHandle()
+          ..repository.reconnect();
+        await pumpEventQueue();
+
+        expect(harness.repository.status, isA<ProviderStatusReady>());
+      });
+
+      test('abandons an activation under way', () async {
+        final harness = _Harness();
+        final result = Completer<ModelActivationResult>();
+        final provider = harness.stageProvider(
+          activate: (_) => ModelActivation(
+            progress: const Stream.empty(),
+            result: result.future,
+          ),
+        );
+        harness.repository.configure(_settings);
+        await pumpEventQueue();
+
+        harness.repository.stop();
+        result.complete(
+          ModelActivated(contextWindow: 4096, endpoint: _endpoint),
+        );
+        await pumpEventQueue();
+
+        expect(harness.repository.status, isA<ProviderStatusFailed>());
+        expect(harness.spawns, isEmpty);
+        verify(provider.deactivate).called(1);
+      });
+
+      test('does nothing while nothing runs', () async {
+        final harness = _Harness()..repository.stop();
+        await pumpEventQueue();
+        expect(harness.repository.status, isA<ProviderStatusUnconfigured>());
+
+        harness
+          ..stageProvider(keyInfo: const KeyInfoFailed(_failure))
+          ..repository.configure(_settings);
+        await pumpEventQueue();
+        harness.repository.stop();
+        await pumpEventQueue();
+
+        expect(
+          (harness.repository.status as ProviderStatusFailed).failure,
+          _failure,
+        );
+      });
     });
 
     group('reconnect', () {

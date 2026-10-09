@@ -1,0 +1,29 @@
+name: completion_runtime
+description: >-
+  Serves chat completions for leased agents over the batching sequence
+  scheduler, so every agent's decode shares one step and keeps its prefix.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  inference:
+    path: ../inference
+  inference_runtime:
+    path: ../inference_runtime
+  llm_model_templates:
+    path: ../llm_model_templates
+  tool_protocol:
+    path: ../tool_protocol
+
+dev_dependencies:
+  coverage: ^1.15.0
+  isolate_worker:
+    path: ../isolate_worker
+  mocktail: ^1.0.5
+  test: ^1.31.1
+  very_good_analysis: ^10.2.0

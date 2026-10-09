@@ -44,6 +44,13 @@ const _hostAssets = WindowsAppAssets(
     bundleUnit: AssetBundleUnit.ownerNativeDir,
     missingMessage: 'Editor (bestie_edit.exe) not found.',
   ),
+  server: AppAsset(
+    path: 'bestie_server.exe',
+    packageOwner: 'packages/bestie_server',
+    bundleSubdir: 'bin',
+    sourceScript: 'packages/bestie_server/bin/bestie_server.dart',
+    missingMessage: 'Local inference server (bestie_server.exe) not found.',
+  ),
   shared: SharedAppAssets(
     caCert: AppAsset(
       path: 'cacert.pem',

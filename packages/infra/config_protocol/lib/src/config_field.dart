@@ -211,3 +211,31 @@ final class OpaqueField<T> extends ConfigField<T> {
   @override
   Validation validate(T value) => const Valid();
 }
+
+/// A list of text values, edited one per line.
+final class ListField extends ConfigField<List<String>> {
+  ListField({
+    required super.label,
+    required super.description,
+    this.maxLines = 4,
+  });
+
+  @override
+  final int maxLines;
+
+  @override
+  List<String> adjust(List<String> current, int delta) => current;
+
+  @override
+  String format(List<String> value) => value.join('\n');
+
+  /// Each non-blank line, trimmed.
+  @override
+  List<String> parse(String text) => [
+    for (final line in text.split('\n'))
+      if (line.trim() case final value when value.isNotEmpty) value,
+  ];
+
+  @override
+  Validation validate(List<String> value) => const Valid();
+}

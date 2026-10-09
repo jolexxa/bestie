@@ -1,4 +1,5 @@
 import 'package:bestie/src/app/assets/app_assets.dart';
+import 'package:bestie_platform_abstractions/bestie_platform_abstractions.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -7,6 +8,25 @@ void main() {
       expect(assets.bundleAssets, containsAll(sharedAppAssets.all));
     }
     expect(windowsAppAssets.bundleAssets, containsAll(sharedAppAssets.all));
+  });
+
+  test('every platform ships the local inference server in bin/', () {
+    for (final server in [
+      macOSAppAssets.server,
+      linuxAppAssets.server,
+      windowsAppAssets.server,
+    ]) {
+      expect(server.bundleSubdir, 'bin');
+      expect(server.bundleUnit, AssetBundleUnit.ownerCliBundle);
+    }
+    for (final assets in [macOSAppAssets, linuxAppAssets]) {
+      expect(assets.bundleAssets, contains(assets.server));
+    }
+    expect(
+      windowsAppAssets.bundleAssets,
+      contains(windowsAppAssets.server),
+    );
+    expect(windowsAppAssets.server.path, 'bestie_server.exe');
   });
 
   test('macOS ships the mach-o native libraries', () {

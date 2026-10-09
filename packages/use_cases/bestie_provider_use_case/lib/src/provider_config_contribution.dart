@@ -21,6 +21,7 @@ final class ProviderConfigContribution implements ConfigContribution {
       key: configKeys.customContextWindow,
       field: _customContextWindowField,
     ),
+    globalEntry(key: configKeys.localContextCap, field: _localContextCapField),
     globalEntry(key: configKeys.model, field: _modelField),
     globalEntry(key: configKeys.maxAgents, field: _maxAgentsField),
     globalEntry(key: configKeys.sampling.temperature, field: _temperatureField),
@@ -68,6 +69,16 @@ final _customContextWindowField = NumericField<int>(
       'Tokens to assume the custom endpoint can attend to when it does not '
       'say.',
   min: 1024,
+  max: 2097152,
+  step: 1024,
+);
+
+final _localContextCapField = NumericField<int>(
+  label: 'Local context cap',
+  description:
+      'The most context a local model may run with. 0 = as much as fits in '
+      'memory.',
+  min: 0,
   max: 2097152,
   step: 1024,
 );

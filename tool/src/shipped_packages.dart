@@ -1,6 +1,6 @@
 // Shared resolution of the third-party Dart packages that ship inside a Bestie
-// release — the runtime-closure dependencies of `packages/bestie`, resolved to
-// their pub-cache directories. Used by both `credits.dart` (the human-facing
+// release — the runtime-closure dependencies of `packages/bestie` and
+// `packages/bestie_server`, resolved to their pub-cache directories. Used by both `credits.dart` (the human-facing
 // summary) and `build_licenses.dart` (the verbatim license bundle) so the two
 // can never disagree about which packages are shipped.
 
@@ -29,22 +29,27 @@ class ShippedPackage {
   File? get noticeFile => findNoticeFile(baseDir);
 }
 
-/// Resolves the runtime-closure third-party Dart packages of the bestie binary.
+/// The workspace packages whose executables ship in a release bundle.
+const shippedExecutablePackages = ['bestie', 'bestie_server'];
+
+/// Resolves the runtime-closure third-party Dart packages of the shipped
+/// executables.
 ///
-/// Walks `dart pub deps --json` starting from the [rootPackageName] package
-/// (the shipped binary — **not** the pub-workspace root, whose direct deps are
-/// just the workspace tools), following each package's `directDependencies` so
-/// dev/build-only branches are excluded, and resolving each third-party
-/// (non-path/root) package to its pub-cache directory. Names whose cache
-/// directory cannot be located are appended to [missing].
+/// Walks `dart pub deps --json` starting from each of the [rootPackageNames]
+/// (the shipped executables — **not** the pub-workspace root, whose direct
+/// deps are just the workspace tools), following each package's
+/// `directDependencies` so dev/build-only branches are excluded, and resolving
+/// each third-party (non-path/root) package to its pub-cache directory. Names
+/// whose cache directory cannot be located are appended to [missing].
 ///
 /// [appPackagePath] is where `dart pub deps` runs; in a workspace this yields
-/// the whole graph regardless, and the walk is anchored at [rootPackageName].
+/// the whole graph regardless, and the walk is anchored at the
+/// [rootPackageNames].
 Future<List<ShippedPackage>> resolveShippedDartPackages({
   required String repoRoot,
   required String appPackagePath,
   required List<String> missing,
-  String rootPackageName = 'bestie',
+  List<String> rootPackageNames = shippedExecutablePackages,
 }) async {
   final result = await Process.run('dart', [
     'pub',
@@ -59,12 +64,13 @@ Future<List<ShippedPackage>> resolveShippedDartPackages({
   final packages = (graph['packages'] as List).cast<Map<String, dynamic>>();
   final byName = {for (final p in packages) p['name'] as String: p};
 
-  final rootPkg = byName[rootPackageName];
-  if (rootPkg == null) {
-    throw StateError(
-      'Root package "$rootPackageName" not found in `dart pub deps` output.',
-    );
-  }
+  final roots = [
+    for (final rootName in rootPackageNames)
+      byName[rootName] ??
+          (throw StateError(
+            'Root package "$rootName" not found in `dart pub deps` output.',
+          )),
+  ];
 
   // Walk the runtime closure, following non-dev direct dependencies at every
   // level. `directDependencies` excludes each package's dev_dependencies, so
@@ -73,7 +79,7 @@ Future<List<ShippedPackage>> resolveShippedDartPackages({
       (pkg['directDependencies'] as List? ?? const []).cast<String>();
 
   final visited = <String>{};
-  final queue = <String>[...directDeps(rootPkg)];
+  final queue = <String>[for (final root in roots) ...directDeps(root)];
   while (queue.isNotEmpty) {
     final name = queue.removeLast();
     if (!visited.add(name)) continue;

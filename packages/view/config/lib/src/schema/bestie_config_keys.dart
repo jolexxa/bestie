@@ -1,4 +1,5 @@
 import 'package:bestie_chat_use_case/bestie_chat_use_case.dart';
+import 'package:bestie_local_models_use_case/bestie_local_models_use_case.dart';
 import 'package:bestie_mascot_use_case/bestie_mascot_use_case.dart';
 import 'package:bestie_provider_use_case/bestie_provider_use_case.dart';
 import 'package:bestie_sandbox_use_case/bestie_sandbox_use_case.dart';
@@ -14,6 +15,7 @@ final class BestieConfigKeys {
     required this.mascot,
     required this.chat,
     required this.provider,
+    required this.localModels,
     required this.shell,
     required this.sandbox,
     required this.tools,
@@ -23,6 +25,7 @@ final class BestieConfigKeys {
   final MascotConfigKeys mascot;
   final ChatConfigKeys chat;
   final ProviderConfigKeys provider;
+  final LocalModelsConfigKeys localModels;
   final ShellConfigKeys shell;
   final SandboxConfigKeys sandbox;
   final ToolsConfigKeys tools;

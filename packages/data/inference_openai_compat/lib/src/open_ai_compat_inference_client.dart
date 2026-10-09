@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:inference_openai_compat/src/cost_tapping_client.dart';
 import 'package:inference_protocol/inference_protocol.dart';
 import 'package:intentions/intentions.dart';
+import 'package:local_inference_protocol/local_inference_protocol.dart';
 import 'package:openai_dart/openai_dart.dart' as openai;
 
 /// Talks to any server that speaks `POST /chat/completions` with
@@ -60,14 +61,17 @@ final class OpenAiCompatInferenceClient implements InferenceClient {
       _clientFactory(),
       onCost: (charge) => cost = charge,
     );
+    final fields = _DialectFields.of(request, _dialect);
     final client = openai.OpenAIClient(
-      config: _config,
+      config: _config.copyWith(
+        defaultHeaders: {..._config.defaultHeaders, ...fields.headers},
+      ),
       httpClient: wire,
       streamClientFactory: () => wire,
     );
     try {
       final events = client.chat.completions.createStream(
-        _toRequest(request, _dialect),
+        _toRequest(request, fields),
         abortTrigger: abortTrigger,
       );
       await for (final event in events) {
@@ -119,13 +123,13 @@ final class OpenAiCompatInferenceClient implements InferenceClient {
     }
   }
 
-  static openai.ChatCompletionCreateRequest _toRequest(
+  static _ExtendedChatRequest _toRequest(
     CompletionRequest request,
-    InferenceDialect dialect,
+    _DialectFields fields,
   ) {
     final sampling = request.sampling;
-    final reasoning = _ReasoningFields.of(request.reasoning, dialect);
-    return openai.ChatCompletionCreateRequest(
+    return _ExtendedChatRequest(
+      extraFields: fields.extraFields,
       model: request.model,
       messages: [for (final message in request.messages) _toMessage(message)],
       tools: request.tools.isEmpty
@@ -146,8 +150,8 @@ final class OpenAiCompatInferenceClient implements InferenceClient {
       maxCompletionTokens: sampling.maxOutputTokens,
       stop: request.stopSequences.isEmpty ? null : request.stopSequences,
       streamOptions: const openai.StreamOptions(includeUsage: true),
-      reasoningEffort: reasoning.openAiEffort,
-      openRouterReasoning: reasoning.openRouterReasoning,
+      reasoningEffort: fields.openAiEffort,
+      openRouterReasoning: fields.openRouterReasoning,
     );
   }
 
@@ -268,46 +272,106 @@ final class OpenAiCompatInferenceClient implements InferenceClient {
       );
 }
 
-/// The wire fields one [InferenceReasoning] becomes for a given dialect.
-final class _ReasoningFields {
-  const _ReasoningFields({this.openAiEffort, this.openRouterReasoning});
+/// The vendor fields and headers one [CompletionRequest] adds for a given
+/// dialect.
+final class _DialectFields {
+  const _DialectFields({
+    this.openAiEffort,
+    this.openRouterReasoning,
+    this.headers = const {},
+    this.extraFields = const {},
+  });
 
-  const _ReasoningFields.none() : this();
+  const _DialectFields.none() : this();
 
-  factory _ReasoningFields.of(
-    InferenceReasoning reasoning,
+  factory _DialectFields.of(
+    CompletionRequest request,
     InferenceDialect dialect,
   ) => switch (dialect) {
-    InferenceDialect.openAi => _ReasoningFields.openAi(reasoning),
-    InferenceDialect.openRouter => _ReasoningFields.openRouter(reasoning),
+    InferenceDialect.openAi => _DialectFields.openAi(request.reasoning),
+    InferenceDialect.openRouter => _DialectFields.openRouter(request.reasoning),
+    InferenceDialect.bestie => _DialectFields.bestie(request),
   };
 
-  factory _ReasoningFields.openAi(InferenceReasoning reasoning) =>
+  factory _DialectFields.bestie(CompletionRequest request) {
+    final headers = {bestieAgentHeader: ?request.agent?.id};
+    return switch (request.reasoning) {
+      InferenceReasoningDefault() => _DialectFields(headers: headers),
+      InferenceReasoningDisabled() => _DialectFields(
+        headers: headers,
+        extraFields: _thinking(enabled: false),
+      ),
+      InferenceReasoningEnabled() => _DialectFields(
+        headers: headers,
+        extraFields: _thinking(enabled: true),
+      ),
+      InferenceReasoningEffort(:final effort) => _DialectFields(
+        headers: headers,
+        openAiEffort: openai.ReasoningEffort.values.byName(effort.name),
+      ),
+    };
+  }
+
+  factory _DialectFields.openAi(InferenceReasoning reasoning) =>
       switch (reasoning) {
         InferenceReasoningDefault() ||
-        InferenceReasoningEnabled() => const _ReasoningFields.none(),
-        InferenceReasoningDisabled() => const _ReasoningFields(
+        InferenceReasoningEnabled() => const _DialectFields.none(),
+        InferenceReasoningDisabled() => const _DialectFields(
           openAiEffort: openai.ReasoningEffort.none,
         ),
-        InferenceReasoningEffort(:final effort) => _ReasoningFields(
+        InferenceReasoningEffort(:final effort) => _DialectFields(
           openAiEffort: openai.ReasoningEffort.values.byName(effort.name),
         ),
       };
 
-  factory _ReasoningFields.openRouter(InferenceReasoning reasoning) =>
+  factory _DialectFields.openRouter(InferenceReasoning reasoning) =>
       switch (reasoning) {
-        InferenceReasoningDefault() => const _ReasoningFields.none(),
-        InferenceReasoningDisabled() => const _ReasoningFields(
+        InferenceReasoningDefault() => const _DialectFields.none(),
+        InferenceReasoningDisabled() => const _DialectFields(
           openRouterReasoning: openai.OpenRouterReasoning(enabled: false),
         ),
-        InferenceReasoningEnabled() => const _ReasoningFields(
+        InferenceReasoningEnabled() => const _DialectFields(
           openRouterReasoning: openai.OpenRouterReasoning(enabled: true),
         ),
-        InferenceReasoningEffort(:final effort) => _ReasoningFields(
+        InferenceReasoningEffort(:final effort) => _DialectFields(
           openRouterReasoning: openai.OpenRouterReasoning(effort: effort.name),
         ),
       };
 
   final openai.ReasoningEffort? openAiEffort;
   final openai.OpenRouterReasoning? openRouterReasoning;
+  final Map<String, String> headers;
+
+  /// Body fields openai_dart has no parameter for.
+  final Map<String, Object?> extraFields;
+}
+
+Map<String, Object?> _thinking({required bool enabled}) => {
+  bestieChatTemplateKwargsField: {bestieEnableThinkingKey: enabled},
+};
+
+/// A chat request carrying body fields openai_dart does not model, merged into
+/// the JSON it sends.
+final class _ExtendedChatRequest extends openai.ChatCompletionCreateRequest {
+  const _ExtendedChatRequest({
+    required this.extraFields,
+    required super.model,
+    required super.messages,
+    super.tools,
+    super.temperature,
+    super.topP,
+    super.frequencyPenalty,
+    super.presencePenalty,
+    super.seed,
+    super.maxCompletionTokens,
+    super.stop,
+    super.streamOptions,
+    super.reasoningEffort,
+    super.openRouterReasoning,
+  });
+
+  final Map<String, Object?> extraFields;
+
+  @override
+  Map<String, dynamic> toJson() => {...super.toJson(), ...extraFields};
 }

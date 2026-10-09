@@ -13,6 +13,9 @@
     "provider": {
       "$ref": "#/$defs/ProviderConfig"
     },
+    "models": {
+      "$ref": "#/$defs/ModelsConfig"
+    },
     "systemPromptOverride": {
       "type": [
         "string",
@@ -33,7 +36,7 @@
   "$defs": {
     "ProviderConfig": {
       "type": "object",
-      "description": "The hosted inference provider bestie chats through. Changing any field reconnects.",
+      "description": "The inference providers bestie chats through. Changing any field reconnects.",
       "additionalProperties": false,
       "properties": {
         "openrouter": {
@@ -53,6 +56,19 @@
             "apiKey": {
               "type": "string",
               "description": "Your Fireworks AI API key."
+            }
+          }
+        },
+        "local": {
+          "type": "object",
+          "description": "Models from bestie's own index, run by bestie's local inference server.",
+          "additionalProperties": false,
+          "properties": {
+            "contextCap": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "description": "The most context a local model may run with. 0 runs it with as much context as fits in memory."
             }
           }
         },
@@ -116,6 +132,21 @@
               "description": "0 leaves sampling unseeded."
             }
           }
+        }
+      }
+    },
+    "ModelsConfig": {
+      "type": "object",
+      "description": "Where bestie looks for local model files.",
+      "additionalProperties": false,
+      "properties": {
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Folders to search for GGUF model files besides bestie's own models folder."
         }
       }
     },
