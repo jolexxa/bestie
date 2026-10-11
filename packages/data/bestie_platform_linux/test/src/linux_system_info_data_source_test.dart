@@ -1,3 +1,6 @@
+@TestOn('!windows')
+library;
+
 import 'package:bestie_platform_linux/bestie_platform_linux.dart';
 import 'package:test/test.dart';
 
