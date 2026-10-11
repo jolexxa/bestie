@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:inference_server/inference_server.dart';
 import 'package:intentions/intentions.dart';
+import 'package:local_server/local_server.dart';
 
 /// Writes timestamped log lines to a sink, such as stderr or a log file.
 @dataSource

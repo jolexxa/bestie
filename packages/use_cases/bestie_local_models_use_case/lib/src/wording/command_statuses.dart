@@ -2,12 +2,11 @@
 /// server are doing.
 library;
 
+import 'package:bestie_local_models_use_case/src/models/local_server_status.dart';
 import 'package:command_protocol/command_protocol.dart';
-import 'package:inference_protocol/inference_protocol.dart'
-    show InferenceFailureKind;
 import 'package:local_models_repository/local_models_repository.dart';
-import 'package:local_server_repository/local_server_repository.dart';
-import 'package:provider_protocol/provider_protocol.dart' show ProviderFailure;
+import 'package:provider_protocol/provider_protocol.dart'
+    show ProviderCancelled, ProviderOccupied;
 
 /// How far the active downloads have got together, else how many wait on
 /// the user; null when neither.
@@ -43,19 +42,18 @@ int _received(ModelDownload download) => switch (download.status) {
 };
 
 /// What the local server is doing for the app, null when it is idle or was
-/// stopped on purpose. [failure] is why the app could not run on its local
-/// model; [nameOf] names a model by its local id.
+/// stopped on purpose. [nameOf] names a model by its local id.
 CommandStatus? serverStatus(
   LocalServerStatus server, {
-  required ProviderFailure? failure,
   required String Function(String localId) nameOf,
 }) => switch (server) {
-  ServerOwnedElsewhere() || ServerIncompatible() => const CommandStatus([
+  ServerFailed(failure: ProviderCancelled()) => null,
+  ServerFailed(failure: ProviderOccupied()) => const CommandStatus([
     PaneSpan('⚠ in use elsewhere', PaneTone.warning),
   ]),
-  _ when failure?.kind == InferenceFailureKind.cancelled => null,
-  _ when failure != null => _failed,
-  ServerFailed() || ServerLoadFailed() => _failed,
+  ServerFailed() => const CommandStatus([
+    PaneSpan('✕ failed', PaneTone.danger),
+  ]),
   ServerIdle() => null,
   ServerStarting() => const CommandStatus([
     PaneSpan('◑ starting', PaneTone.loading),
@@ -73,5 +71,3 @@ CommandStatus? serverStatus(
     PaneSpan('● ${nameOf(localId)} ready', PaneTone.success),
   ]),
 };
-
-const _failed = CommandStatus([PaneSpan('✕ failed', PaneTone.danger)]);

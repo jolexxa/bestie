@@ -10,6 +10,13 @@ final _primaryCap = ConfigKey<int>(
   path: const ['runtime', 'primaryContextCap'],
   codec: ConfigCodecs.integers,
   defaultValue: () => 0,
+  field: const NumericField(
+    label: 'Cap',
+    description: 'Tokens.',
+    min: 0,
+    max: 100000,
+    step: 1,
+  ),
   effect: ConfigEffect.onCommit,
 );
 

@@ -23,11 +23,25 @@ void main() {
             name: 'Qwen 3 8B',
             providerName: 'Local models',
             contextWindow: 40960,
-            progress: 0.62,
+            progress: ProviderModelLoading(0.62),
           ),
         ),
       ),
       'Loading Local models · Qwen 3 8B 62%',
+    );
+    expect(
+      providerSummary(
+        const ProviderStatusConnecting(
+          model: model,
+          loading: LoadingModel(
+            name: 'Qwen 3 8B',
+            providerName: 'Local models',
+            contextWindow: 40960,
+            progress: ProviderModelMeasuring(),
+          ),
+        ),
+      ),
+      'Measuring Local models · Qwen 3 8B…',
     );
   });
 }

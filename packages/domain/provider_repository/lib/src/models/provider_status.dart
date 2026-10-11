@@ -1,10 +1,10 @@
-import 'package:agent_provider_protocol/agent_provider_protocol.dart'
-    show AgentProvider;
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
+    show AgentRuntime;
 import 'package:intentions/intentions.dart';
 import 'package:provider_protocol/provider_protocol.dart'
     show
         ProviderFailure,
-        ProviderKeyInfo,
+        ProviderModelLoadProgress,
         ProviderModelRef,
         ProviderReasoningEfforts,
         ProviderReasoningFixed,
@@ -24,22 +24,15 @@ sealed class ProviderStatus {
     ProviderSessionData data,
   ) => switch (state) {
     UnconfiguredState() => const ProviderStatusUnconfigured(),
-    ConnectingState() || RecoveringState() => ProviderStatusConnecting(
+    StartingState() || RecoveringState() => ProviderStatusConnecting(
       model: data.settings!.model!,
-    ),
-    ActivatingState() => ProviderStatusConnecting(
-      model: data.settings!.model!,
-      loading: LoadingModel.of(
-        data.model!,
-        providerName: data.connection!.provider.displayName,
-        progress: data.activationProgress,
-      ),
+      loading: LoadingModel.of(data.model, progress: data.loading),
     ),
     ReadyState() => ProviderStatusReady(
       model: data.model!,
-      handle: data.handle!,
-      keyInfo: data.keyInfo,
-      providerName: data.connection!.provider.displayName,
+      runtime: data.runtime!,
+      maxAgents: data.loaded!.maxAgents,
+      deviceBytes: data.loaded!.deviceBytes,
     ),
     FailedState() => ProviderStatusFailed(
       failure: data.failure!,
@@ -47,20 +40,17 @@ sealed class ProviderStatus {
     ),
   };
 
-  /// Running agent provider (null unless ready).
-  AgentProvider? get provider => switch (this) {
-    ProviderStatusReady(:final handle) => handle,
-    _ => null,
-  };
+  /// Running agent runtime (null unless ready).
+  AgentRuntime? get runtime => null;
 }
 
-/// No usable account or no model yet.
+/// No model chosen yet.
 @model
 final class ProviderStatusUnconfigured extends ProviderStatus {
   const ProviderStatusUnconfigured();
 }
 
-/// Validating the key, looking the model up, and getting it ready.
+/// Looking the model up and getting it ready.
 @model
 final class ProviderStatusConnecting extends ProviderStatus {
   const ProviderStatusConnecting({required this.model, this.loading});
@@ -88,23 +78,20 @@ final class LoadingModel {
   /// The context the model was asked to run with.
   final int contextWindow;
 
-  /// From 0 to 1.
-  final double progress;
+  final ProviderModelLoadProgress progress;
 
-  /// [model] at [progress], or null while nothing has been reported.
+  /// [model] at [progress], or null until both are known.
   static LoadingModel? of(
-    ResolvedModel model, {
-    required String providerName,
-    required double? progress,
-  }) => switch (progress) {
-    null => null,
-    final double progress => LoadingModel(
-      name: model.name,
-      providerName: providerName,
-      contextWindow: model.contextWindow,
-      progress: progress,
-    ),
-  };
+    ResolvedModel? model, {
+    required ProviderModelLoadProgress? progress,
+  }) => model == null || progress == null
+      ? null
+      : LoadingModel(
+          name: model.name,
+          providerName: model.providerName,
+          contextWindow: model.contextWindow,
+          progress: progress,
+        );
 }
 
 /// Agents can run.
@@ -112,9 +99,9 @@ final class LoadingModel {
 final class ProviderStatusReady extends ProviderStatus {
   const ProviderStatusReady({
     required this.model,
-    required this.handle,
-    required this.keyInfo,
-    required this.providerName,
+    required this.runtime,
+    required this.maxAgents,
+    required this.deviceBytes,
   });
 
   /// Send nothing; the model thinks however the provider configures it.
@@ -127,11 +114,16 @@ final class ProviderStatusReady extends ProviderStatus {
   static const String reasoningOn = 'on';
 
   final ResolvedModel model;
-  final AgentProvider handle;
+  @override
+  final AgentRuntime runtime;
 
-  /// Null when the provider has no key metadata to offer.
-  final ProviderKeyInfo? keyInfo;
-  final String providerName;
+  /// The most agents the loaded model runs at once.
+  final int maxAgents;
+
+  /// Memory the model takes on this device; null when it runs elsewhere.
+  final int? deviceBytes;
+
+  String get providerName => model.providerName;
 
   int get contextWindow => model.contextWindow;
 

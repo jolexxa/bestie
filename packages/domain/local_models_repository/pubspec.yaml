@@ -20,15 +20,15 @@ dependencies:
   hugging_face_client:
     path: ../../data/hugging_face_client
   intentions: ^0.1.0
-  llm_model_profiles:
-    path: ../../infra/llm_model_profiles
-  local_inference_protocol:
-    path: ../../infra/local_inference_protocol
+  local_server_protocol:
+    path: ../../infra/local_server_protocol
   logic_blocks: ^1.0.0
   model_downloader:
     path: ../../data/model_downloader
   model_index_store:
     path: ../../data/model_index_store
+  model_profiles:
+    path: ../../infra/model_profiles
   path: ^1.9.1
   rxdart: ^0.28.0
 

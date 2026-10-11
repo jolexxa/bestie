@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:local_inference_protocol/local_inference_protocol.dart';
 import 'package:local_models_repository/local_models_repository.dart';
 import 'package:local_models_repository/src/support/gguf_file_name.dart';
 import 'package:local_models_repository/src/support/inferred_repo.dart';
@@ -8,6 +7,7 @@ import 'package:local_models_repository/src/support/local_id.dart';
 import 'package:local_models_repository/src/support/model_family.dart';
 import 'package:local_models_repository/src/support/model_task.dart';
 import 'package:local_models_repository/src/support/reasoning.dart';
+import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 

@@ -51,10 +51,6 @@ String conversationsDirFor(String bestieDir, p.Context context) =>
 String sandboxesFileFor(String bestieDir, p.Context context) =>
     context.join(bestieDir, 'sandboxes.json');
 
-/// Cached copy of the external model catalog.
-String modelCatalogCacheFileFor(String bestieDir, p.Context context) =>
-    context.join(bestieDir, 'cache', 'models_dev.json');
-
 /// Directory holding every per-run log file (native stderr capture +
 /// managed Dart-side diag). Truncated by each consumer on open.
 String logsDirFor(String bestieDir, p.Context context) =>
@@ -85,11 +81,11 @@ String modelsDirFor(String bestieDir, p.Context context) =>
 String runDirFor(String bestieDir, p.Context context) =>
     context.join(bestieDir, 'run');
 
-/// The file the running local inference server holds locked and names its
+/// The file the running local server holds locked and names its
 /// port in.
-String inferenceLockFileFor(String bestieDir, p.Context context) =>
-    context.join(runDirFor(bestieDir, context), 'inference.lock');
+String serverLockFileFor(String bestieDir, p.Context context) =>
+    context.join(runDirFor(bestieDir, context), 'server.lock');
 
-/// The local inference server's log, appended to by every run.
+/// The local server's log, appended to by every run.
 String serverLogFileFor(String bestieDir, p.Context context) =>
     context.join(logsDirFor(bestieDir, context), 'server.log');

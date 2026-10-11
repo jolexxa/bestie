@@ -1,7 +1,7 @@
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:intentions/intentions.dart';
 import 'package:provider_protocol/provider_protocol.dart'
-    show ProviderFailure, ProviderModel, ProviderModelRef;
+    show ProviderFailure, ProviderModelInfo, ProviderModelRef;
 import 'package:provider_protocol/provider_protocol_mappers.dart';
 
 part 'model_list.mapper.dart';
@@ -19,12 +19,12 @@ final class ListedModel with ListedModelMappable {
 
   final ProviderModelRef ref;
 
-  final ProviderModel model;
+  final ProviderModelInfo model;
 
   final String providerName;
 
-  /// False when the provider is known only from the catalog because the
-  /// user has not set it up.
+  /// False when the provider wants credentials the user has not given, so
+  /// the model is listed but cannot run.
   final bool hasAccess;
 }
 

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:agent_provider_protocol/agent_provider_protocol.dart';
 import 'package:agent_repository/src/agent/agent_configuration.dart';
 import 'package:agent_repository/src/agent/agent_session.dart';
 import 'package:agent_repository/src/agent/agent_session_id.dart';
@@ -18,6 +17,7 @@ import 'package:agent_repository/src/conversation/rewind_result.dart';
 import 'package:agent_repository/src/stats/chat_context_stats.dart';
 import 'package:agent_repository/src/turn/pending_tool_calls.dart';
 import 'package:agent_repository/src/turn/turn_options.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart';
 import 'package:diagnostics/diagnostics.dart';
 import 'package:intentions/intentions.dart';
 import 'package:prompt_builder/prompt_builder.dart';
@@ -46,7 +46,7 @@ class AgentRepository implements ToolRequester {
       compactionRatio: _configuration.compactionRatio,
       maxOutputChars: _configuration.maxToolCallCharacters,
       journal: journal,
-      contextSize: _providerContextSize,
+      contextSize: _runtimeContextSize,
       tools: _pendingToolCallsFor(journal, _toolDefinitions),
     );
     _bindDelivery(_primarySession);
@@ -92,7 +92,7 @@ class AgentRepository implements ToolRequester {
   final CompactionPromptContentBuilder _compactionPromptContentBuilder;
 
   /// The create-only baseline system prompt for minting the primary agent,
-  /// pushed in with each [bindProvider].
+  /// pushed in with each [bindRuntime].
   String _systemPrompt = '';
 
   late AgentSession _primarySession;
@@ -107,12 +107,12 @@ class AgentRepository implements ToolRequester {
   /// One report buffer per addressee. Reports to a removed session are dropped.
   final Map<AgentSessionId, _SessionDelivery> _deliveries = {};
 
-  AgentProvider? _provider;
-  int? _providerContextSize;
+  AgentRuntime? _runtime;
+  int? _runtimeContextSize;
   bool _disposed = false;
 
   /// The latest shared-pool occupancy snapshot, mirrored from the bound
-  /// provider. The single source of truth for every session's context stats —
+  /// runtime. The single source of truth for every session's context stats —
   /// there is one KV pool across all agents.
   ContextPoolSnapshot? _poolSnapshot;
   StreamSubscription<ContextPoolSnapshot>? _poolSub;
@@ -204,7 +204,7 @@ class AgentRepository implements ToolRequester {
   /// re-read [statsFor] on a tick.
   Stream<ContextPoolSnapshot> get poolStream => _poolController.stream;
 
-  /// Every charge the bound provider reports for a completion, as it lands.
+  /// Every charge the bound runtime reports for a completion, as it lands.
   Stream<double> get spendStream => _spendController.stream;
 
   /// Context stats for the session [id], projected from the latest pool
@@ -233,28 +233,28 @@ class AgentRepository implements ToolRequester {
 
   // ── Lifecycle ─────────────────────────────────────────
 
-  /// Bind (or clear) the shared [AgentProvider]. Binding a provider spawns the
+  /// Bind (or clear) the shared [AgentRuntime]. Binding a runtime spawns the
   /// primary agent and swaps in a live session; clearing it (`null`, on a
   /// primary-model reload) swaps back to a placeholder.
-  Future<void> bindProvider(
-    AgentProvider? provider, {
+  Future<void> bindRuntime(
+    AgentRuntime? runtime, {
     int? contextSize,
     String systemPrompt = '',
   }) async {
-    if (identical(provider, _provider)) {
-      _providerContextSize = contextSize ?? _providerContextSize;
+    if (identical(runtime, _runtime)) {
+      _runtimeContextSize = contextSize ?? _runtimeContextSize;
       return;
     }
-    _providerContextSize = provider == null ? null : contextSize;
+    _runtimeContextSize = runtime == null ? null : contextSize;
     _systemPrompt = systemPrompt;
 
     await _parkPrimary();
     await _drainSubagents();
 
-    _provider = provider;
-    _bindPool(provider);
-    _bindSpend(provider);
-    if (provider != null) await _spawn(provider);
+    _runtime = runtime;
+    _bindPool(runtime);
+    _bindSpend(runtime);
+    if (runtime != null) await _spawn(runtime);
   }
 
   Future<void> _parkPrimary() => _replacePrimary(() {
@@ -264,7 +264,7 @@ class AgentRepository implements ToolRequester {
       compactionRatio: _configuration.compactionRatio,
       maxOutputChars: _configuration.maxToolCallCharacters,
       journal: journal,
-      contextSize: _providerContextSize,
+      contextSize: _runtimeContextSize,
       tools: _pendingToolCallsFor(journal, _toolDefinitions),
     );
   });
@@ -342,12 +342,12 @@ class AgentRepository implements ToolRequester {
     required String prompt,
     required String label,
   }) async {
-    final provider = _provider;
-    if (provider == null) {
+    final runtime = _runtime;
+    if (runtime == null) {
       return Job.failed('No model is loaded; cannot spawn a subagent.');
     }
 
-    final start = await provider.startSubagent(
+    final start = await runtime.startSubagent(
       config: _subagentConfig(),
       label: label,
     );
@@ -370,7 +370,7 @@ class AgentRepository implements ToolRequester {
       compactionRatio: _configuration.compactionRatio,
       maxOutputChars: _configuration.maxToolCallCharacters,
       journal: journal,
-      contextSize: _providerContextSize,
+      contextSize: _runtimeContextSize,
       tools: _pendingToolCallsFor(journal, _subagentToolDefinitions),
       toolDefinitions: _subagentToolDefinitions,
       compactionPromptContentBuilder: _compactionPromptContentBuilder,
@@ -385,7 +385,7 @@ class AgentRepository implements ToolRequester {
     sub.run = _runDetached(
       sub: sub,
       agent: agent,
-      provider: provider,
+      runtime: runtime,
       prompt: prompt,
       job: job,
     );
@@ -429,12 +429,12 @@ class AgentRepository implements ToolRequester {
   Future<void> _runDetached({
     required _Subagent sub,
     required Agent agent,
-    required AgentProvider provider,
+    required AgentRuntime runtime,
     required String prompt,
     required _SubagentJob job,
   }) async {
     final started = await _driveToSettle(sub.session, prompt);
-    await provider.disposeAgent(agent);
+    await runtime.disposeAgent(agent);
     final outcome = _subagentOutcome(sub, started: started);
     sub.status = outcome is JobSucceeded
         ? SubagentStatus.completed
@@ -600,25 +600,25 @@ class AgentRepository implements ToolRequester {
     unawaited(_requests.close());
   }
 
-  /// (Re)binds the pool snapshot stream to [provider]. Clearing the provider
+  /// (Re)binds the pool snapshot stream to [runtime]. Clearing the runtime
   /// drops the last snapshot so stale stats don't linger across a reload.
-  void _bindPool(AgentProvider? provider) {
+  void _bindPool(AgentRuntime? runtime) {
     unawaited(_poolSub?.cancel());
     _poolSub = null;
     _poolSnapshot = null;
-    if (provider == null) return;
-    _poolSub = provider.pool.listen((snapshot) {
+    if (runtime == null) return;
+    _poolSub = runtime.pool.listen((snapshot) {
       _poolSnapshot = snapshot;
       _pushConfiguration();
       if (!_poolController.isClosed) _poolController.add(snapshot);
     });
   }
 
-  void _bindSpend(AgentProvider? provider) {
+  void _bindSpend(AgentRuntime? runtime) {
     unawaited(_spendSub?.cancel());
     _spendSub = null;
-    if (provider == null) return;
-    _spendSub = provider.spend.listen((cost) {
+    if (runtime == null) return;
+    _spendSub = runtime.spend.listen((cost) {
       if (!_spendController.isClosed) _spendController.add(cost);
     });
   }
@@ -654,16 +654,16 @@ class AgentRepository implements ToolRequester {
     _pushConfiguration();
   }
 
-  /// True once the repo is disposed or [provider] is no longer the bound one —
-  /// the guard for detached work that outlived its provider.
-  bool _isStale(AgentProvider provider) =>
-      _disposed || !identical(_provider, provider);
+  /// True once the repo is disposed or [runtime] is no longer the bound one —
+  /// the guard for detached work that outlived its runtime.
+  bool _isStale(AgentRuntime runtime) =>
+      _disposed || !identical(_runtime, runtime);
 
   // ── Swapping ──────────────────────────────────────────
 
-  Future<void> _spawn(AgentProvider provider) async {
-    final result = await provider.startPrimary(config: _spawnConfig());
-    if (_isStale(provider)) return;
+  Future<void> _spawn(AgentRuntime runtime) async {
+    final result = await runtime.startPrimary(config: _spawnConfig());
+    if (_isStale(runtime)) return;
     switch (result) {
       case StartPrimaryStarted(:final agent):
         await _replacePrimary(() {
@@ -675,7 +675,7 @@ class AgentRepository implements ToolRequester {
             compactionRatio: _configuration.compactionRatio,
             maxOutputChars: _configuration.maxToolCallCharacters,
             journal: journal,
-            contextSize: _providerContextSize,
+            contextSize: _runtimeContextSize,
             tools: _pendingToolCallsFor(journal, _toolDefinitions),
             toolDefinitions: _toolDefinitions,
             compactionPromptContentBuilder: _compactionPromptContentBuilder,

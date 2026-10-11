@@ -14,7 +14,6 @@ void main() {
           interval: interval,
           emit: emitted.add,
           clock: async.getClock(DateTime(2026)),
-          startTimer: Timer.new,
         );
 
     test('passes the first value through at once', () {
@@ -77,23 +76,17 @@ void main() {
       });
     });
 
-    test('uses the injected clock and timer', () {
-      final clock = Clock.fixed(DateTime(2026));
-      final waits = <Duration>[];
-      final emitted = <int>[];
-      LatestThrottle<int>(
-          interval: interval,
-          emit: emitted.add,
-          clock: clock,
-          startTimer: (duration, fire) {
-            waits.add(duration);
-            return Timer(Duration.zero, () {});
-          },
-        )
-        ..add(1)
-        ..add(2);
-      expect(waits, [interval]);
-      expect(emitted, [1]);
+    test('waits out the interval before passing the latest value on', () {
+      fakeAsync((async) {
+        final emitted = <int>[];
+        throttleIn(async, emitted)
+          ..add(1)
+          ..add(2);
+        expect(async.pendingTimers.single.duration, interval);
+        expect(emitted, [1]);
+        async.elapse(interval);
+        expect(emitted, [1, 2]);
+      });
     });
   });
 
@@ -105,7 +98,6 @@ void main() {
           source,
           interval: interval,
           clock: async.getClock(DateTime(2026)),
-          startTimer: Timer.new,
         );
 
     test('throttles each listener on its own and lands the latest', () {
@@ -137,7 +129,6 @@ void main() {
         source.stream,
         interval: interval,
         clock: const Clock(),
-        startTimer: Timer.new,
       ).listen(null, onError: errors.add, onDone: done.complete);
       source.addError('broken');
       await source.close();

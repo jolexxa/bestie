@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:bestie_local_models_use_case/src/local_models_operations.dart';
 import 'package:bestie_local_models_use_case/src/local_models_use_case.dart';
+import 'package:bestie_local_models_use_case/src/models/local_server_status.dart';
 import 'package:bestie_local_models_use_case/src/panes/model_actions.dart';
 import 'package:bestie_local_models_use_case/src/wording/library_wording.dart';
 import 'package:bestie_local_models_use_case/src/wording/units.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:intentions/intentions.dart';
 import 'package:local_models_repository/local_models_repository.dart';
-import 'package:local_server_repository/local_server_repository.dart';
 import 'package:rxdart/rxdart.dart';
 
 /// Everything bestie read from one model's GGUF header, where the file came
@@ -85,11 +85,12 @@ class ModelDetailsPane extends Pane {
               const PaneSpan('In use', PaneTone.success),
               const PaneSpan(' · fitted to ', PaneTone.muted),
               PaneSpan('ctx ${groupedLabel(contextSize)}', PaneTone.info),
-              PaneSpan(
-                ' with $maxAgents agents · ${bytesLabel(deviceBytes)} on the '
-                'device',
-                PaneTone.muted,
-              ),
+              PaneSpan(' with $maxAgents agents', PaneTone.muted),
+              if (deviceBytes != null)
+                PaneSpan(
+                  ' · ${bytesLabel(deviceBytes)} on the device',
+                  PaneTone.muted,
+                ),
             ],
           ),
         _ => const PaneStatus(

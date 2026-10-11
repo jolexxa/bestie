@@ -1,4 +1,3 @@
-import 'package:config_repository/config_repository.dart';
 import 'package:intentions/intentions.dart';
 
 @model
@@ -8,8 +7,7 @@ sealed class ConfigInput {
 
 @model
 final class Initialize extends ConfigInput {
-  Initialize({required this.targetScope, required this.toolCount});
-  final ConfigScope? targetScope;
+  const Initialize({required this.toolCount});
   final int toolCount;
 }
 

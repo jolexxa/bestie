@@ -1,8 +1,8 @@
 import 'package:intentions/intentions.dart';
-import 'package:local_inference_protocol/local_inference_protocol.dart';
 import 'package:local_models_repository/src/models/model_source.dart';
 import 'package:local_models_repository/src/models/quant_type.dart';
 import 'package:local_models_repository/src/models/unsupported_reason.dart';
+import 'package:local_server_protocol/local_server_protocol.dart';
 
 /// A GGUF on disk: a whole model, or the first file of a split one.
 @model

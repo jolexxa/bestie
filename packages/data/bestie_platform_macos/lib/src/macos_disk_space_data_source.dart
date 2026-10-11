@@ -4,10 +4,7 @@ import 'package:posix_dart/posix_dart.dart';
 
 @dataSource
 class MacOSDiskSpaceDataSource implements DiskSpaceDataSource {
-  /// [reader] defaults to the host's libc; pass one to substitute a
-  /// double.
-  MacOSDiskSpaceDataSource({StatvfsReader? reader})
-    : _reader = reader ?? MacosStatvfsReader();
+  MacOSDiskSpaceDataSource({required StatvfsReader reader}) : _reader = reader;
 
   final StatvfsReader _reader;
 

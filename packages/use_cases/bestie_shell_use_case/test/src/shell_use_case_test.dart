@@ -102,6 +102,13 @@ void main() {
     path: const ['app', 'shellScrollbackMb'],
     codec: ConfigCodecs.integers,
     defaultValue: () => 10000,
+    field: const NumericField(
+      label: 'Scrollback',
+      description: 'MB.',
+      min: 1,
+      max: 100000,
+      step: 1,
+    ),
   );
 
   final shellConfigKeys = ShellConfigKeys(scrollbackMb: scrollbackMb);

@@ -12,6 +12,10 @@ final class LocalModelsConfigKeys {
       codec: ConfigCodecs.stringLists,
       defaultValue: () => const [],
       effect: ConfigEffect.onCommit,
+      field: const ListField(
+        label: 'Model folders',
+        description: 'Folders to look in for model files, one per line.',
+      ),
     ),
   );
 

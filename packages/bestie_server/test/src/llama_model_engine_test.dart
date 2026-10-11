@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:ffi';
 
 import 'package:bestie_server/bestie_server.dart';
-import 'package:completion_runtime/completion_runtime.dart';
-import 'package:inference/inference.dart';
-import 'package:inference_llama/inference_llama.dart';
-import 'package:inference_server/inference_server.dart';
-import 'package:local_inference_protocol/local_inference_protocol.dart';
+import 'package:engine_completions/engine_completions.dart';
+import 'package:engine_llama/engine_llama.dart';
+import 'package:engine_protocol/engine_protocol.dart';
+import 'package:local_server/local_server.dart';
+import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
@@ -213,7 +213,7 @@ void main() {
     ]);
     final loaded = (events.last as ModelEngineLoaded).model;
     expect(loaded.deviceBytes, 777);
-    expect(loaded.runtime, isA<ScheduledCompletionRuntime>());
+    expect(loaded.runtime, isA<ScheduledEngineCompletionRuntime>());
     expect(loaded.runtime.contextSize, 16384);
     expect(loaded.runtime.maxAgents, 3);
 

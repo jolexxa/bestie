@@ -31,6 +31,11 @@ class ResolvedModelMapper extends ClassMapperBase<ResolvedModel> {
   );
   static String _$name(ResolvedModel v) => v.name;
   static const Field<ResolvedModel, String> _f$name = Field('name', _$name);
+  static String _$providerName(ResolvedModel v) => v.providerName;
+  static const Field<ResolvedModel, String> _f$providerName = Field(
+    'providerName',
+    _$providerName,
+  );
   static int _$contextWindow(ResolvedModel v) => v.contextWindow;
   static const Field<ResolvedModel, int> _f$contextWindow = Field(
     'contextWindow',
@@ -52,6 +57,7 @@ class ResolvedModelMapper extends ClassMapperBase<ResolvedModel> {
   final MappableFields<ResolvedModel> fields = const {
     #ref: _f$ref,
     #name: _f$name,
+    #providerName: _f$providerName,
     #contextWindow: _f$contextWindow,
     #supportsTools: _f$supportsTools,
     #reasoning: _f$reasoning,
@@ -61,6 +67,7 @@ class ResolvedModelMapper extends ClassMapperBase<ResolvedModel> {
     return ResolvedModel(
       ref: data.dec(_f$ref),
       name: data.dec(_f$name),
+      providerName: data.dec(_f$providerName),
       contextWindow: data.dec(_f$contextWindow),
       supportsTools: data.dec(_f$supportsTools),
       reasoning: data.dec(_f$reasoning),
@@ -135,6 +142,7 @@ abstract class ResolvedModelCopyWith<$R, $In extends ResolvedModel, $Out>
   $R call({
     ProviderModelRef? ref,
     String? name,
+    String? providerName,
     int? contextWindow,
     bool? supportsTools,
     ProviderReasoning? reasoning,
@@ -160,6 +168,7 @@ class _ResolvedModelCopyWithImpl<$R, $Out>
   $R call({
     ProviderModelRef? ref,
     String? name,
+    String? providerName,
     int? contextWindow,
     bool? supportsTools,
     Object? reasoning = $none,
@@ -167,6 +176,7 @@ class _ResolvedModelCopyWithImpl<$R, $Out>
     FieldCopyWithData({
       if (ref != null) #ref: ref,
       if (name != null) #name: name,
+      if (providerName != null) #providerName: providerName,
       if (contextWindow != null) #contextWindow: contextWindow,
       if (supportsTools != null) #supportsTools: supportsTools,
       if (reasoning != $none) #reasoning: reasoning,
@@ -176,6 +186,7 @@ class _ResolvedModelCopyWithImpl<$R, $Out>
   ResolvedModel $make(CopyWithData data) => ResolvedModel(
     ref: data.get(#ref, or: $value.ref),
     name: data.get(#name, or: $value.name),
+    providerName: data.get(#providerName, or: $value.providerName),
     contextWindow: data.get(#contextWindow, or: $value.contextWindow),
     supportsTools: data.get(#supportsTools, or: $value.supportsTools),
     reasoning: data.get(#reasoning, or: $value.reasoning),

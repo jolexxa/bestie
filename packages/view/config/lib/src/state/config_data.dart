@@ -1,4 +1,3 @@
-import 'package:config_repository/config_repository.dart';
 import 'package:intentions/intentions.dart';
 
 @model
@@ -9,6 +8,5 @@ class ConfigData {
   String selectedPageId;
   int selectedIndex = 0;
   String? editError;
-  ConfigScope? targetScope;
   int toolCount = 0;
 }

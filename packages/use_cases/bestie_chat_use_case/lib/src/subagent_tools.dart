@@ -13,7 +13,7 @@ const String subagentTranscriptView = 'transcript';
 /// The model-facing definition of the subagent tool: the single source of its
 /// name, schema, and label templates.
 ///
-/// No tool implements it. Spawning needs the agent provider and the session
+/// No tool implements it. Spawning needs the agent runtime and the session
 /// roster, so it is advertised here and answered by the use case.
 const ToolDefinition subagentDefinition = ToolDefinition(
   name: subagentName,

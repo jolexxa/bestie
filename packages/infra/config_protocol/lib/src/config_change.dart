@@ -16,6 +16,4 @@ final class ConfigChange {
   bool contains(ConfigAddressBase address) => addresses.contains(address);
 
   bool containsKey(ConfigKeyBase key) => keyIds.contains(key.id);
-
-  bool get isEmpty => addresses.isEmpty && keyIds.isEmpty;
 }

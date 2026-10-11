@@ -83,10 +83,6 @@ abstract class OSPlatform {
   /// The Windows sandbox grants document.
   String get sandboxesFile => sandboxesFileFor(bestieDir, _context);
 
-  /// Cached copy of the external model catalog.
-  String get modelCatalogCacheFile =>
-      modelCatalogCacheFileFor(bestieDir, _context);
-
   /// Downloaded models and the model index.
   String get modelsDir => modelsDirFor(bestieDir, _context);
 
@@ -94,7 +90,7 @@ abstract class OSPlatform {
   String get runDir => runDirFor(bestieDir, _context);
 
   /// Where the running local inference server says which port it serves.
-  String get inferenceLockFile => inferenceLockFileFor(bestieDir, _context);
+  String get serverLockFile => serverLockFileFor(bestieDir, _context);
 
   /// The local inference server's log.
   String get serverLogFile => serverLogFileFor(bestieDir, _context);

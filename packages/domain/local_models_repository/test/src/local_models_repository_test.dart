@@ -1,8 +1,8 @@
 import 'package:clock/clock.dart';
 import 'package:file/memory.dart';
 import 'package:hugging_face_client/hugging_face_client.dart';
-import 'package:local_inference_protocol/local_inference_protocol.dart';
 import 'package:local_models_repository/local_models_repository.dart';
+import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:model_downloader/model_downloader.dart';
 import 'package:model_index_store/model_index_store.dart';

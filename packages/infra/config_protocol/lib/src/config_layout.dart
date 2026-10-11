@@ -1,23 +1,14 @@
-import 'package:config_protocol/src/config_entry.dart';
+import 'package:config_protocol/src/config_key.dart';
 
 /// Declarative description of one config-overlay page.
 sealed class ConfigPage {
-  const ConfigPage({
-    required this.id,
-    required this.label,
-    this.requiresTargetScope = false,
-  });
+  const ConfigPage({required this.id, required this.label});
 
-  /// Stable identifier — used by the cubit's `selectedPageId` carrier
-  /// and as the key the view dispatches on for custom pages.
+  /// Stable identifier.
   final String id;
 
-  /// User-visible label for the left-pane page list.
+  /// User-visible label.
   final String label;
-
-  /// When `true`, the page can only be selected/edited if the host has
-  /// a scoped config target.
-  final bool requiresTargetScope;
 }
 
 /// Page composed of one or more [ConfigSection]s.
@@ -26,22 +17,18 @@ final class ConfigParamPage extends ConfigPage {
     required super.id,
     required super.label,
     required this.sections,
-    super.requiresTargetScope,
   });
 
   final List<ConfigSection> sections;
 
-  /// All entries on the page, in section order.
-  Iterable<ConfigEntry> get entries => sections.expand((s) => s.entries);
+  /// Every address on the page, in section order.
+  Iterable<ConfigAddressBase> get addresses =>
+      sections.expand((section) => section.addresses);
 }
 
 /// Page whose content is owned by the feature renderer, keyed by [id].
 sealed class ConfigCustomPage extends ConfigPage {
-  const ConfigCustomPage({
-    required super.id,
-    required super.label,
-    super.requiresTargetScope,
-  });
+  const ConfigCustomPage({required super.id, required super.label});
 }
 
 /// A read-only, informative page: a list of feature-defined rows the user can
@@ -52,7 +39,6 @@ final class ConfigInfoPage extends ConfigCustomPage {
     required super.label,
     required this.rowCount,
     required this.visualIndex,
-    super.requiresTargetScope,
   });
 
   /// Number of arrow-navigable rows for a given `entryCount`.
@@ -65,36 +51,20 @@ final class ConfigInfoPage extends ConfigCustomPage {
 
 /// A page rendered as a single scrollable document.
 final class ConfigDocumentPage extends ConfigCustomPage {
-  const ConfigDocumentPage({
-    required super.id,
-    required super.label,
-    super.requiresTargetScope,
-  });
+  const ConfigDocumentPage({required super.id, required super.label});
 }
 
-/// One section on a [ConfigParamPage].
+/// One section on a [ConfigParamPage]: the settings it shows, in order.
 final class ConfigSection {
-  const ConfigSection({
-    required this.heading,
-    required this.entries,
-  });
+  const ConfigSection({required this.heading, required this.addresses});
 
   final String heading;
-  final List<ConfigEntry> entries;
+  final List<ConfigAddressBase> addresses;
 }
 
 /// The full data-driven description of the app's config overlay.
-///
-/// Holds the ordered list of [ConfigPage]s shown in the overlay
-/// plus any [orphanEntries] that the schema must still persist but
-/// no page surfaces (today: `assignment` — owned UI-wise by the
-/// Models page, not the config overlay).
 final class ConfigLayout {
-  const ConfigLayout({
-    required this.pages,
-    required this.initialPageId,
-    this.orphanEntries = const [],
-  });
+  const ConfigLayout({required this.pages, required this.initialPageId});
 
   /// Ordered list of pages (cycle order in the overlay).
   final List<ConfigPage> pages;
@@ -104,26 +74,7 @@ final class ConfigLayout {
   /// encountered.
   final String initialPageId;
 
-  /// Entries not surfaced on any page. Still flattened into the schema
-  /// so the repository can resolve and persist them.
-  final List<ConfigEntry> orphanEntries;
-
-  /// All entries (page + orphan), useful for layout-level traversal.
-  Iterable<ConfigEntry> get allEntries sync* {
-    for (final p in pages.whereType<ConfigParamPage>()) {
-      yield* p.entries;
-    }
-    yield* orphanEntries;
-  }
-
-  /// Look up an entry by its key id.
-  ConfigEntry? entryByKey(String key) {
-    for (final e in allEntries) {
-      if (e.key.id == key) return e;
-    }
-    return null;
-  }
-
   /// Lookup by id; returns `null` if no such page.
-  ConfigPage? pageById(String id) => pages.where((p) => p.id == id).firstOrNull;
+  ConfigPage? pageById(String id) =>
+      pages.where((page) => page.id == id).firstOrNull;
 }

@@ -1,7 +1,7 @@
 import 'package:bestie_server/src/llama_model_engine.dart';
-import 'package:inference_llama/inference_llama.dart';
-import 'package:inference_server/inference_server.dart';
+import 'package:engine_llama/engine_llama.dart';
 import 'package:intentions/intentions.dart';
+import 'package:local_server/local_server.dart';
 
 /// Opens llama.cpp and spawns its model isolate, wherever it is started.
 /// It holds only plain data and top-level functions, so it can be sent to

@@ -1,20 +1,12 @@
-import 'package:agent_provider_protocol/agent_provider_protocol.dart'
-    show AgentProvider;
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
+    show AgentRuntime;
 import 'package:intentions/intentions.dart';
-import 'package:provider_protocol/provider_protocol.dart' show Provider;
+import 'package:provider_protocol/provider_protocol.dart'
+    show ProviderConnection, ProviderModel, ProviderModelLoadProgress;
 
 @model
 sealed class ProviderSessionOutput {
   const ProviderSessionOutput();
-}
-
-/// An agent provider is no longer part of the session and should be torn
-/// down by whoever owns side effects.
-@model
-final class ProviderHandleReleased extends ProviderSessionOutput {
-  const ProviderHandleReleased(this.handle);
-
-  final AgentProvider handle;
 }
 
 /// The session's data changed without a state change.
@@ -23,32 +15,38 @@ final class ProviderSessionChanged extends ProviderSessionOutput {
   const ProviderSessionChanged();
 }
 
-/// The chosen model started getting ready under [attempt]; whoever owns
-/// side effects feeds its [progress] back as inputs.
+/// The chosen model started loading under [attempt]; whoever owns side
+/// effects feeds its [progress] back as inputs.
 @model
-final class ActivationStarted extends ProviderSessionOutput {
-  const ActivationStarted({required this.attempt, required this.progress});
+final class LoadStarted extends ProviderSessionOutput {
+  const LoadStarted({required this.attempt, required this.progress});
 
   final int attempt;
-
-  /// From 0 to 1.
-  final Stream<double> progress;
+  final Stream<ProviderModelLoadProgress> progress;
 }
 
-/// The session built a different set of [providers]; whoever owns side
-/// effects follows their model listings from now on.
+/// An agent runtime is no longer part of the session and should be torn
+/// down by whoever owns side effects.
 @model
-final class ProvidersReplaced extends ProviderSessionOutput {
-  const ProvidersReplaced(this.providers);
+final class RuntimeReleased extends ProviderSessionOutput {
+  const RuntimeReleased(this.runtime);
 
-  final List<Provider> providers;
+  final AgentRuntime runtime;
 }
 
-/// The session no longer runs on [provider], which should let go of what
-/// activating held.
+/// A loaded model is no longer part of the session and should be released
+/// by whoever owns side effects.
 @model
-final class ProviderDeactivated extends ProviderSessionOutput {
-  const ProviderDeactivated(this.provider);
+final class ModelReleased extends ProviderSessionOutput {
+  const ModelReleased(this.model);
 
-  final Provider provider;
+  final ProviderModel model;
+}
+
+/// [connection] was replaced and should be closed.
+@model
+final class ConnectionRetired extends ProviderSessionOutput {
+  const ConnectionRetired(this.connection);
+
+  final ProviderConnection connection;
 }

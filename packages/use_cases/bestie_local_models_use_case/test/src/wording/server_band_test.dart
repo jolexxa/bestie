@@ -1,9 +1,8 @@
+import 'package:bestie_local_models_use_case/src/models/local_server_status.dart';
 import 'package:bestie_local_models_use_case/src/wording/server_band.dart';
 import 'package:command_protocol/command_protocol.dart';
-import 'package:inference_protocol/inference_protocol.dart'
-    show InferenceFailureKind;
-import 'package:local_server_repository/local_server_repository.dart';
-import 'package:provider_protocol/provider_protocol.dart' show ProviderFailure;
+import 'package:provider_protocol/provider_protocol.dart'
+    show ProviderCancelled, ProviderOccupied, ProviderServerFailed;
 import 'package:test/test.dart';
 
 import '../../helpers/fixtures.dart';
@@ -14,23 +13,19 @@ void main() {
     label: 'Retry',
     invoke: () async => const PaneStay(),
   );
-  const loadFailed = ProviderFailure(
-    kind: InferenceFailureKind.server,
-    message: 'The local model server ran out of memory.',
+  const loadFailed = ProviderServerFailed(
+    'The local model server ran out of memory.',
   );
-  const stopped = ProviderFailure(
-    kind: InferenceFailureKind.cancelled,
-    message: 'Stopped. Reconnect or pick a model to start again.',
+  const stopped = ProviderCancelled(
+    'Stopped. Reconnect or pick a model to start again.',
   );
 
-  PaneStatus bandOf(LocalServerStatus server, {ProviderFailure? failure}) =>
-      serverBand(
-        server,
-        failure: failure,
-        nameOf: (localId) => localId == 'qwen3-8b' ? 'Qwen 3 8B' : localId,
-        freeBytes: 18 * gigabyte,
-        retry: retry,
-      );
+  PaneStatus bandOf(LocalServerStatus server) => serverBand(
+    server,
+    nameOf: (localId) => localId == 'qwen3-8b' ? 'Qwen 3 8B' : localId,
+    freeBytes: 18 * gigabyte,
+    retry: retry,
+  );
 
   String textOf(PaneStatus status) => spansText(status.spans);
 
@@ -42,67 +37,14 @@ void main() {
     expect(band.actions, isEmpty);
   });
 
-  test('gives the reason the server went away', () {
-    final band = bandOf(const ServerFailed('The server exited'));
-    expect(textOf(band), 'The server exited');
-    expect(spansText(band.trailing), '18 GB free');
-    expect(band.actions, isEmpty);
-  });
-
   test('spins while the server starts', () {
     final band = bandOf(const ServerStarting());
     expect(textOf(band), 'Starting the local server');
     expect(band.progress, isA<PaneIndeterminate>());
   });
 
-  group('when another window owns the server', () {
-    const owned = ServerOwnedElsewhere(ownerPid: 4121);
-
-    test('warns', () {
-      final band = bandOf(owned);
-      expect(band.glyph, '⚠');
-      expect(
-        textOf(band),
-        'Another bestie (pid 4121) is using Bestie Server. Close it '
-        'to use it here.',
-      );
-      expect(band.trailing, isEmpty);
-      expect(band.actions, isEmpty);
-    });
-
-    test('offers to try again once the app could not run on it', () {
-      final band = bandOf(owned, failure: loadFailed);
-      expect(textOf(band), contains('pid 4121'));
-      expect(band.actions, [same(retry)]);
-    });
-  });
-
-  group('when the running server speaks another protocol', () {
-    const incompatible = ServerIncompatible(
-      serverVersion: '0.3.0',
-      protocolVersion: 2,
-    );
-
-    test('warns', () {
-      final band = bandOf(incompatible);
-      expect(band.glyph, '⚠');
-      expect(
-        textOf(band),
-        'The running local server (0.3.0) speaks protocol 2; it exits once '
-        'its owner closes.',
-      );
-      expect(band.actions, isEmpty);
-    });
-
-    test('offers to try again once the app could not run on it', () {
-      expect(bandOf(incompatible, failure: loadFailed).actions, [
-        same(retry),
-      ]);
-    });
-  });
-
   test('says why the app could not run on its local model', () {
-    final band = bandOf(const ServerIdle(), failure: loadFailed);
+    final band = bandOf(const ServerFailed(loadFailed));
     expect(band.glyph, '✕');
     expect(band.glyphTone, PaneTone.danger);
     expect(textOf(band), 'The local model server ran out of memory.');
@@ -110,8 +52,21 @@ void main() {
     expect(band.actions, [same(retry)]);
   });
 
+  test('warns that another bestie holds the server', () {
+    final band = bandOf(
+      const ServerFailed(
+        ProviderOccupied('Another bestie (pid 12) is using Bestie Server.'),
+      ),
+    );
+    expect(band.glyph, '⚠');
+    expect(band.glyphTone, PaneTone.warning);
+    expect(band.spans.single.tone, PaneTone.warning);
+    expect(textOf(band), 'Another bestie (pid 12) is using Bestie Server.');
+    expect(band.actions, [same(retry)]);
+  });
+
   test('says the model was stopped and offers to start it again', () {
-    final band = bandOf(const ServerIdle(), failure: stopped);
+    final band = bandOf(const ServerFailed(stopped));
     expect(band.glyph, '○');
     expect(band.glyphTone, isNot(PaneTone.danger));
     expect(textOf(band), stopped.message);
@@ -135,9 +90,7 @@ void main() {
   });
 
   test('shows the ready model, its context and its taken agent slots', () {
-    final band = bandOf(
-      serving(pool: const LocalAgentPool(leased: 1, maxAgents: 4)),
-    );
+    final band = bandOf(serving(leased: 1));
     expect(band.glyph, '●');
     expect(band.glyphTone, PaneTone.success);
     expect(
@@ -152,22 +105,5 @@ void main() {
       textOf(bandOf(serving(localId: 'other'))),
       'other  ready · ctx 32,768',
     );
-  });
-
-  test('says the model failed to load and why', () {
-    final band = bandOf(
-      const ServerLoadFailed(
-        localId: 'qwen3-8b',
-        reason: 'not enough memory for 4k context.',
-      ),
-    );
-    expect(band.glyph, '✕');
-    expect(
-      textOf(band),
-      "The local server couldn't load Qwen 3 8B: not enough memory for 4k "
-      'context.',
-    );
-    expect(band.trailing, isEmpty);
-    expect(band.actions, isEmpty);
   });
 }

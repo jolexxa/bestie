@@ -1,15 +1,16 @@
 import 'dart:async';
 
 import 'package:agent_repository/agent_repository.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
+    show AgentHandle, AgentKind, ContextPoolSnapshot, PoolLeaseOccupancy;
 import 'package:bestie_local_models_use_case/src/local_models_operations.dart';
+import 'package:bestie_local_models_use_case/src/models/local_server_status.dart';
 import 'package:clock/clock.dart';
 import 'package:fake_async/fake_async.dart';
-import 'package:inference_protocol/inference_protocol.dart'
-    show InferenceFailureKind;
 import 'package:local_models_repository/local_models_repository.dart';
-import 'package:local_server_repository/local_server_repository.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:provider_protocol/provider_protocol.dart' show ProviderFailure;
+import 'package:provider_protocol/provider_protocol.dart'
+    show ProviderModelLoading, ProviderModelMeasuring, ProviderServerFailed;
 import 'package:test/test.dart';
 
 import '../helpers/fixtures.dart';
@@ -21,7 +22,6 @@ void main() {
   LocalModelsOperations operationsWith({Clock clock = const Clock()}) =>
       LocalModelsOperations(
         library: repositories.library,
-        server: repositories.server,
         providers: repositories.providers,
         config: repositories.config,
         configKeys: repositories.configKeys,
@@ -30,7 +30,6 @@ void main() {
         agents: repositories.agents,
         platform: repositories.platform,
         clock: clock,
-        startTimer: Timer.new,
       );
 
   setUp(() => repositories = Repositories());
@@ -161,10 +160,7 @@ void main() {
   });
 
   group('model in use', () {
-    const failure = ProviderFailure(
-      kind: InferenceFailureKind.server,
-      message: 'out of memory',
-    );
+    const failure = ProviderServerFailed('out of memory');
 
     test('is the local model the app runs or gets ready', () async {
       final operations = operationsWith();
@@ -210,28 +206,95 @@ void main() {
     });
   });
 
-  group('failures', () {
-    const failure = ProviderFailure(
-      kind: InferenceFailureKind.server,
-      message: 'out of memory',
-    );
+  group('server', () {
+    const failure = ProviderServerFailed('out of memory');
 
-    test('say why the app could not run its local model', () async {
+    Future<List<LocalServerStatus>> serverAfter(
+      void Function() happen,
+    ) async {
       final operations = operationsWith();
-      final seen = <ProviderFailure?>[];
-      final subscription = operations.failures.listen(seen.add);
+      final seen = <LocalServerStatus>[];
+      final subscription = operations.server.listen(seen.add);
       await pumpEventQueue();
-
-      repositories
-        ..report(failedOn('qwen3-8b', failure))
-        ..report(failedOn('qwen3-8b', failure))
-        ..report(failedOn('qwen', failure, providerId: 'openrouter'))
-        ..report(runningOn('qwen3-8b'));
+      happen();
       await pumpEventQueue();
-
-      expect(seen, [null, failure, null]);
       await subscription.cancel();
       await operations.dispose();
+      return seen;
+    }
+
+    test('is idle until the app runs a local model', () async {
+      final seen = await serverAfter(
+        () => repositories
+          ..report(connectingTo('qwen', providerId: 'openrouter'))
+          ..report(runningOn('qwen', providerId: 'openrouter'))
+          ..report(failedOn('qwen', failure, providerId: 'openrouter')),
+      );
+
+      expect(seen, everyElement(isA<ServerIdle>()));
+      expect(seen, hasLength(4));
+    });
+
+    test('starts, measures, loads, then serves the local model', () async {
+      final seen = await serverAfter(
+        () => repositories
+          ..report(connectingTo('qwen3-8b'))
+          ..report(
+            connectingTo('qwen3-8b', progress: const ProviderModelMeasuring()),
+          )
+          ..report(
+            connectingTo(
+              'qwen3-8b',
+              progress: const ProviderModelLoading(0.5),
+            ),
+          )
+          ..report(runningOn('qwen3-8b')),
+      );
+
+      expect(seen[1], isA<ServerStarting>());
+      expect(
+        seen[2],
+        isA<ServerLoading>()
+            .having((status) => status.localId, 'localId', 'qwen3-8b')
+            .having((status) => status.progress, 'progress', isNull),
+      );
+      expect((seen[3] as ServerLoading).progress, 0.5);
+      final serving = seen[4] as ServerServing;
+      expect(serving.localId, 'qwen3-8b');
+      expect(serving.contextSize, 32768);
+      expect(serving.maxAgents, 3);
+      expect(serving.deviceBytes, 5 * gigabyte);
+      expect(serving.leased, isNull);
+    });
+
+    test('counts the agents leased on the served model', () async {
+      final seen = await serverAfter(
+        () => repositories
+          ..report(runningOn('qwen3-8b'))
+          ..poolChanges.add(
+            const ContextPoolSnapshot(
+              contextSize: 32768,
+              reservedClaims: 0,
+              leases: [
+                PoolLeaseOccupancy(
+                  handle: AgentHandle(id: 'primary', kind: AgentKind.primary),
+                  residentTokens: 0,
+                  claimTokens: 0,
+                ),
+              ],
+            ),
+          ),
+      );
+
+      expect((seen.last as ServerServing).leased, 1);
+    });
+
+    test('says why the app could not run its local model', () async {
+      final seen = await serverAfter(
+        () => repositories.report(failedOn('qwen3-8b', failure)),
+      );
+
+      expect((seen.last as ServerFailed).failure, failure);
     });
   });
 
@@ -276,14 +339,6 @@ void main() {
     expect(operations.memoryBytes, 24 * gigabyte);
     expect(operations.freeMemoryBytes, 18 * gigabyte);
     expect(operations.shorten('$homeDir/models/a.gguf'), '~/models/a.gguf');
-    await operations.dispose();
-  });
-
-  test('shows the server the repository reports', () async {
-    final operations = operationsWith();
-    final next = operations.server.first;
-    repositories.serverChanges.add(const ServerStarting());
-    expect(await next, isA<ServerStarting>());
     await operations.dispose();
   });
 

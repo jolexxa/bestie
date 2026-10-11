@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:agent_provider_protocol/agent_provider_protocol.dart';
 import 'package:agent_repository/agent_repository.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:tool_protocol/tool_protocol.dart';
@@ -14,7 +14,7 @@ void main() {
   late StreamController<AgentRuntimeEvent> events;
   late StreamController<ContextPoolSnapshot> pool;
   late StreamController<double> spend;
-  late MockProvider provider;
+  late MockAgentRuntime runtime;
   late MockAgent agent;
   late ToolDefinitions toolDefinitions;
   late MockConversationStore store;
@@ -24,9 +24,9 @@ void main() {
     events = StreamController<AgentRuntimeEvent>.broadcast();
     pool = StreamController<ContextPoolSnapshot>.broadcast();
     spend = StreamController<double>.broadcast();
-    provider = MockProvider();
-    when(() => provider.pool).thenAnswer((_) => pool.stream);
-    when(() => provider.spend).thenAnswer((_) => spend.stream);
+    runtime = MockAgentRuntime();
+    when(() => runtime.pool).thenAnswer((_) => pool.stream);
+    when(() => runtime.spend).thenAnswer((_) => spend.stream);
     agent = MockAgent();
     when(() => agent.handle).thenReturn(agentHandle);
     when(() => agent.kind).thenReturn(AgentKind.primary);
@@ -40,7 +40,7 @@ void main() {
     ).thenAnswer((_) async => const RunAccepted());
     when(() => agent.cancel()).thenAnswer((_) async => const CancelAccepted());
     when(
-      () => provider.startPrimary(config: any(named: 'config')),
+      () => runtime.startPrimary(config: any(named: 'config')),
     ).thenAnswer((_) async => StartPrimaryStarted(agent));
 
     toolDefinitions = offering();
@@ -86,28 +86,27 @@ void main() {
     });
   });
 
-  group('bindProvider', () {
+  group('bindRuntime', () {
     test('spawns an agent and swaps in a live session', () async {
-      await repo.bindProvider(provider, contextSize: 2048);
+      await repo.bindRuntime(runtime, contextSize: 2048);
 
       expect(repo.primary.canRunTurns, isTrue);
       expect(repo.primary.sessionContextSize, 2048);
       verify(
-        () => provider.startPrimary(config: any(named: 'config')),
+        () => runtime.startPrimary(config: any(named: 'config')),
       ).called(1);
     });
 
     test('mints the agent with a create-only baseline config', () async {
-      await repo.bindProvider(
-        provider,
+      await repo.bindRuntime(
+        runtime,
         contextSize: 2048,
         systemPrompt: 'system prompt',
       );
 
       final config =
           verify(
-                () =>
-                    provider.startPrimary(config: captureAny(named: 'config')),
+                () => runtime.startPrimary(config: captureAny(named: 'config')),
               ).captured.single
               as AgentConfig;
       expect(config.systemPrompt, 'system prompt');
@@ -119,7 +118,7 @@ void main() {
       final seen = <AgentSession>[];
       final sub = repo.primaryStream.listen(seen.add);
 
-      await repo.bindProvider(provider, contextSize: 2048);
+      await repo.bindRuntime(runtime, contextSize: 2048);
       await pump();
 
       expect(seen, isNotEmpty);
@@ -136,7 +135,7 @@ void main() {
 
         expect(seen.single.conversationPhase, ConversationPhase.idle);
 
-        await repo.bindProvider(provider, contextSize: 2048);
+        await repo.bindRuntime(runtime, contextSize: 2048);
         await pump();
 
         expect(seen.length, greaterThan(1));
@@ -146,33 +145,33 @@ void main() {
 
     test('a rejected start keeps the placeholder', () async {
       when(
-        () => provider.startPrimary(config: any(named: 'config')),
+        () => runtime.startPrimary(config: any(named: 'config')),
       ).thenAnswer(
         (_) async => const StartPrimaryRejected(
           reason: AgentRuntimeRejectionReason.busy,
         ),
       );
 
-      await repo.bindProvider(provider, contextSize: 2048);
+      await repo.bindRuntime(runtime, contextSize: 2048);
 
       expect(repo.primary.canRunTurns, isFalse);
     });
 
-    test('rebinding the same provider does not re-spawn the agent', () async {
-      await repo.bindProvider(provider, contextSize: 2048);
-      await repo.bindProvider(provider, contextSize: 2048);
+    test('rebinding the same runtime does not re-spawn the agent', () async {
+      await repo.bindRuntime(runtime, contextSize: 2048);
+      await repo.bindRuntime(runtime, contextSize: 2048);
 
       expect(repo.primary.sessionContextSize, 2048);
       verify(
-        () => provider.startPrimary(config: any(named: 'config')),
+        () => runtime.startPrimary(config: any(named: 'config')),
       ).called(1);
     });
 
-    test('clearing the provider retires to a placeholder', () async {
-      await repo.bindProvider(provider, contextSize: 2048);
+    test('clearing the runtime retires to a placeholder', () async {
+      await repo.bindRuntime(runtime, contextSize: 2048);
       expect(repo.primary.canRunTurns, isTrue);
 
-      await repo.bindProvider(null);
+      await repo.bindRuntime(null);
 
       expect(repo.primary.canRunTurns, isFalse);
     });
@@ -182,7 +181,7 @@ void main() {
       () async {
         repo.primary.addNotice('welcome');
 
-        await repo.bindProvider(provider, contextSize: 2048);
+        await repo.bindRuntime(runtime, contextSize: 2048);
 
         expect(
           repo.primary.timelineItems.whereType<NoticeTimelineItem>(),
@@ -340,7 +339,7 @@ void main() {
   );
 
   test('delivers a settled report to the live primary', () async {
-    await repo.bindProvider(provider, contextSize: 2048);
+    await repo.bindRuntime(runtime, contextSize: 2048);
     clearInteractions(agent);
 
     repo.deliverReport(
@@ -450,17 +449,17 @@ void main() {
       expect(row.settled, isNull);
     });
 
-    test('forwards every charge the bound provider reports', () async {
+    test('forwards every charge the bound runtime reports', () async {
       final charges = <double>[];
       repo.spendStream.listen(charges.add);
-      await repo.bindProvider(provider);
+      await repo.bindRuntime(runtime);
 
       spend.add(0.25);
       await pumpEventQueue();
 
       expect(charges, [0.25]);
 
-      await repo.bindProvider(null);
+      await repo.bindRuntime(null);
       spend.add(0.5);
       await pumpEventQueue();
 
@@ -500,7 +499,7 @@ void main() {
   });
 
   test('projects primary pool occupancy into context stats', () async {
-    await repo.bindProvider(provider, contextSize: 100);
+    await repo.bindRuntime(runtime, contextSize: 100);
     pool.add(
       const ContextPoolSnapshot(
         contextSize: 100,
@@ -522,7 +521,7 @@ void main() {
   });
 
   test('does not project stats for an agent absent from the pool', () async {
-    await repo.bindProvider(provider, contextSize: 100);
+    await repo.bindRuntime(runtime, contextSize: 100);
     pool.add(
       const ContextPoolSnapshot(
         contextSize: 100,
@@ -555,15 +554,15 @@ void main() {
     ).thenAnswer((_) async => const RunAccepted());
     when(subagent.cancel).thenAnswer((_) async => const CancelAccepted());
     when(
-      () => provider.startSubagent(
+      () => runtime.startSubagent(
         config: any(named: 'config'),
         label: any(named: 'label'),
       ),
     ).thenAnswer((_) async => StartSubagentStarted(subagent));
     when(
-      () => provider.disposeAgent(subagent),
+      () => runtime.disposeAgent(subagent),
     ).thenAnswer((_) async => const DisposeAgentDisposed());
-    await repo.bindProvider(provider, contextSize: 100);
+    await repo.bindRuntime(runtime, contextSize: 100);
     await repo.startSubagent(
       callId: 'call',
       prompt: 'Investigate',
@@ -594,7 +593,7 @@ void main() {
     });
 
     test('narrows the primary as the pool fills', () async {
-      await repo.bindProvider(provider, contextSize: 100);
+      await repo.bindRuntime(runtime, contextSize: 100);
       pool.add(
         const ContextPoolSnapshot(
           contextSize: 100,
@@ -618,7 +617,7 @@ void main() {
         compactionRatio: testCompactionRatio,
         maxToolCallCharacters: 900,
       );
-      await repo.bindProvider(provider, contextSize: 100000);
+      await repo.bindRuntime(runtime, contextSize: 100000);
       pool.add(
         const ContextPoolSnapshot(
           contextSize: 100000,
@@ -638,7 +637,7 @@ void main() {
     });
 
     test('lowering the ceiling applies without a new pool reading', () async {
-      await repo.bindProvider(provider, contextSize: 100000);
+      await repo.bindRuntime(runtime, contextSize: 100000);
       pool.add(
         const ContextPoolSnapshot(
           contextSize: 100000,
@@ -668,7 +667,7 @@ void main() {
         compactionRatio: testCompactionRatio,
         maxToolCallCharacters: 32000,
       );
-      await repo.bindProvider(provider, contextSize: 100);
+      await repo.bindRuntime(runtime, contextSize: 100);
       pool.add(
         const ContextPoolSnapshot(
           contextSize: 100,
@@ -688,7 +687,7 @@ void main() {
     });
 
     test('leaves no room once the pool is full', () async {
-      await repo.bindProvider(provider, contextSize: 100);
+      await repo.bindRuntime(runtime, contextSize: 100);
       pool.add(
         const ContextPoolSnapshot(
           contextSize: 100,
@@ -708,7 +707,7 @@ void main() {
     });
 
     test('keeps the last reading for a session the pool omits', () async {
-      await repo.bindProvider(provider, contextSize: 100);
+      await repo.bindRuntime(runtime, contextSize: 100);
       pool.add(
         const ContextPoolSnapshot(
           contextSize: 100,
@@ -736,9 +735,9 @@ void main() {
     });
   });
 
-  group('surviving a provider swap', () {
+  group('surviving a runtime swap', () {
     test('parking a live primary commits the turn it had in flight', () async {
-      await repo.bindProvider(provider, contextSize: 2048);
+      await repo.bindRuntime(runtime, contextSize: 2048);
       await repo.primary.beginTurn(
         message: 'asked mid-reload',
         options: const TurnOptions.baseline('p'),
@@ -754,8 +753,8 @@ void main() {
       );
       await pump();
 
-      // What a reload does: drop the provider before its handle is torn down.
-      await repo.bindProvider(null);
+      // What a reload does: drop the runtime before its handle is torn down.
+      await repo.bindRuntime(null);
 
       final saved =
           verify(() => store.save(captureAny())).captured.last
@@ -770,14 +769,14 @@ void main() {
     });
 
     test('the parked primary carries the committed history forward', () async {
-      await repo.bindProvider(provider, contextSize: 2048);
+      await repo.bindRuntime(runtime, contextSize: 2048);
       await repo.primary.beginTurn(
         message: 'asked mid-reload',
         options: const TurnOptions.baseline('p'),
       );
       await pump();
 
-      await repo.bindProvider(null);
+      await repo.bindRuntime(null);
 
       expect(repo.primary.canRunTurns, isFalse);
       expect(
@@ -789,7 +788,7 @@ void main() {
 
   group('dispose', () {
     test('is idempotent', () async {
-      await repo.bindProvider(provider, contextSize: 2048);
+      await repo.bindRuntime(runtime, contextSize: 2048);
       await repo.dispose();
       await repo.dispose();
     });

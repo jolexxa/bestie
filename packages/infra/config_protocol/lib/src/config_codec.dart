@@ -8,9 +8,7 @@ final class ConfigCodec<T> {
   final ConfigEncoder<T> encode;
 }
 
-final class ConfigCodecs {
-  const ConfigCodecs._();
-
+abstract final class ConfigCodecs {
   static const doubles = ConfigCodec<double>(
     decode: _decodeDouble,
     encode: _identity,

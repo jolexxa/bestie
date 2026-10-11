@@ -1,13 +1,12 @@
 import 'dart:async';
 
+import 'package:bestie_local_models_use_case/src/models/local_server_status.dart';
 import 'package:bestie_local_models_use_case/src/panes/installed_pane.dart';
 import 'package:command_protocol/command_protocol.dart';
-import 'package:inference_protocol/inference_protocol.dart'
-    show InferenceFailureKind;
 import 'package:local_models_repository/local_models_repository.dart';
-import 'package:local_server_repository/local_server_repository.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:provider_protocol/provider_protocol.dart' show ProviderFailure;
+import 'package:provider_protocol/provider_protocol.dart'
+    show ProviderServerFailed;
 import 'package:test/test.dart';
 
 import '../../helpers/fixtures.dart';
@@ -64,9 +63,7 @@ void main() {
         status: const LibraryReady(),
         downloaded: [supportedModel()],
       ),
-      server: Stream.value(
-        serving(pool: const LocalAgentPool(leased: 2, maxAgents: 4)),
-      ),
+      server: Stream.value(serving(leased: 2)),
     );
     final band = await pane().status.first;
     expect(
@@ -79,10 +76,11 @@ void main() {
   test('retries the server from its band once it failed', () async {
     stubOperations(
       operations,
-      failures: Stream.value(
-        const ProviderFailure(
-          kind: InferenceFailureKind.server,
-          message: 'Could not start the local model server: no binary',
+      server: Stream.value(
+        const ServerFailed(
+          ProviderServerFailed(
+            'Could not start the local model server: no binary',
+          ),
         ),
       ),
     );

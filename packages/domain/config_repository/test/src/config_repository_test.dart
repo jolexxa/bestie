@@ -2,6 +2,14 @@ import 'package:bestie_config/bestie_config.dart';
 import 'package:config_repository/config_repository.dart';
 import 'package:test/test.dart';
 
+const _temperatureField = NumericField<double>(
+  label: 'Temperature',
+  description: 'How random.',
+  min: 0,
+  max: 2,
+  step: 0.1,
+);
+
 void main() {
   group('ConfigRepository', () {
     late ConfigDataSource store;
@@ -149,6 +157,40 @@ void main() {
       expect(resolved.source, sampling);
     });
 
+    test('a preview answers every read with its edits applied', () {
+      final theme = keys.theme.global;
+      final sampling = keys.samplingTemperature.at(_modelScope('qwen'));
+      store.user.write(theme.path, 'barn');
+      final preview = repo.view(
+        edits: {sampling: const ConfigEdit.set(0.9)},
+      );
+
+      expect(preview.resolve(sampling), 0.9);
+      expect(preview.resolveBase(sampling), 0.9);
+      expect(preview.inspectBase(sampling).source, sampling);
+      expect(preview.isExplicit(sampling), isTrue);
+      expect(preview.isExplicitBase(theme), isTrue);
+      expect(preview.defines(sampling), isTrue);
+      expect(preview.definesBase(keys.assignment.global), isFalse);
+      expect(repo.resolveBase(sampling), 0.7);
+      expect(repo.view(), same(repo));
+    });
+
+    test('refuses to persist a value that encodes to nothing', () {
+      final lossy = ConfigKey<String>(
+        id: 'lossy',
+        path: const ['lossy'],
+        codec: ConfigCodec<String>(decode: (raw) => null, encode: (_) => null),
+        defaultValue: () => '',
+        field: const OpaqueField(label: 'Lossy', description: 'Never kept.'),
+      );
+
+      expect(
+        () => repo.commit({lossy.global: const ConfigEdit.set('x')}),
+        throwsArgumentError,
+      );
+    });
+
     test('commit clears committed user values and emits once', () async {
       final reasoning = keys.reasoningTemperature.at(_modelScope('qwen'));
       store.user.write(reasoning.path, 0.6);
@@ -237,6 +279,7 @@ final class _Keys {
     path: const ['model'],
     codec: ConfigCodecs.strings,
     defaultValue: () => '',
+    field: const OpaqueField(label: 'Model', description: 'Which model.'),
   );
 
   final theme = ConfigKey<String>(
@@ -244,6 +287,7 @@ final class _Keys {
     path: const ['app', 'themeName'],
     codec: ConfigCodecs.strings,
     defaultValue: () => 'cow',
+    field: const OpaqueField(label: 'Theme', description: 'Which theme.'),
   );
 
   late final samplingTemperature = ConfigKey<double>(
@@ -251,6 +295,7 @@ final class _Keys {
     path: const ['runtimeConfig', 'temperature'],
     codec: ConfigCodecs.doubles,
     defaultValue: () => 0.7,
+    field: _temperatureField,
     resolution: const ConfigResolution.scoped(),
   );
 
@@ -259,6 +304,7 @@ final class _Keys {
     path: const ['reasoningConfig', 'temperature'],
     codec: ConfigCodecs.doubles,
     defaultValue: () => 0.7,
+    field: _temperatureField,
     resolution: ConfigResolution.scoped(fallbackKeys: [samplingTemperature]),
   );
 }

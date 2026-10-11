@@ -54,52 +54,40 @@ sealed class ConfigState extends StateLogic<ConfigState> {
 
   int get selectedIndex => data.selectedIndex;
   String? get editError => data.editError;
-  bool get hasTargetScope => data.targetScope != null;
 
-  /// All entries on the currently selected page. Empty for custom
-  /// pages (Info) and for unknown ids.
-  List<ConfigEntry> get visibleEntries => switch (selectedPage) {
-    ConfigParamPage(:final sections) =>
-      sections.expand((s) => s.entries).toList(),
+  /// Every address on the currently selected page, in order. Empty for
+  /// custom pages (Info) and for unknown ids.
+  List<ConfigAddressBase> get visibleAddresses => switch (selectedPage) {
+    ConfigParamPage(:final addresses) => addresses.toList(),
     _ => const [],
   };
 
-  /// Currently highlighted entry, or null if no entries on this page.
-  ConfigEntry? get selectedEntry {
-    final entries = visibleEntries;
-    if (entries.isEmpty) return null;
-    return entries[data.selectedIndex.clamp(0, entries.length - 1)];
+  /// The highlighted address, or null when the page has none.
+  ConfigAddressBase? get selectedAddress {
+    final addresses = visibleAddresses;
+    if (addresses.isEmpty) return null;
+    return addresses[data.selectedIndex.clamp(0, addresses.length - 1)];
   }
 
-  ConfigAddressBase? addressFor(ConfigEntry entry) =>
-      entry.addressFor(targetScope: data.targetScope);
-
-  Object? editStartValueFor(
-    ConfigEntry entry,
-    ConfigAddressBase address,
-  ) => configUseCase.resolveBase(address);
+  Object? editStartValueFor(ConfigAddressBase address) =>
+      configUseCase.resolveBase(address);
 
   bool hasUserValue(ConfigAddressBase address) =>
       configUseCase.isExplicitBase(address);
 
-  bool applyAdjust(
-    ConfigEntry entry,
-    ConfigAddressBase address,
-    int delta,
-  ) {
+  bool applyAdjust(ConfigAddressBase address, int delta) {
     final current = configUseCase.resolveBase(address);
-    final next = entry.field.adjustValue(current, delta);
+    final next = address.key.field.adjustValue(current, delta);
     if (next == current) return false;
     configUseCase.updateBase(address, ConfigEditBase.set(next));
     return true;
   }
 
-  String? applyText(ConfigEntry entry, String text) {
-    final address = addressFor(entry);
-    if (address == null) return 'No target selected';
-    final parsed = entry.field.parseValue(text);
+  String? applyText(ConfigAddressBase address, String text) {
+    final field = address.key.field;
+    final parsed = field.parseValue(text);
     if (parsed == null) return 'Invalid value';
-    final validation = entry.field.validateValue(parsed);
+    final validation = field.validateValue(parsed);
     if (validation is Invalid) return validation.message;
     configUseCase.updateBase(address, ConfigEditBase.set(parsed));
     return null;
@@ -111,8 +99,7 @@ sealed class ConfigState extends StateLogic<ConfigState> {
   /// Max valid `selectedIndex` for the current page, or -1 when
   /// nothing on the page is selectable.
   int get selectionMax => switch (selectedPage) {
-    ConfigParamPage(:final sections) =>
-      sections.expand((s) => s.entries).length - 1,
+    ConfigParamPage(:final addresses) => addresses.length - 1,
     ConfigInfoPage(:final rowCount) => rowCount(data.toolCount) - 1,
     ConfigDocumentPage() => -1,
     null => -1,
@@ -123,7 +110,6 @@ sealed class ConfigState extends StateLogic<ConfigState> {
 final class BrowsingState extends ConfigState {
   BrowsingState() {
     on<Initialize>((input) {
-      data.targetScope = input.targetScope;
       data.toolCount = input.toolCount;
       output(const ConfigStateUpdated());
       return toSelf();
@@ -152,28 +138,20 @@ final class BrowsingState extends ConfigState {
     });
 
     on<InlineAdjust>((input) {
-      final entry = selectedEntry;
-      if (entry == null) return toSelf();
-      final address = addressFor(entry);
+      final address = selectedAddress;
       if (address == null) return toSelf();
-      final adjusted = applyAdjust(entry, address, input.delta);
-      if (!adjusted) return toSelf();
+      if (!applyAdjust(address, input.delta)) return toSelf();
       output(const ConfigStateUpdated());
       return toSelf();
     });
 
     on<BeginEdit>((input) {
-      final entry = selectedEntry;
-      if (entry == null) return toSelf();
-      final address = addressFor(entry);
-      if (address == null) return toSelf();
+      if (selectedAddress == null) return toSelf();
       return to<EditingState>();
     });
 
     on<ResetParam>((_) {
-      final entry = selectedEntry;
-      if (entry == null) return toSelf();
-      final address = addressFor(entry);
+      final address = selectedAddress;
       if (address == null) return toSelf();
       if (!hasUserValue(address)) return toSelf();
       configUseCase.updateBase(address, const ConfigEditBase.clear());
@@ -199,9 +177,9 @@ final class EditingState extends ConfigState {
     onEnter(() => output(const ConfigStateUpdated()));
 
     on<ConfirmEdit>((input) {
-      final entry = selectedEntry;
-      if (entry == null) return toSelf();
-      final error = applyText(entry, input.text);
+      final address = selectedAddress;
+      if (address == null) return toSelf();
+      final error = applyText(address, input.text);
       if (error == null) {
         data.editError = null;
         return to<BrowsingState>();

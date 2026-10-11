@@ -1,12 +1,12 @@
 import 'dart:async';
 
-import 'package:agent_provider_protocol/agent_provider_protocol.dart'
+import 'package:agent_repository/agent_repository.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
     show
-        AgentProvider,
         AgentRunFailureReason,
+        AgentRuntime,
         ContextPoolSnapshot,
         SamplingOptions;
-import 'package:agent_repository/agent_repository.dart';
 import 'package:bestie_chat_use_case/bestie_chat_use_case.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:config_repository/config_repository.dart';
@@ -25,9 +25,9 @@ class _MockAgentRepository extends Mock implements AgentRepository {}
 
 class _MockAgentSession extends Mock implements AgentSession {}
 
-class _MockAgentProvider extends Mock implements AgentProvider {}
+class _MockAgentRuntime extends Mock implements AgentRuntime {}
 
-class _FakeAgentProvider extends Fake implements AgentProvider {}
+class _FakeAgentRuntime extends Fake implements AgentRuntime {}
 
 const _idle = ConversationIdle(
   timelineItems: [],
@@ -40,7 +40,7 @@ extension on Command {
 
 void main() {
   setUpAll(() {
-    registerFallbackValue(_FakeAgentProvider());
+    registerFallbackValue(_FakeAgentRuntime());
     registerFallbackValue(const SamplingOptions(seed: 0));
     registerFallbackValue(const TurnOptions.baseline(''));
     registerFallbackValue(
@@ -80,7 +80,6 @@ void main() {
     late FakeConfigRepository config;
     late ChatConfigKeys configKeys;
     late ChatUseCase useCase;
-    late SamplingOptions sampling;
     late StreamController<ConversationState> convController;
     late StreamController<AgentSession> primaryController;
     late StreamController<void> reloadsStartingController;
@@ -120,7 +119,7 @@ void main() {
       when(() => agents.statsFor(any())).thenReturn(null);
       when(() => agents.clear()).thenReturn(null);
       when(
-        () => agents.bindProvider(
+        () => agents.bindRuntime(
           any(),
           contextSize: any(named: 'contextSize'),
           systemPrompt: any(named: 'systemPrompt'),
@@ -149,18 +148,19 @@ void main() {
       when(
         () => providers.statusStream,
       ).thenAnswer((_) => statusController.stream);
-      stubReadyPrimary();
-      sampling = const SamplingOptions(seed: 0);
+      when(
+        () => providers.status,
+      ).thenReturn(const ProviderStatusUnconfigured());
 
       useCase = ChatUseCase(
         providerRepository: providers,
         agentRepository: agents,
         config: config,
         configKeys: configKeys,
-        sampling: () => sampling,
         dynamicSystemPrompt: ' [dyn]',
         paths: linuxPlatform.paths,
       );
+      stubReadyPrimary();
     });
 
     tearDown(() async {
@@ -192,7 +192,7 @@ void main() {
               name: 'Qwen 3 8B',
               providerName: 'Local models',
               contextWindow: 40960,
-              progress: 0.62,
+              progress: ProviderModelLoading(0.62),
             ),
           ),
         );
@@ -217,7 +217,7 @@ void main() {
         when(() => placeholder.setLiveModelStatus(any())).thenReturn(null);
         when(() => placeholder.stream).thenAnswer((_) => const Stream.empty());
         when(() => placeholder.state).thenReturn(_idle);
-        when(() => agents.bindProvider(null)).thenAnswer((_) async {
+        when(() => agents.bindRuntime(null)).thenAnswer((_) async {
           when(() => agents.primary).thenReturn(placeholder);
           primaryController.add(placeholder);
         });
@@ -225,7 +225,7 @@ void main() {
           name: 'Qwen3 1.7B',
           providerName: 'Bestie Server',
           contextWindow: 40960,
-          progress: 0,
+          progress: ProviderModelMeasuring(),
         );
 
         reloadsStartingController.add(null);
@@ -240,7 +240,7 @@ void main() {
                 name: loading.name,
                 providerName: loading.providerName,
                 contextWindow: loading.contextWindow,
-                progress: 0.62,
+                progress: const ProviderModelLoading(0.62),
               ),
             ),
           );
@@ -885,7 +885,7 @@ void main() {
       reloadsStartingController.add(null);
       await Future<void>.delayed(Duration.zero);
 
-      verify(() => agents.bindProvider(null)).called(1);
+      verify(() => agents.bindRuntime(null)).called(1);
     });
 
     test('canSubmit is true when primary is ready and idle', () {
@@ -967,14 +967,31 @@ void main() {
       expect(options.compactionReasoningMode, 'auto');
     });
 
-    test('submit runs under the sampling resolved at that moment', () async {
-      sampling = const SamplingOptions(seed: 11, temperature: 0.7);
+    test('submit runs under the sampling configured at that moment', () async {
+      config
+        ..['provider.sampling.seed'] = 11
+        ..['provider.sampling.temperature'] = 0.3
+        ..['provider.sampling.top_p'] = 0.9
+        ..['provider.sampling.frequency_penalty'] = 0.5
+        ..['provider.sampling.presence_penalty'] = 0.25;
 
       await useCase.submit(message: 'hi', reasoningMode: 'off');
 
       final captured = _capturedOptions(session).sampling;
       expect(captured.seed, 11);
-      expect(captured.temperature, 0.7);
+      expect(captured.temperature, 0.3);
+      expect(captured.topP, 0.9);
+      expect(captured.penaltyFreq, 0.5);
+      expect(captured.penaltyPresent, 0.25);
+    });
+
+    test('submit leaves unset sampling to the model', () async {
+      await useCase.submit(message: 'hi', reasoningMode: 'off');
+
+      expect(
+        _capturedOptions(session).sampling,
+        const SamplingOptions(seed: 0),
+      );
     });
 
     test('submit runs compaction at the cheapest thinking mode', () async {
@@ -1037,7 +1054,7 @@ void main() {
 
       test('starts a compaction turn under the current options', () async {
         stubReadyPrimary(supportsReasoning: true);
-        sampling = const SamplingOptions(seed: 5, temperature: 0.1);
+        config['provider.sampling.seed'] = 5;
 
         expect(await useCase.compact(), isTrue);
 
@@ -1061,20 +1078,20 @@ void main() {
       verify(() => session.cancel()).called(1);
     });
 
-    // ── attachSession ───────────────────────────────────────
+    // ── attaching the runtime ───────────────────────────────
 
     test(
-      'attachSession binds the provider, then stamps its model card',
+      "binds a ready provider's runtime, then stamps its model card",
       () async {
         final ready = stubReadyPrimary();
 
-        useCase.attachSession(primary: ready.handle, primaryContextSize: 2048);
-        await Future<void>.delayed(Duration.zero);
+        statusController.add(ready);
+        await pumpEventQueue();
 
         verifyInOrder([
-          () => agents.bindProvider(
-            ready.handle,
-            contextSize: 2048,
+          () => agents.bindRuntime(
+            ready.runtime,
+            contextSize: 1024,
             systemPrompt: 'prompt [dyn]',
           ),
           () => session.recordModelChange(
@@ -1089,33 +1106,86 @@ void main() {
       },
     );
 
-    test('attaching the same provider again leaves the card alone', () async {
+    test('resets the reasoning mode once per fresh runtime', () async {
+      final ready = stubReadyPrimary(supportsReasoning: true);
+      final resets = <String>[];
+      useCase.reasoningResets.listen(resets.add);
+
+      statusController
+        ..add(ready)
+        ..add(ready);
+      await pumpEventQueue();
+      final next = stubReadyPrimary();
+      statusController.add(next);
+      await pumpEventQueue();
+
+      expect(resets, [
+        ready.defaultReasoningMode,
+        next.defaultReasoningMode,
+      ]);
+      verify(() => session.recordModelChange(any())).called(2);
+    });
+
+    test('attaching the same runtime again leaves the card alone', () async {
       final ready = stubReadyPrimary();
 
-      useCase
-        ..attachSession(primary: ready.handle, primaryContextSize: 2048)
-        ..attachSession(primary: ready.handle, primaryContextSize: 2048);
-      await Future<void>.delayed(Duration.zero);
+      statusController
+        ..add(ready)
+        ..add(ready);
+      await pumpEventQueue();
 
+      verify(
+        () => agents.bindRuntime(
+          ready.runtime,
+          contextSize: any(named: 'contextSize'),
+          systemPrompt: any(named: 'systemPrompt'),
+        ),
+      ).called(2);
       verify(() => session.recordModelChange(any())).called(1);
     });
 
-    test(
-      'attachSession skips the card when the provider is not ready',
-      () async {
-        when(
-          () => providers.status,
-        ).thenReturn(const ProviderStatusUnconfigured());
+    test('attaches a provider that is already ready when built', () async {
+      final ready = stubReadyPrimary();
 
-        useCase.attachSession(
-          primary: _MockAgentProvider(),
-          primaryContextSize: 2048,
+      final built = ChatUseCase(
+        providerRepository: providers,
+        agentRepository: agents,
+        config: config,
+        configKeys: configKeys,
+        dynamicSystemPrompt: ' [dyn]',
+        paths: linuxPlatform.paths,
+      );
+      addTearDown(built.dispose);
+      await pumpEventQueue();
+
+      verify(
+        () => agents.bindRuntime(
+          ready.runtime,
+          contextSize: 1024,
+          systemPrompt: 'prompt [dyn]',
+        ),
+      ).called(1);
+    });
+
+    test('attaches nothing while the provider is not ready', () async {
+      statusController
+        ..add(const ProviderStatusUnconfigured())
+        ..add(
+          const ProviderStatusConnecting(
+            model: ProviderModelRef(providerId: 'openrouter', modelId: 'm'),
+          ),
         );
-        await Future<void>.delayed(Duration.zero);
+      await pumpEventQueue();
 
-        verifyNever(() => session.recordModelChange(any()));
-      },
-    );
+      verifyNever(
+        () => agents.bindRuntime(
+          any(),
+          contextSize: any(named: 'contextSize'),
+          systemPrompt: any(named: 'systemPrompt'),
+        ),
+      );
+      verifyNever(() => session.recordModelChange(any()));
+    });
 
     // ── clear ───────────────────────────────────────────────
 
@@ -1583,6 +1653,7 @@ ProviderStatusReady _ready({required bool supportsReasoning}) =>
           modelId: 'openai/gpt-4o-mini',
         ),
         name: 'GPT-4o mini',
+        providerName: 'OpenRouter',
         contextWindow: 1024,
         supportsTools: true,
         reasoning: supportsReasoning
@@ -1592,9 +1663,9 @@ ProviderStatusReady _ready({required bool supportsReasoning}) =>
               )
             : null,
       ),
-      handle: _MockAgentProvider(),
-      keyInfo: const ProviderKeyInfo(label: 'key', usage: 0, isFreeTier: false),
-      providerName: 'OpenRouter',
+      runtime: _MockAgentRuntime(),
+      maxAgents: 3,
+      deviceBytes: null,
     );
 
 ChatConfigKeys _testConfigKeys() {
@@ -1602,6 +1673,7 @@ ChatConfigKeys _testConfigKeys() {
     systemPrompt: _globalString('prompt.system'),
     memoryCompactionRatio: _globalDouble('memory.compaction_ratio'),
     maxToolCallCharacters: _globalInt('tools.max_call_characters'),
+    sampling: ChatSamplingConfigKeys.defaults(),
   );
 }
 
@@ -1610,6 +1682,13 @@ ConfigKey<int> _globalInt(String id) => ConfigKey<int>(
   path: [id],
   codec: ConfigCodecs.integers,
   defaultValue: () => defaultMaxToolCallCharacters,
+  field: const NumericField(
+    label: 'n',
+    description: 'd',
+    min: 0,
+    max: 100000,
+    step: 1,
+  ),
 );
 
 ConfigKey<String> _globalString(String id) => ConfigKey<String>(
@@ -1617,6 +1696,7 @@ ConfigKey<String> _globalString(String id) => ConfigKey<String>(
   path: [id],
   codec: ConfigCodecs.strings,
   defaultValue: () => 'prompt',
+  field: const OpaqueField(label: 's', description: 'd'),
 );
 
 ConfigKey<double> _globalDouble(String id) => ConfigKey<double>(
@@ -1624,4 +1704,11 @@ ConfigKey<double> _globalDouble(String id) => ConfigKey<double>(
   path: [id],
   codec: ConfigCodecs.doubles,
   defaultValue: () => defaultCompactionRatio,
+  field: const NumericField(
+    label: 'r',
+    description: 'd',
+    min: 0,
+    max: 1,
+    step: 0.05,
+  ),
 );

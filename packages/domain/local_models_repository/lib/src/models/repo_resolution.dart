@@ -1,7 +1,7 @@
 import 'package:intentions/intentions.dart';
-import 'package:llm_model_profiles/llm_model_profiles.dart';
 import 'package:local_models_repository/src/models/quant_type.dart';
 import 'package:local_models_repository/src/models/unsupported_reason.dart';
+import 'package:model_profiles/model_profiles.dart';
 
 /// What a Hugging Face repo offers to download.
 @model

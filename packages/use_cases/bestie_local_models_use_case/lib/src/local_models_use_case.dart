@@ -13,7 +13,6 @@ import 'package:command_protocol/command_protocol.dart';
 import 'package:config_repository/config_repository.dart';
 import 'package:intentions/intentions.dart';
 import 'package:local_models_repository/local_models_repository.dart';
-import 'package:local_server_repository/local_server_repository.dart';
 import 'package:platform_repository/platform_repository.dart';
 import 'package:provider_repository/provider_repository.dart';
 import 'package:rxdart/rxdart.dart';
@@ -24,7 +23,6 @@ import 'package:rxdart/rxdart.dart';
 class LocalModelsUseCase implements CommandContribution {
   LocalModelsUseCase({
     required LocalModelsRepository library,
-    required LocalServerRepository server,
     required ProviderRepository providers,
     required ConfigRepository config,
     required LocalModelsConfigKeys configKeys,
@@ -33,10 +31,8 @@ class LocalModelsUseCase implements CommandContribution {
     required AgentRepository agents,
     required OSPlatformRepository platform,
     Clock clock = const Clock(),
-    StartTimer startTimer = Timer.new,
   }) : _operations = LocalModelsOperations(
          library: library,
-         server: server,
          providers: providers,
          config: config,
          configKeys: configKeys,
@@ -45,12 +41,8 @@ class LocalModelsUseCase implements CommandContribution {
          agents: agents,
          platform: platform,
          clock: clock,
-         startTimer: startTimer,
        ) {
-    _downloadPane = DownloadPane(
-      operations: _operations,
-      startTimer: startTimer,
-    );
+    _downloadPane = DownloadPane(operations: _operations);
     final download = Command(
       id: 'models.download',
       title: 'Download models',
@@ -119,19 +111,16 @@ class LocalModelsUseCase implements CommandContribution {
           (_) => _stopGate(),
         ),
         status: latestThrottled(
-          Rx.combineLatest3(
+          Rx.combineLatest2(
             _operations.server,
-            _operations.failures,
             _operations.library,
-            (server, failure, library) => serverStatus(
+            (server, library) => serverStatus(
               server,
-              failure: failure,
               nameOf: (localId) => modelName(library, localId),
             ),
           ),
           interval: LocalModelsOperations.libraryInterval,
           clock: clock,
-          startTimer: startTimer,
         ),
         body: CommandFlow(
           invoke: _stopInvoke,

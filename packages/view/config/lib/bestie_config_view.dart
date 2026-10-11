@@ -1,7 +1,6 @@
 export 'package:bestie_config_use_case/bestie_config_use_case.dart';
 
 export 'src/models/credits_document.dart';
-export 'src/schema/app_config_contribution.dart';
 export 'src/schema/bestie_config_keys.dart';
 export 'src/schema/config_layout.dart';
 export 'src/schema/config_schema.dart';

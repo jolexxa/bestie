@@ -88,10 +88,6 @@ void main() {
     expect(platform.configFile, '/home/cow/.bestie/bestie.json');
     expect(platform.conversationsDir, '/home/cow/.bestie/conversations');
     expect(platform.sandboxesFile, '/home/cow/.bestie/sandboxes.json');
-    expect(
-      platform.modelCatalogCacheFile,
-      '/home/cow/.bestie/cache/models_dev.json',
-    );
     expect(platform.logsDir, '/home/cow/.bestie/logs');
     expect(platform.crashLogFile, '/home/cow/.bestie/logs/crash.log');
     expect(platform.nativeLogFile, '/home/cow/.bestie/logs/native.log');
@@ -102,7 +98,7 @@ void main() {
     expect(platform.serverExecutable, _server);
     expect(platform.modelsDir, '/home/cow/.bestie/models');
     expect(platform.runDir, '/home/cow/.bestie/run');
-    expect(platform.inferenceLockFile, '/home/cow/.bestie/run/inference.lock');
+    expect(platform.serverLockFile, '/home/cow/.bestie/run/server.lock');
     expect(platform.serverLogFile, '/home/cow/.bestie/logs/server.log');
   });
 }

@@ -34,13 +34,11 @@ class InstalledPane extends Pane {
   String get placeholder => 'Filter models…';
 
   @override
-  Stream<PaneStatus?> get status => Rx.combineLatest3(
+  Stream<PaneStatus?> get status => Rx.combineLatest2(
     _operations.server,
-    _operations.failures,
     _operations.library,
-    (server, failure, library) => serverBand(
+    (server, library) => serverBand(
       server,
-      failure: failure,
       nameOf: (localId) => modelName(library, localId),
       freeBytes: _operations.freeMemoryBytes,
       retry: _retryServer,

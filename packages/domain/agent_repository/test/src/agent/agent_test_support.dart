@@ -1,14 +1,14 @@
 import 'dart:async';
 
-import 'package:agent_provider_protocol/agent_provider_protocol.dart';
 import 'package:agent_repository/agent_repository.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:prompt_builder/prompt_builder.dart';
 import 'package:tool_protocol/tool_protocol.dart';
 
 // ── Mocks ─────────────────────────────────────────────────
 
-class MockProvider extends Mock implements AgentProvider {}
+class MockAgentRuntime extends Mock implements AgentRuntime {}
 
 /// A [SubagentSystemPromptBuilder] that always returns [prompt].
 final class FixedSubagentSystemPromptBuilder

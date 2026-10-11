@@ -1,8 +1,8 @@
 import 'package:hugging_face_client/hugging_face_client.dart';
-import 'package:llm_model_profiles/llm_model_profiles.dart';
 import 'package:local_models_repository/local_models_repository.dart';
 import 'package:local_models_repository/src/repo_resolver.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:model_profiles/model_profiles.dart';
 import 'package:test/test.dart';
 
 import 'support/fixtures.dart';

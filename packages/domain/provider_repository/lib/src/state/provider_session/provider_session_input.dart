@@ -1,8 +1,8 @@
 import 'package:intentions/intentions.dart';
 import 'package:provider_protocol/provider_protocol.dart'
-    show ModelActivationResult;
+    show ProviderModelLoadProgress, ProviderModelLoadResult;
 import 'package:provider_repository/src/models/provider_settings.dart';
-import 'package:provider_repository/src/state/provider_session/provider_probe.dart';
+import 'package:provider_repository/src/state/provider_session/model_resolution.dart';
 
 @model
 sealed class ProviderSessionInput {
@@ -23,62 +23,52 @@ final class ReconnectProvider extends ProviderSessionInput {
   const ReconnectProvider();
 }
 
-/// A probe started under [attempt] finished.
+/// Stop running the chosen model until the settings change or a reconnect.
 @model
-final class ProbeCompleted extends ProviderSessionInput {
-  const ProbeCompleted({required this.attempt, required this.outcome});
-
-  final int attempt;
-  final ProbeOutcome outcome;
+final class StopProvider extends ProviderSessionInput {
+  const StopProvider();
 }
 
-/// The model activated under [attempt] is [progress] of the way ready.
+/// Looking up the chosen model, started under [attempt], finished.
 @model
-final class ActivationProgressed extends ProviderSessionInput {
-  const ActivationProgressed({required this.attempt, required this.progress});
+final class ModelResolved extends ProviderSessionInput {
+  const ModelResolved({required this.attempt, required this.resolution});
 
   final int attempt;
-
-  /// From 0 to 1.
-  final double progress;
+  final ModelResolution resolution;
 }
 
-/// The activation started under [attempt] ended.
+/// The model loading under [attempt] got further.
 @model
-final class ActivationCompleted extends ProviderSessionInput {
-  const ActivationCompleted({required this.attempt, required this.result});
+final class LoadProgressed extends ProviderSessionInput {
+  const LoadProgressed({required this.attempt, required this.progress});
 
   final int attempt;
-  final ModelActivationResult result;
+  final ProviderModelLoadProgress progress;
 }
 
-/// The model activated under [attempt] is no longer served.
+/// The load started under [attempt] ended.
 @model
-final class ActivationLost extends ProviderSessionInput {
-  const ActivationLost({required this.attempt});
+final class LoadCompleted extends ProviderSessionInput {
+  const LoadCompleted({required this.attempt, required this.result});
+
+  final int attempt;
+  final ProviderModelLoadResult result;
+}
+
+/// The model loaded under [attempt] is no longer served.
+@model
+final class ModelLost extends ProviderSessionInput {
+  const ModelLost({required this.attempt});
 
   final int attempt;
 }
 
-/// The wait before activating a lost model again, started under [attempt],
-/// is over.
+/// The wait before loading a lost model again, started under [attempt], is
+/// over.
 @model
 final class RecoveryDue extends ProviderSessionInput {
   const RecoveryDue({required this.attempt});
 
   final int attempt;
-}
-
-/// The provider [providerId] would now list different models.
-@model
-final class ModelsChanged extends ProviderSessionInput {
-  const ModelsChanged(this.providerId);
-
-  final String providerId;
-}
-
-/// Stop running the chosen model until the settings change or a reconnect.
-@model
-final class StopProvider extends ProviderSessionInput {
-  const StopProvider();
 }

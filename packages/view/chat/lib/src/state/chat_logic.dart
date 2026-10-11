@@ -45,6 +45,7 @@ sealed class ChatState extends StateLogic<ChatState> {
     on<SubagentsChanged>(_onSubagentsChanged);
     on<ActiveJobsChanged>(_onActiveJobsChanged);
     on<SandboxReadinessChanged>(_onSandboxReadinessChanged);
+    on<ReasoningReset>(_onReasoningReset);
     on<InitializeSandbox>(_onInitializeSandbox);
     on<WriteAccessRequestChanged>(_onWriteAccessRequestChanged);
     on<AnswerWriteAccess>(_onAnswerWriteAccess);
@@ -187,6 +188,12 @@ sealed class ChatState extends StateLogic<ChatState> {
   }
 
   // ── Shared handlers ───────────────────────────────────
+
+  Transition _onReasoningReset(ReasoningReset input) {
+    data.reasoningMode = input.mode;
+    output(const StateUpdated());
+    return toSelf();
+  }
 
   Transition _onSandboxReadinessChanged(SandboxReadinessChanged input) {
     data.sandboxReadiness = input.readiness;
@@ -355,8 +362,7 @@ sealed class ChatState extends StateLogic<ChatState> {
   // ── Shared provider status routing ────────────────────
 
   /// Common routing applied by chat states that don't specially handle the
-  /// ready phase. `InitializingState` overrides this in its handler to call
-  /// `_onReady` and attach the primary.
+  /// ready phase. `InitializingState` moves on to ready in its own handler.
   Transition _routeStatus(ProviderStatus status) {
     return switch (status) {
       ProviderStatusReady() => to<InitializingState>(),
@@ -393,7 +399,7 @@ final class UninitializedState extends ChatState {
 final class InitializingState extends ChatState {
   InitializingState() {
     // If the provider is already ready when we enter, re-inject its status so
-    // the handler below attaches immediately.
+    // the handler below moves on immediately.
     onEnter(() {
       final status = provider.status;
       if (status is ProviderStatusReady) {
@@ -403,7 +409,7 @@ final class InitializingState extends ChatState {
 
     on<ProviderStatusChanged>((input) {
       return switch (input.status) {
-        final ProviderStatusReady ready => _onReady(ready),
+        ProviderStatusReady() => to<ReadyState>(),
         ProviderStatusConnecting() => _refreshAndStay(),
         ProviderStatusUnconfigured() => _fail(
           ChatStrings.providerUnconfigured,
@@ -416,23 +422,6 @@ final class InitializingState extends ChatState {
   Transition _refreshAndStay() {
     output(const StateUpdated());
     return toSelf();
-  }
-
-  Transition _onReady(ProviderStatusReady status) {
-    final primaryHandle = status.handle;
-    final isFreshPrimary = !identical(data.lastPrimaryHandle, primaryHandle);
-    data.lastPrimaryHandle = primaryHandle;
-
-    if (isFreshPrimary) {
-      data.reasoningMode = status.defaultReasoningMode;
-    }
-
-    useCase.attachSession(
-      primary: primaryHandle,
-      primaryContextSize: status.contextWindow,
-    );
-
-    return to<ReadyState>();
   }
 
   @override
@@ -804,6 +793,7 @@ final class ChatLogic extends LogicBlock<ChatState> {
   StreamSubscription<ConversationState>? _conversationSub;
   StreamSubscription<ConversationReplacement>? _replacementSub;
   StreamSubscription<void>? _rewindRequestSub;
+  StreamSubscription<String>? _reasoningResetSub;
   StreamSubscription<List<SubagentSummary>>? _subagentsSub;
   StreamSubscription<int>? _activeJobsSub;
   StreamSubscription<SandboxReadiness>? _sandboxSub;
@@ -838,6 +828,9 @@ final class ChatLogic extends LogicBlock<ChatState> {
     _rewindRequestSub = useCase.rewindRequests.listen(
       (_) => input(const EnterRewind()),
     );
+    _reasoningResetSub = useCase.reasoningResets.listen(
+      (mode) => input(ReasoningReset(mode)),
+    );
     _subagentsSub = useCase.subagentSummariesStream.listen(
       (roster) => input(SubagentsChanged(roster)),
     );
@@ -865,6 +858,7 @@ final class ChatLogic extends LogicBlock<ChatState> {
     unawaited(_conversationSub?.cancel());
     unawaited(_replacementSub?.cancel());
     unawaited(_rewindRequestSub?.cancel());
+    unawaited(_reasoningResetSub?.cancel());
     unawaited(_subagentsSub?.cancel());
     unawaited(_activeJobsSub?.cancel());
     _activeJobsSub = null;
@@ -872,6 +866,7 @@ final class ChatLogic extends LogicBlock<ChatState> {
     _conversationSub = null;
     _replacementSub = null;
     _rewindRequestSub = null;
+    _reasoningResetSub = null;
     _subagentsSub = null;
     _selectionBinding?.dispose();
     _selectionBinding = null;

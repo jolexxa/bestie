@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:ffi';
 import 'dart:io' show pid;
 
-import 'package:agent_provider_remote/agent_provider_remote.dart';
 import 'package:agent_repository/agent_repository.dart';
 import 'package:agentic_terminal/agentic_terminal.dart';
 import 'package:app_shell_use_case/app_shell_use_case.dart';
@@ -14,6 +13,7 @@ import 'package:bestie/src/app/models/app_metadata.dart';
 import 'package:bestie/src/app/prompts/compaction_prompt_content_builder.dart';
 import 'package:bestie/src/app/prompts/dynamic_system_prompt.dart';
 import 'package:bestie/src/app/prompts/subagent_system_prompt_builder.dart';
+import 'package:bestie/src/app/providers.dart';
 import 'package:bestie/src/app/tools/process_host_builder.dart';
 import 'package:bestie/src/app/tools/toolbox_builder.dart';
 import 'package:bestie_chat_use_case/bestie_chat_use_case.dart';
@@ -39,25 +39,17 @@ import 'package:file/file.dart' show FileSystem;
 import 'package:files_data_source/files_data_source.dart';
 import 'package:http/http.dart' as http;
 import 'package:hugging_face_client/hugging_face_client.dart';
-import 'package:inference_openai_compat/inference_openai_compat.dart';
 import 'package:intentions/intentions.dart';
-import 'package:local_inference_client/local_inference_client.dart';
-import 'package:local_inference_protocol/local_inference_protocol.dart'
-    show ModelIndex;
 import 'package:local_models_repository/local_models_repository.dart';
-import 'package:local_server_repository/local_server_repository.dart';
-import 'package:model_catalog_modelsdev/model_catalog_modelsdev.dart';
+import 'package:local_server_protocol/local_server_protocol.dart'
+    show ModelIndex;
 import 'package:model_downloader/model_downloader.dart';
 import 'package:model_index_store/model_index_store.dart';
-import 'package:openrouter_sdk/openrouter_sdk.dart' as openrouter;
 import 'package:path/path.dart' as p;
 import 'package:platform/platform.dart';
 import 'package:platform_repository/platform_repository.dart';
 import 'package:process_host/process_host.dart';
-import 'package:provider_fireworks/provider_fireworks.dart';
-import 'package:provider_openai_compat/provider_openai_compat.dart';
-import 'package:provider_openrouter/provider_openrouter.dart';
-import 'package:provider_protocol/provider_protocol.dart' show Provider;
+import 'package:provider_local/provider_local.dart';
 import 'package:provider_repository/provider_repository.dart';
 import 'package:sandbox_grant_store/sandbox_grant_store.dart';
 import 'package:sandbox_linux/sandbox_linux.dart';
@@ -69,10 +61,6 @@ import 'package:tool_protocol/tool_protocol.dart';
 import 'package:win32_dart/win32_dart.dart'
     show Capabilities, SidSucceeded, bestieReadCapabilityName, win32;
 
-const String openRouterAppTitle = 'Bestie';
-const String openRouterAppSite = 'https://hobbyfarm.ai';
-const List<String> openRouterAppCategories = ['cli-agent'];
-
 /// The constructed dependency graph for a running bestie process.
 @model
 class AppContext {
@@ -82,9 +70,7 @@ class AppContext {
     required this.terminalHost,
     required this.shellUserland,
     required this.httpClient,
-    required this.localInference,
     required this.localModelsRepository,
-    required this.localServerRepository,
     required this.providerRepository,
     required this.agentRepository,
     required this.shellRepository,
@@ -125,18 +111,12 @@ class AppContext {
 
   // Repositories
 
-  /// The hosted provider session: key, model, and the agents it hands out.
-  /// Shared by every hosted-provider data source; closed on [dispose].
+  /// The HTTP client every provider and the model hub share; closed on
+  /// [dispose].
   final http.Client httpClient;
-
-  /// The local model server's owner session, held until [dispose].
-  final LocalInferenceClient localInference;
 
   /// The models bestie downloaded and the ones in the user's folders.
   final LocalModelsRepository localModelsRepository;
-
-  /// The local model server as the owner session sees it.
-  final LocalServerRepository localServerRepository;
 
   final ProviderRepository providerRepository;
 
@@ -235,9 +215,7 @@ class AppContext {
     // save session
     await agentRepository.dispose();
     await providerRepository.dispose();
-    await localServerRepository.dispose();
     await localModelsRepository.dispose();
-    await localInference.close();
     httpClient.close();
     await configUseCase.dispose();
     await appShellUseCase.dispose();
@@ -412,10 +390,31 @@ class AppContext {
       fileSystem: fileSystem,
     );
 
+    final httpClient = http.Client();
+    final local = LocalProvider(
+      client: httpClient,
+      sessionClientFactory: http.Client.new,
+      fileSystem: fileSystem,
+      lockFile: platform.serverLockFile,
+      indexFile: p.join(platform.modelsDir, ModelIndex.fileName),
+      launch: LocalServerLaunch(
+        command: platform.serverExecutable,
+        bestieDir: platform.bestieDir,
+        logFile: platform.serverLogFile,
+      ),
+      pid: pid,
+    );
+    final providers = bestieProviders(
+      local: local,
+      httpClient: httpClient,
+      clock: clock,
+    );
+
     final configSchema = buildConfigSchema(
       defaultSystemPrompt: systemPrompt,
       defaultTheme: appThemeDefault.name,
       availableThemes: appThemes.keys.toList(),
+      providers: providers,
     );
     final parameters = configSchema.keys;
     final configLayout = configSchema.layout;
@@ -479,62 +478,9 @@ class AppContext {
           const BestieCompactionPromptContentBuilder(),
     );
 
-    final httpClient = http.Client();
-    final modelCatalog = ModelsDevCatalog(
-      client: httpClient,
-      cacheFile: fileSystem.file(platform.modelCatalogCacheFile),
-    );
-    final localInference = LocalInferenceClient(
-      client: httpClient,
-      sessionClientFactory: http.Client.new,
-      fileSystem: fileSystem,
-      lockFile: platform.inferenceLockFile,
-      indexFile: p.join(platform.modelsDir, ModelIndex.fileName),
-      launch: LocalServerLaunch(
-        command: platform.serverExecutable,
-        bestieDir: platform.bestieDir,
-        logFile: platform.serverLogFile,
-      ),
-      pid: pid,
-    );
     final providerRepository = ProviderRepository(
-      factories: ProviderSessionFactories(
-        providerFactory: (account) => _providerFor(
-          account,
-          httpClient: httpClient,
-          localInference: localInference,
-          localOptions: () => LocalProviderOptions(
-            contextCap: switch (configRepository.resolve(
-              parameters.provider.localContextCap.global,
-            )) {
-              0 => null,
-              final cap => cap,
-            },
-          ),
-          clock: clock,
-        ),
-        inferenceClientFactory: (endpoint) => OpenAiCompatInferenceClient(
-          endpoint: endpoint,
-          clientFactory: http.Client.new,
-        ),
-        agentProviderSpawner:
-            ({
-              required client,
-              required sessions,
-              required modelId,
-              required contextWindow,
-              required maxAgents,
-            }) => RemoteAgentProvider(
-              client: client,
-              sessions: sessions,
-              options: RemoteProviderOptions(
-                modelId: modelId,
-                contextWindow: contextWindow,
-                maxAgents: maxAgents,
-              ),
-            ),
-      ),
-      catalog: modelCatalog,
+      providers: providers,
+      clock: clock,
     );
 
     final providerUseCase = ProviderUseCase(
@@ -549,7 +495,6 @@ class AppContext {
       agentRepository: agentRepository,
       config: configRepository,
       configKeys: parameters.chat,
-      sampling: () => providerUseCase.sampling,
       dynamicSystemPrompt: dynamicSystemPrompt,
       paths: platform.paths,
     );
@@ -603,17 +548,13 @@ class AppContext {
       fileSystem: fileSystem,
       clock: clock,
     );
-    final localServerRepository = LocalServerRepository(
-      client: localInference,
-    );
     final localModelsUseCase = LocalModelsUseCase(
       library: localModelsRepository,
-      server: localServerRepository,
       providers: providerRepository,
       config: configRepository,
       configKeys: parameters.localModels,
       modelKey: parameters.provider.model,
-      providerId: localDescriptor.id,
+      providerId: local.id,
       agents: agentRepository,
       platform: platformRepository,
       clock: clock,
@@ -643,9 +584,7 @@ class AppContext {
       terminalHost: terminalHost,
       shellUserland: shellUserland,
       httpClient: httpClient,
-      localInference: localInference,
       localModelsRepository: localModelsRepository,
-      localServerRepository: localServerRepository,
       providerRepository: providerRepository,
       agentRepository: agentRepository,
       shellRepository: shellRepository,
@@ -670,50 +609,6 @@ class AppContext {
       toolDefinitions: toolDefinitions,
     );
   }
-}
-
-/// The provider that serves [account]'s models.
-Provider _providerFor(
-  ProviderAccount account, {
-  required http.Client httpClient,
-  required LocalInferenceClient localInference,
-  required LocalProviderOptionsReader localOptions,
-  required Clock clock,
-}) {
-  final descriptor = account.descriptor;
-  if (descriptor.id == localDescriptor.id) {
-    return localInference.provider(
-      descriptor: descriptor,
-      options: localOptions,
-    );
-  }
-  if (descriptor.id == openRouterDescriptor.id) {
-    return OpenRouterProvider(
-      client: openrouter.OpenRouter(
-        apiKey: account.apiKey,
-        httpReferer: openRouterAppSite,
-        appTitle: openRouterAppTitle,
-        appCategories: openRouterAppCategories.toSet(),
-      ),
-      apiKey: account.apiKey,
-      httpReferer: openRouterAppSite,
-      appTitle: openRouterAppTitle,
-      appCategories: openRouterAppCategories,
-    );
-  }
-  final inference = OpenAiCompatProvider(
-    descriptor: descriptor,
-    baseUrl: account.resolvedBaseUrl!,
-    apiKey: account.apiKey,
-    client: httpClient,
-  );
-  if (descriptor.id != fireworksDescriptor.id) return inference;
-  return FireworksProvider(
-    inference: inference,
-    apiKey: account.apiKey,
-    client: httpClient,
-    clock: clock,
-  );
 }
 
 /// The SID Windows derives for the capability [name], or null when it cannot.

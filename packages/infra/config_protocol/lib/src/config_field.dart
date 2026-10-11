@@ -22,7 +22,7 @@ abstract interface class ConfigFieldBase {
 }
 
 sealed class ConfigField<T> implements ConfigFieldBase {
-  ConfigField({
+  const ConfigField({
     required this.label,
     required this.description,
     this.unsetLabel,
@@ -68,7 +68,7 @@ sealed class ConfigField<T> implements ConfigFieldBase {
 }
 
 final class NumericField<T extends num> extends ConfigField<T> {
-  NumericField({
+  const NumericField({
     required super.label,
     required super.description,
     required this.min,
@@ -127,7 +127,7 @@ final class NumericField<T extends num> extends ConfigField<T> {
 }
 
 final class BoolField extends ConfigField<bool> {
-  BoolField({required super.label, required super.description});
+  const BoolField({required super.label, required super.description});
 
   @override
   bool adjust(bool current, int delta) => !current;
@@ -150,7 +150,7 @@ final class BoolField extends ConfigField<bool> {
 }
 
 final class EnumField<T> extends ConfigField<T> {
-  EnumField({
+  const EnumField({
     required super.label,
     required super.description,
     required this.options,
@@ -195,7 +195,7 @@ final class EnumField<T> extends ConfigField<T> {
 }
 
 final class OpaqueField<T> extends ConfigField<T> {
-  OpaqueField({
+  const OpaqueField({
     required super.label,
     required super.description,
     int maxLines = 1,
@@ -225,7 +225,7 @@ final class OpaqueField<T> extends ConfigField<T> {
 
 /// A list of text values, edited one per line.
 final class ListField extends ConfigField<List<String>> {
-  ListField({
+  const ListField({
     required super.label,
     required super.description,
     this.maxLines = 4,

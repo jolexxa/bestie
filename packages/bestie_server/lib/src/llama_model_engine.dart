@@ -1,13 +1,13 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:completion_runtime/completion_runtime.dart';
-import 'package:inference/inference.dart';
-import 'package:inference_llama/inference_llama.dart';
-import 'package:inference_runtime/inference_runtime.dart';
-import 'package:inference_server/inference_server.dart';
+import 'package:engine_completions/engine_completions.dart';
+import 'package:engine_llama/engine_llama.dart';
+import 'package:engine_protocol/engine_protocol.dart';
+import 'package:engine_scheduler/engine_scheduler.dart';
+import 'package:engine_templates/engine_templates.dart';
 import 'package:intentions/intentions.dart';
-import 'package:llm_model_templates/llm_model_templates.dart';
+import 'package:local_server/local_server.dart';
 
 /// The context settings every model loads with: flash attention, a KV cache
 /// shared by every sequence (q8_0, the options' default), and a ring of
@@ -186,7 +186,7 @@ final class LlamaModelEngine implements ModelEngine {
     final allocator = LeaseAllocator(context: context);
     final defaults = entry.defaultSampling;
     final loaded = _LlamaLoadedModel(
-      runtime: ScheduledCompletionRuntime(
+      runtime: ScheduledEngineCompletionRuntime(
         allocator: allocator,
         scheduler: BatchingSequenceScheduler(
           sequences: context.sequences,
@@ -237,7 +237,7 @@ final class _LlamaLoadedModel implements LoadedModel {
        _model = model;
 
   @override
-  final CompletionRuntime runtime;
+  final EngineCompletionRuntime runtime;
 
   @override
   final int deviceBytes;

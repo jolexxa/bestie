@@ -1,4 +1,6 @@
 import 'package:agent_repository/agent_repository.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
+    show TranscriptBlockLexer;
 import 'package:bestie_chat_view/src/view/details/activity_badge.dart';
 import 'package:bestie_chat_view/src/view/details/item_details.dart';
 import 'package:bestie_chat_view/src/view/details/item_details_mapping.dart';
@@ -170,6 +172,38 @@ void main() {
         ).asItemDetails.measurements)
           m.displayAt(_t0),
       ];
+      expect(displays, contains('100 tok'));
+      expect(displays, contains('50.0 tok/s'));
+    });
+
+    test('reads the same rate once a settled answer is split into lines', () {
+      final answer = TranscriptEntry(
+        id: TranscriptEntryId.v7(),
+        role: Role.assistant,
+        blocks: [
+          TranscriptParagraphBlock(
+            id: TranscriptBlockId.v7(),
+            text: 'one\ntwo\nthree\nfour\n',
+            stat: BlockStat(
+              startedAt: _t0,
+              endedAt: _t0.add(const Duration(seconds: 2)),
+              tokenCount: 100,
+            ),
+          ),
+        ],
+      );
+      final lexed = const TranscriptBlockLexer().lexEntry(answer);
+      final displays = [
+        for (final m in MessageTimelineItem(
+          id: 'm1',
+          role: Role.assistant,
+          timestamp: _t0,
+          blocks: lexed.blocks,
+        ).asItemDetails.measurements)
+          m.displayAt(_t0),
+      ];
+
+      expect(lexed.blocks, hasLength(4));
       expect(displays, contains('100 tok'));
       expect(displays, contains('50.0 tok/s'));
     });

@@ -39,27 +39,43 @@ final class AppConfigKeys {
     required this.mathColors,
   });
 
-  factory AppConfigKeys.defaults({required String defaultTheme}) =>
-      AppConfigKeys(
-        themeName: ConfigKey<String>(
-          id: 'app.theme',
-          path: const ['app', 'themeName'],
-          codec: ConfigCodecs.strings,
-          defaultValue: () => defaultTheme,
-        ),
-        themeEffects: ConfigKey<bool>(
-          id: 'app.theme_effects',
-          path: const ['app', 'themeEffects'],
-          codec: ConfigCodecs.booleans,
-          defaultValue: () => true,
-        ),
-        mathColors: ConfigKey<bool>(
-          id: 'app.math_colors',
-          path: const ['app', 'mathColors'],
-          codec: ConfigCodecs.booleans,
-          defaultValue: () => true,
-        ),
-      );
+  factory AppConfigKeys.defaults({
+    required String defaultTheme,
+    required List<String> availableThemes,
+  }) => AppConfigKeys(
+    themeName: ConfigKey<String>(
+      id: 'app.theme',
+      path: const ['app', 'themeName'],
+      codec: ConfigCodecs.strings,
+      defaultValue: () => defaultTheme,
+      field: EnumField<String>(
+        label: 'Theme',
+        description: 'Color theme used across the app.',
+        options: () => availableThemes,
+        optionLabel: (theme) => theme,
+      ),
+    ),
+    themeEffects: ConfigKey<bool>(
+      id: 'app.theme_effects',
+      path: const ['app', 'themeEffects'],
+      codec: ConfigCodecs.booleans,
+      defaultValue: () => true,
+      field: const BoolField(
+        label: 'Theme Effects',
+        description: 'Animated overlays for select themes.',
+      ),
+    ),
+    mathColors: ConfigKey<bool>(
+      id: 'app.math_colors',
+      path: const ['app', 'mathColors'],
+      codec: ConfigCodecs.booleans,
+      defaultValue: () => true,
+      field: const BoolField(
+        label: 'Math Colors',
+        description: 'Color each variable in rendered equations.',
+      ),
+    ),
+  );
 
   final ConfigKey<String> themeName;
   final ConfigKey<bool> themeEffects;

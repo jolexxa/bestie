@@ -1,7 +1,7 @@
 import 'package:file/file.dart';
 import 'package:file/local.dart';
 import 'package:intentions/intentions.dart';
-import 'package:local_inference_protocol/local_inference_protocol.dart';
+import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:model_index_store/src/json_file.dart';
 import 'package:model_index_store/src/store_result.dart';
 

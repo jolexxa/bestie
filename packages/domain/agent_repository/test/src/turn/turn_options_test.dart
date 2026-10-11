@@ -1,5 +1,5 @@
-import 'package:agent_provider_protocol/agent_provider_protocol.dart';
 import 'package:agent_repository/agent_repository.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart';
 import 'package:test/test.dart';
 
 void main() {

@@ -1,8 +1,8 @@
+import 'package:bestie_local_models_use_case/src/models/local_server_status.dart';
 import 'package:bestie_local_models_use_case/src/panes/model_details_pane.dart';
 import 'package:command_protocol/command_protocol.dart';
-import 'package:local_inference_protocol/local_inference_protocol.dart';
 import 'package:local_models_repository/local_models_repository.dart';
-import 'package:local_server_repository/local_server_repository.dart';
+import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/fixtures.dart';

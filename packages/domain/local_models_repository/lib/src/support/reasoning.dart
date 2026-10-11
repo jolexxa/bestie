@@ -2,7 +2,7 @@
 /// its chat template.
 library;
 
-import 'package:local_inference_protocol/local_inference_protocol.dart';
+import 'package:local_server_protocol/local_server_protocol.dart';
 
 const _gptOssEfforts = ['low', 'medium', 'high'];
 

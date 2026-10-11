@@ -1,5 +1,5 @@
 name: config_protocol
-description: Config vocabulary, presentation schema, and contribution protocol for Bestie.
+description: Config vocabulary and presentation schema for Bestie.
 version: 0.0.0
 publish_to: none
 

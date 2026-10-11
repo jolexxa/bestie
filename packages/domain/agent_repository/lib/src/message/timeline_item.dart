@@ -1,8 +1,8 @@
-import 'package:agent_provider_protocol/agent_provider_protocol.dart'
-    show BlockStat, Role, TranscriptBlock, TranscriptParagraphBlock;
 import 'package:agent_repository/src/conversation/job_in_background.dart';
 import 'package:agent_repository/src/conversation/job_report.dart';
 import 'package:agent_repository/src/message/model_snapshot.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
+    show BlockStat, Role, TranscriptBlock, TranscriptParagraphBlock;
 import 'package:intentions/intentions.dart';
 import 'package:tool_protocol/tool_protocol.dart'
     show ToolCall, ToolCallResponse;

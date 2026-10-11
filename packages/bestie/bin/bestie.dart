@@ -18,6 +18,7 @@ import 'package:io/io.dart';
 import 'package:nocterm/nocterm.dart';
 import 'package:platform/platform.dart';
 import 'package:platform_repository/platform_repository.dart';
+import 'package:posix_dart/posix_dart.dart';
 import 'package:process_host/process_host.dart';
 import 'package:process_host_posix/process_host_posix.dart';
 import 'package:sandbox_windows/sandbox_windows.dart'
@@ -145,7 +146,9 @@ OSPlatformRepository composePlatformRepository({
           environment: platform.environment,
         ),
       ),
-      diskSpaceDataSource: MacOSDiskSpaceDataSource(),
+      diskSpaceDataSource: MacOSDiskSpaceDataSource(
+        reader: MacosStatvfsReader(),
+      ),
       terminalEnvironmentDataSource: BestiePosixDataSource(
         platform: osPlatform,
       ),
@@ -172,7 +175,9 @@ OSPlatformRepository composePlatformRepository({
           environment: platform.environment,
         ),
       ),
-      diskSpaceDataSource: LinuxDiskSpaceDataSource(),
+      diskSpaceDataSource: LinuxDiskSpaceDataSource(
+        reader: LinuxStatvfsReader(),
+      ),
       terminalEnvironmentDataSource: BestiePosixDataSource(
         platform: osPlatform,
       ),

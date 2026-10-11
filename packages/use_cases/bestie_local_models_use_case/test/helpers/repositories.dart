@@ -1,13 +1,12 @@
 import 'dart:async';
 
-import 'package:agent_provider_protocol/agent_provider_protocol.dart';
 import 'package:agent_repository/agent_repository.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart';
 import 'package:bestie_local_models_use_case/bestie_local_models_use_case.dart';
 import 'package:bestie_platform_abstractions/bestie_platform_abstractions.dart';
 import 'package:config_protocol/config_protocol.dart';
 import 'package:config_repository/testing.dart';
 import 'package:local_models_repository/local_models_repository.dart';
-import 'package:local_server_repository/local_server_repository.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:platform_repository/platform_repository.dart';
 import 'package:provider_protocol/provider_protocol.dart';
@@ -19,9 +18,6 @@ import 'fixtures.dart';
 final class MockLocalModelsRepository extends Mock
     implements LocalModelsRepository {}
 
-final class MockLocalServerRepository extends Mock
-    implements LocalServerRepository {}
-
 final class MockAgentRepository extends Mock implements AgentRepository {}
 
 final class MockProviderRepository extends Mock implements ProviderRepository {}
@@ -31,7 +27,7 @@ final class MockAgentSession extends Mock implements AgentSession {}
 final class MockOSPlatformRepository extends Mock
     implements OSPlatformRepository {}
 
-final class MockAgentProvider extends Mock implements AgentProvider {}
+final class MockAgentRuntime extends Mock implements AgentRuntime {}
 
 const localProviderId = 'local';
 
@@ -40,6 +36,7 @@ final modelKey = ConfigKey<String>(
   path: const ['provider', 'model'],
   codec: ConfigCodecs.strings,
   defaultValue: () => '',
+  field: const OpaqueField(label: 'Model', description: 'Which model.'),
 );
 
 /// Every repository the use case talks to, mocked or faked, with streams the
@@ -50,7 +47,7 @@ final class Repositories {
     when(() => library.current).thenReturn(readyLibrary);
     when(() => library.setFolders(any())).thenAnswer((_) async {});
     when(library.start).thenAnswer((_) async => const LedgerRestored());
-    when(() => server.status).thenAnswer((_) => serverChanges.stream);
+    when(() => agents.poolStream).thenAnswer((_) => poolChanges.stream);
     when(() => providers.status).thenAnswer((_) => providerStatus);
     when(
       () => providers.statusStream,
@@ -69,7 +66,6 @@ final class Repositories {
   }
 
   final library = MockLocalModelsRepository();
-  final server = MockLocalServerRepository();
   final providers = MockProviderRepository();
   final config = FakeConfigRepository();
   final configKeys = LocalModelsConfigKeys.defaults();
@@ -77,7 +73,7 @@ final class Repositories {
   final primary = MockAgentSession();
   final platform = MockOSPlatformRepository();
   final libraryChanges = StreamController<ModelLibrary>.broadcast();
-  final serverChanges = StreamController<LocalServerStatus>.broadcast();
+  final poolChanges = StreamController<ContextPoolSnapshot>.broadcast();
   final providerChanges = StreamController<ProviderStatus>.broadcast();
   ProviderStatus providerStatus = const ProviderStatusUnconfigured();
   ConversationPhase phase = ConversationPhase.idle;
@@ -102,20 +98,31 @@ ProviderStatusReady runningOn(
   model: ResolvedModel(
     ref: ProviderModelRef(providerId: providerId, modelId: modelId),
     name: modelId,
+    providerName: providerId,
     contextWindow: 32768,
     supportsTools: true,
   ),
-  handle: MockAgentProvider(),
-  keyInfo: null,
-  providerName: providerId,
+  runtime: MockAgentRuntime(),
+  maxAgents: 3,
+  deviceBytes: 5 * gigabyte,
 );
 
-/// The app getting [modelId] on [providerId] ready.
+/// The app getting [modelId] on [providerId] ready, [progress] along once
+/// its provider says.
 ProviderStatusConnecting connectingTo(
   String modelId, {
   String providerId = localProviderId,
+  ProviderModelLoadProgress? progress,
 }) => ProviderStatusConnecting(
   model: ProviderModelRef(providerId: providerId, modelId: modelId),
+  loading: progress == null
+      ? null
+      : LoadingModel(
+          name: modelId,
+          providerName: providerId,
+          contextWindow: 32768,
+          progress: progress,
+        ),
 );
 
 /// The app unable to run [modelId] on [providerId] for [failure].

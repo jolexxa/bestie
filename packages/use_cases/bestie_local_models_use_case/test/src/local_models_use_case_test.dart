@@ -8,8 +8,9 @@ import 'package:bestie_local_models_use_case/src/panes/installed_pane.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:local_models_repository/local_models_repository.dart';
-import 'package:local_server_repository/local_server_repository.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:provider_protocol/provider_protocol.dart'
+    show ProviderModelLoading, ProviderOccupied;
 import 'package:test/test.dart';
 
 import '../helpers/fixtures.dart';
@@ -23,7 +24,6 @@ void main() {
     repositories = Repositories();
     useCase = LocalModelsUseCase(
       library: repositories.library,
-      server: repositories.server,
       providers: repositories.providers,
       config: repositories.config,
       configKeys: repositories.configKeys,
@@ -277,7 +277,6 @@ void main() {
       fakeAsync((async) {
         final paced = LocalModelsUseCase(
           library: repositories.library,
-          server: repositories.server,
           providers: repositories.providers,
           config: repositories.config,
           configKeys: repositories.configKeys,
@@ -299,17 +298,25 @@ void main() {
         );
         async.flushMicrotasks();
 
-        repositories.serverChanges.add(
-          const ServerOwnedElsewhere(ownerPid: 4121),
+        repositories.report(
+          failedOn(
+            'qwen3-8b',
+            const ProviderOccupied(
+              'Another bestie (pid 4121) is using Bestie Server.',
+            ),
+          ),
         );
-        async.flushMicrotasks();
+        async.elapse(LocalModelsOperations.libraryInterval);
         expect(statuses.last, '⚠ in use elsewhere');
         expect(availability.last, isA<Unavailable>());
 
         async.elapse(LocalModelsOperations.libraryInterval);
         for (final progress in [.1, .2, .3]) {
-          repositories.serverChanges.add(
-            ServerLoading(localId: 'qwen3-8b', progress: progress),
+          repositories.report(
+            connectingTo(
+              'qwen3-8b',
+              progress: ProviderModelLoading(progress),
+            ),
           );
         }
         async.flushMicrotasks();

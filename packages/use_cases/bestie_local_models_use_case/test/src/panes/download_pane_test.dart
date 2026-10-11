@@ -42,8 +42,7 @@ void main() {
     );
   });
 
-  DownloadPane paneOf() =>
-      DownloadPane(operations: operations, startTimer: Timer.new);
+  DownloadPane paneOf() => DownloadPane(operations: operations);
 
   void answer(String query, RepoSearchResult result) => when(
     () => operations.search(query),

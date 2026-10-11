@@ -1,13 +1,11 @@
 import 'dart:async';
 
-import 'package:agent_provider_protocol/agent_provider_protocol.dart'
-    show AgentProvider;
 import 'package:agent_repository/agent_repository.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
+    show AgentRuntime;
 import 'package:bestie_provider_use_case/bestie_provider_use_case.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:config_repository/testing.dart';
-import 'package:inference_protocol/inference_protocol.dart'
-    show InferenceFailureKind;
 import 'package:mocktail/mocktail.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 import 'package:provider_repository/provider_repository.dart';
@@ -16,18 +14,20 @@ import 'package:test/test.dart';
 final class _MockProviderRepository extends Mock
     implements ProviderRepository {}
 
-final class _MockAgentProvider extends Mock implements AgentProvider {}
+final class _MockAgentRuntime extends Mock implements AgentRuntime {}
 
 final class _MockAgentRepository extends Mock implements AgentRepository {}
 
 final class _MockAgentSession extends Mock implements AgentSession {}
+
+final class _MockProvider extends Mock implements Provider {}
 
 const _modelRef = ProviderModelRef(
   providerId: 'openrouter',
   modelId: 'org/model',
 );
 
-const _model = ProviderModel(
+const _model = ProviderModelInfo(
   id: 'org/model',
   name: 'Model',
   contextLength: 8192,
@@ -39,7 +39,7 @@ const _fireworksRef = ProviderModelRef(
   modelId: 'accounts/fireworks/models/kimi',
 );
 
-const _fireworksModel = ProviderModel(
+const _fireworksModel = ProviderModelInfo(
   id: 'accounts/fireworks/models/kimi',
   name: 'Kimi',
   contextLength: 131072,
@@ -48,16 +48,51 @@ const _fireworksModel = ProviderModel(
 
 const _emptyList = ModelList(models: [], failures: []);
 
-const _failure = ProviderFailure(
-  kind: InferenceFailureKind.network,
-  message: 'offline',
+Provider _provider(
+  String id,
+  String displayName,
+  ProviderCredentialsKind credentialsKind,
+) {
+  final provider = _MockProvider();
+  when(() => provider.id).thenReturn(id);
+  when(() => provider.displayName).thenReturn(displayName);
+  when(() => provider.credentialsKind).thenReturn(credentialsKind);
+  return provider;
+}
+
+final Provider _local = _provider(
+  'local',
+  'Bestie Server',
+  ProviderCredentialsKind.none,
 );
+
+final Provider _custom = _provider(
+  'custom',
+  'Custom endpoint',
+  ProviderCredentialsKind.endpoint,
+);
+
+final Provider _openRouter = _provider(
+  'openrouter',
+  'OpenRouter',
+  ProviderCredentialsKind.apiKey,
+);
+
+final Provider _fireworks = _provider(
+  'fireworks',
+  'Fireworks AI',
+  ProviderCredentialsKind.apiKey,
+);
+
+final List<Provider> _providers = [_local, _custom, _openRouter, _fireworks];
+
+const _failure = ProviderUnreachable('offline');
 
 final class _Harness {
   _Harness({Map<String, Object?> values = const {}}) {
     config = FakeConfigRepository(values);
     registerFallbackValue(
-      const ProviderSettings(accounts: [], model: null, maxAgents: 1),
+      const ProviderSettings(credentials: {}, model: null, maxAgents: 1),
     );
     when(() => repository.status).thenAnswer((_) => status);
     when(
@@ -82,7 +117,7 @@ final class _Harness {
   final repository = _MockProviderRepository();
   final agents = _MockAgentRepository();
   final primarySession = _MockAgentSession();
-  final configKeys = ProviderConfigKeys.defaults();
+  final configKeys = ProviderConfigKeys.forProviders(_providers);
   final statusController = StreamController<ProviderStatus>.broadcast();
   final conversationController =
       StreamController<ConversationState>.broadcast();
@@ -118,12 +153,13 @@ final class _Harness {
       model: const ResolvedModel(
         ref: _modelRef,
         name: 'Model',
+        providerName: 'Example',
         contextWindow: 8192,
         supportsTools: true,
       ),
-      handle: _MockAgentProvider(),
-      keyInfo: const ProviderKeyInfo(label: 'k', usage: 0, isFreeTier: true),
-      providerName: 'Example',
+      runtime: _MockAgentRuntime(),
+      maxAgents: 3,
+      deviceBytes: null,
     );
     statusController.add(status);
   }
@@ -146,67 +182,95 @@ extension on Command {
 }
 
 void main() {
-  group('ProviderConfigContribution', () {
-    test('contributes every provider key as a global entry', () {
-      final contribution = ProviderConfigContribution();
-      final keys = contribution.configKeys;
+  group('ProviderConfigKeys', () {
+    final keys = ProviderConfigKeys.forProviders(_providers);
+    final local = keys.accounts[0];
+    final custom = keys.accounts[1];
+    final openRouter = keys.accounts[2];
+    final fireworks = keys.accounts[3];
 
-      expect(contribution.entries.map((entry) => entry.key), [
-        keys.openRouterApiKey,
-        keys.fireworksApiKey,
-        keys.customBaseUrl,
-        keys.customApiKey,
-        keys.customContextWindow,
-        keys.localContextCap,
+    test('keeps an account per provider, in the order given', () {
+      expect(keys.accounts.map((account) => account.provider), _providers);
+    });
+
+    test('builds the settings from every account and session key', () {
+      expect(keys.settingsKeys, [
+        custom.baseUrl,
+        custom.apiKey,
+        custom.contextWindow,
+        openRouter.apiKey,
+        fireworks.apiKey,
         keys.model,
         keys.maxAgents,
-        keys.sampling.temperature,
-        keys.sampling.topP,
-        keys.sampling.frequencyPenalty,
-        keys.sampling.presencePenalty,
-        keys.sampling.seed,
-      ]);
-      expect(keys.sessionKeys, [
-        keys.openRouterApiKey,
-        keys.fireworksApiKey,
-        keys.customBaseUrl,
-        keys.customApiKey,
-        keys.customContextWindow,
-        keys.model,
-        keys.maxAgents,
+        keys.contextCap,
       ]);
       expect(keys.model.defaultValue(), defaultProviderModel);
-      expect(keys.customContextWindow.defaultValue(), 32768);
-      expect(keys.openRouterApiKey.path, ['provider', 'openrouter', 'apiKey']);
-      expect(keys.fireworksApiKey.path, ['provider', 'fireworks', 'apiKey']);
-      expect(keys.customBaseUrl.id, 'provider.custom.base_url');
-      expect(keys.customContextWindow.path, [
+    });
+
+    test('keeps every setting where it was stored', () {
+      expect(openRouter.apiKey.id, 'provider.openrouter.api_key');
+      expect(openRouter.apiKey.path, ['provider', 'openrouter', 'apiKey']);
+      expect(fireworks.apiKey.path, ['provider', 'fireworks', 'apiKey']);
+      expect(custom.apiKey.id, 'provider.custom.api_key');
+      expect(custom.baseUrl.id, 'provider.custom.base_url');
+      expect(custom.baseUrl.path, ['provider', 'custom', 'baseUrl']);
+      expect(custom.contextWindow.id, 'provider.custom.context_window');
+      expect(custom.contextWindow.path, [
         'provider',
         'custom',
         'contextWindow',
       ]);
-      expect(keys.sampling.topP.path, ['provider', 'sampling', 'topP']);
-      expect(keys.localContextCap.path, ['provider', 'local', 'contextCap']);
-      expect(keys.localContextCap.defaultValue(), 0);
+      expect(custom.contextWindow.defaultValue(), defaultCustomContextWindow);
+      expect(keys.contextCap.id, 'provider.local.context_cap');
+      expect(keys.contextCap.path, ['provider', 'local', 'contextCap']);
+      expect(keys.contextCap.defaultValue(), 0);
     });
 
-    test('masks every API key', () {
-      final entries = ProviderConfigContribution().entries.toList();
-
+    test('shows each provider only the settings it has', () {
+      expect(local.keys, isEmpty);
+      expect(local.addresses, isEmpty);
+      expect(custom.keys, [
+        custom.baseUrl,
+        custom.apiKey,
+        custom.contextWindow,
+      ]);
+      expect(openRouter.keys, [openRouter.apiKey]);
       expect(
-        [for (final entry in entries) entry.field.secret],
-        [
-          true,
-          true,
-          false,
-          true,
-          false,
-          false,
-          false,
-          false,
-          ...List.filled(5, false),
-        ],
+        openRouter.addresses.map((address) => address.key),
+        [openRouter.apiKey],
       );
+    });
+
+    test('words every field after its provider', () {
+      expect(openRouter.apiKey.field.label, 'OpenRouter API key');
+      expect(
+        openRouter.apiKey.field.description,
+        'Your OpenRouter key. Bestie reconnects when it changes.',
+      );
+      expect(custom.apiKey.field.label, 'Custom endpoint API key');
+      expect(
+        custom.apiKey.field.description,
+        'Bearer token for the endpoint, if it wants one.',
+      );
+      expect(custom.baseUrl.field.label, 'Custom endpoint URL');
+      expect(
+        custom.contextWindow.field.label,
+        'Custom endpoint context window',
+      );
+    });
+
+    test('masks every API key and nothing else', () {
+      final secret = [openRouter.apiKey, fireworks.apiKey, custom.apiKey];
+      final shown = [
+        custom.baseUrl,
+        custom.contextWindow,
+        keys.contextCap,
+        keys.model,
+        keys.maxAgents,
+      ];
+
+      expect(secret.map((key) => key.field.secret), everyElement(isTrue));
+      expect(shown.map((key) => key.field.secret), everyElement(isFalse));
     });
   });
 
@@ -215,28 +279,32 @@ void main() {
       final harness = _Harness(values: {'provider.openrouter.api_key': 'sk'});
 
       expect(harness.configured, [
-        ProviderSettings(
-          accounts: [
-            const ProviderAccount(descriptor: localDescriptor, apiKey: ''),
-            const ProviderAccount(
-              descriptor: customDescriptor,
-              apiKey: '',
-              fallbackContextWindow: 32768,
-            ),
-            const ProviderAccount(
-              descriptor: openRouterDescriptor,
-              apiKey: 'sk',
-            ),
-            ProviderAccount(descriptor: fireworksDescriptor, apiKey: ''),
-          ],
-          model: const ProviderModelRef(
+        const ProviderSettings(
+          credentials: {'openrouter': ApiKeyCredentials('sk')},
+          model: ProviderModelRef(
             providerId: 'openrouter',
             modelId: 'openai/gpt-4o-mini',
           ),
           maxAgents: 3,
         ),
       ]);
-      expect(harness.useCase.settings.accountFor('openrouter')!.apiKey, 'sk');
+    });
+
+    test('trims the API key it is given', () {
+      final harness = _Harness(
+        values: {'provider.openrouter.api_key': ' sk\n'},
+      );
+
+      expect(
+        harness.useCase.settings.credentials['openrouter'],
+        const ApiKeyCredentials('sk'),
+      );
+    });
+
+    test('gives no credentials for a key left blank', () {
+      final harness = _Harness(values: {'provider.fireworks.api_key': '  '});
+
+      expect(harness.useCase.settings.credentials, isEmpty);
     });
 
     test('reads the custom endpoint from config', () {
@@ -249,34 +317,51 @@ void main() {
         },
       );
 
-      final custom = harness.useCase.settings.accountFor('custom')!;
-      expect(custom.baseUrl, Uri.parse('http://localhost:8080/v1'));
-      expect(custom.apiKey, 'tok');
-      expect(custom.fallbackContextWindow, 8192);
-      expect(custom.isUsable, isTrue);
+      expect(
+        harness.useCase.settings.credentials['custom'],
+        EndpointCredentials(
+          baseUrl: Uri.parse('http://localhost:8080/v1'),
+          apiKey: 'tok',
+          fallbackContextWindow: 8192,
+        ),
+      );
       expect(
         harness.useCase.settings.model,
         const ProviderModelRef(providerId: 'custom', modelId: 'local'),
       );
     });
 
-    test('offers local models without an account to set up', () {
-      final local = _Harness().useCase.settings.accountFor('local')!;
+    test('reaches an endpoint without a key when it wants none', () {
+      final harness = _Harness(
+        values: {'provider.custom.base_url': 'http://localhost:8080/v1'},
+      );
 
-      expect(local.descriptor, localDescriptor);
-      expect(local.isUsable, isTrue);
+      final credentials =
+          harness.useCase.settings.credentials['custom']!
+              as EndpointCredentials;
+      expect(credentials.apiKey, isNull);
+      expect(credentials.fallbackContextWindow, defaultCustomContextWindow);
     });
 
     test('ignores a custom endpoint that is not an absolute URL', () {
       final harness = _Harness(values: {'provider.custom.base_url': 'garbage'});
 
-      expect(harness.useCase.settings.accountFor('custom')!.baseUrl, isNull);
+      expect(harness.useCase.settings.credentials, isEmpty);
     });
 
-    test('reconfigures when a session key changes', () async {
+    test('caps the context at the configured cap', () {
+      final harness = _Harness(values: {'provider.local.context_cap': 8192});
+
+      expect(harness.useCase.settings.contextCap, 8192);
+    });
+
+    test('leaves the context uncapped when the cap is zero', () {
+      expect(_Harness().useCase.settings.contextCap, isNull);
+    });
+
+    test('reconfigures when a settings key changes', () async {
       final harness = _Harness();
       harness.config['provider.model'] = 'openrouter:org/other';
-      harness.config['provider.sampling.temperature'] = 0.2;
       await pumpEventQueue();
 
       final configured = harness.configured;
@@ -284,46 +369,20 @@ void main() {
       expect(configured.last.model?.modelId, 'org/other');
     });
 
-    test('resolves sampling from config', () {
-      final harness = _Harness(
-        values: {
-          'provider.sampling.seed': 7,
-          'provider.sampling.temperature': 0.3,
-          'provider.sampling.top_p': 0.9,
-          'provider.sampling.frequency_penalty': 0.5,
-          'provider.sampling.presence_penalty': 0.25,
-        },
-      );
-
-      final sampling = harness.useCase.sampling;
-
-      expect(sampling.seed, 7);
-      expect(sampling.temperature, 0.3);
-      expect(sampling.topP, 0.9);
-      expect(sampling.penaltyFreq, 0.5);
-      expect(sampling.penaltyPresent, 0.25);
-      expect(_Harness().useCase.sampling.seed, 0);
-    });
-
-    test('leaves unset sampling to the model', () {
-      final sampling = _Harness().useCase.sampling;
-
-      expect(sampling.temperature, isNull);
-      expect(sampling.topP, isNull);
-      expect(sampling.penaltyFreq, isNull);
-      expect(sampling.penaltyPresent, isNull);
-    });
-
-    test('forwards status, key info, models, and reconnects', () async {
+    test('ignores changes to keys the settings are not built from', () async {
       final harness = _Harness();
-      when(harness.repository.keyInfo).thenAnswer(
-        (_) async => const KeyInfoFailed(_failure),
-      );
+      harness.config['app.theme'] = 'dark';
+      await pumpEventQueue();
+
+      expect(harness.configured, hasLength(1));
+    });
+
+    test('forwards status, models, and reconnects', () async {
+      final harness = _Harness();
       when(harness.repository.models).thenAnswer((_) async => _emptyList);
 
       expect(harness.useCase.status, isA<ProviderStatusUnconfigured>());
       expect(harness.useCase.statusStream, harness.statusController.stream);
-      expect(await harness.useCase.keyInfo(), isA<KeyInfoFailed>());
       expect(await harness.useCase.models(), _emptyList);
       harness.useCase.reconnect();
       verify(harness.repository.reconnect).called(1);
@@ -571,7 +630,7 @@ void main() {
         expect(options.map((option) => option.label), ['Model', 'Kimi']);
         expect(options.map((option) => option.detail), [
           'OpenRouter · org/model',
-          'Fireworks AI · accounts/fireworks/models/kimi (no key)',
+          'Fireworks AI · accounts/fireworks/models/kimi (not set up)',
         ]);
         expect(options.map((option) => option.keywords), [
           'OpenRouter Model org/model',

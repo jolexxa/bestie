@@ -49,52 +49,52 @@ package "bestie" {
   class GgufReader << dataSource >>
   class HubClient << dataSource >>
   class InteractiveTerminalView << view >>
-  package "LocalInferenceClient" as _LocalInferenceClient {
-    class LocalInferenceClient << dataSource >>
+  package "LocalConnection" as _LocalConnection {
+    class LocalConnection << dataSource >>
     class AttachHeld << dataSource >>
-    LocalInferenceClient +-- AttachHeld
+    LocalConnection +-- AttachHeld
     class AttachOutcome << dataSource >>
-    LocalInferenceClient +-- AttachOutcome
+    LocalConnection +-- AttachOutcome
     class AttachSettled << dataSource >>
-    LocalInferenceClient +-- AttachSettled
+    LocalConnection +-- AttachSettled
     class LoadSettled << dataSource >>
-    LocalInferenceClient +-- LoadSettled
+    LocalConnection +-- LoadSettled
     class LocalAgentSessions << dataSource >>
-    LocalInferenceClient +-- LocalAgentSessions
-    class LocalProvider << dataSource >>
-    LocalInferenceClient +-- LocalProvider
+    LocalConnection +-- LocalAgentSessions
+    class LocalProviderModel << dataSource >>
+    LocalConnection +-- LocalProviderModel
     class LocalServerLink << dataSource >>
-    LocalInferenceClient +-- LocalServerLink
+    LocalConnection +-- LocalServerLink
     class ModelIndexFile << dataSource >>
-    LocalInferenceClient +-- ModelIndexFile
+    LocalConnection +-- ModelIndexFile
     class ModelStatusReported << dataSource >>
-    LocalInferenceClient +-- ModelStatusReported
+    LocalConnection +-- ModelStatusReported
     class OwnerSession << dataSource >>
-    LocalInferenceClient +-- OwnerSession
+    LocalConnection +-- OwnerSession
     class OwnerSessionOpened << dataSource >>
-    LocalInferenceClient +-- OwnerSessionOpened
+    LocalConnection +-- OwnerSessionOpened
     class ServerApi << dataSource >>
-    LocalInferenceClient +-- ServerApi
+    LocalConnection +-- ServerApi
     class ServerAttacher << dataSource >>
-    LocalInferenceClient +-- ServerAttacher
+    LocalConnection +-- ServerAttacher
     class ServerConnectionData << dataSource >>
-    LocalInferenceClient +-- ServerConnectionData
+    LocalConnection +-- ServerConnectionData
     class ServerConnectionLogic << dataSource >>
-    LocalInferenceClient +-- ServerConnectionLogic
+    LocalConnection +-- ServerConnectionLogic
     class ServerConnectionState << dataSource >>
-    LocalInferenceClient +-- ServerConnectionState
+    LocalConnection +-- ServerConnectionState
     class ServerDiscovery << dataSource >>
-    LocalInferenceClient +-- ServerDiscovery
+    LocalConnection +-- ServerDiscovery
     class ServerDiscoveryResult << dataSource >>
-    LocalInferenceClient +-- ServerDiscoveryResult
+    LocalConnection +-- ServerDiscoveryResult
     class ServerSpawner << dataSource >>
-    LocalInferenceClient +-- ServerSpawner
+    LocalConnection +-- ServerSpawner
     class SessionEnded << dataSource >>
-    LocalInferenceClient +-- SessionEnded
+    LocalConnection +-- SessionEnded
     class SessionLeases << dataSource >>
-    LocalInferenceClient +-- SessionLeases
+    LocalConnection +-- SessionLeases
     class SessionStarted << dataSource >>
-    LocalInferenceClient +-- SessionStarted
+    LocalConnection +-- SessionStarted
   }
   package "LocalModelsRepository" as _LocalModelsRepository {
     class LocalModelsRepository << repository >>
@@ -130,7 +130,6 @@ package "bestie" {
     class QuantPane << useCase >>
     LocalModelsUseCase +-- QuantPane
   }
-  class LocalServerRepository << repository >>
   class MascotUseCase << useCase >>
   class MetasearchClient << dataSource >>
   package "ModelDownloader" as _ModelDownloader {
@@ -276,15 +275,14 @@ package "bestie" {
   LedgerWriter --> DownloadLedgerStore
   LoadSettled --> OwnerSession
   LocalAgentSessions --> LocalServerLink
-  LocalInferenceClient --> ModelIndexFile
-  LocalInferenceClient --> ServerConnectionData
-  LocalInferenceClient --> ServerConnectionLogic
-  LocalInferenceClient --> ServerConnectionState
-  LocalInferenceClient --> ServerSpawner
+  LocalConnection --> ModelIndexFile
+  LocalConnection --> ServerConnectionData
+  LocalConnection --> ServerConnectionLogic
+  LocalConnection --> ServerConnectionState
+  LocalConnection --> ServerSpawner
   LocalModelsOperations --> AgentRepository
   LocalModelsOperations --> ConfigRepository
   LocalModelsOperations --> LocalModelsRepository
-  LocalModelsOperations --> LocalServerRepository
   LocalModelsOperations --> OSPlatformRepository
   LocalModelsOperations --> ProviderRepository
   LocalModelsRepository --> DownloadLedgerStore
@@ -301,12 +299,9 @@ package "bestie" {
   LocalModelsUseCase --> DownloadPane
   LocalModelsUseCase --> LocalModelsOperations
   LocalModelsUseCase --> LocalModelsRepository
-  LocalModelsUseCase --> LocalServerRepository
   LocalModelsUseCase --> OSPlatformRepository
   LocalModelsUseCase --> ProviderRepository
-  LocalProvider --> LocalServerLink
-  LocalProvider --> ModelIndexFile
-  LocalServerRepository --> LocalInferenceClient
+  LocalProviderModel --> LocalServerLink
   MascotUseCase --> ConfigRepository
   ModelDetailsPane --> LocalModelsOperations
   ModelScanner --> GgufReader

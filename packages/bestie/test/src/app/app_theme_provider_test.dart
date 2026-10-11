@@ -33,17 +33,22 @@ class _CaptureMath extends StatelessComponent {
   }
 }
 
-({
-  ConfigRepository repo,
-  ConfigUseCase useCase,
-  AppConfigKeys keys,
-})
-_setup(Directory tmp) {
-  final store = ConfigDataSource(configFile: '${tmp.path}/bestie.json')..load();
-  final keys = AppConfigKeys.defaults(defaultTheme: appThemeDefault.name);
-  final repo = ConfigRepository(dataSource: store);
-  final useCase = ConfigUseCase(repo);
-  return (repo: repo, useCase: useCase, keys: keys);
+final class _Setup {
+  _Setup(Directory tmp)
+    : repo = ConfigRepository(
+        dataSource: ConfigDataSource(configFile: '${tmp.path}/bestie.json')
+          ..load(),
+      ),
+      keys = AppConfigKeys.defaults(
+        defaultTheme: appThemeDefault.name,
+        availableThemes: appThemes.keys.toList(),
+      ) {
+    useCase = ConfigUseCase(repo);
+  }
+
+  final ConfigRepository repo;
+  final AppConfigKeys keys;
+  late final ConfigUseCase useCase;
 }
 
 void main() {
@@ -60,7 +65,7 @@ void main() {
   test(
     'initial build resolves the default theme when no override is set',
     () async {
-      final s = _setup(tmp);
+      final s = _Setup(tmp);
       addTearDown(s.useCase.dispose);
 
       await testNocterm('default theme', (tester) async {
@@ -84,7 +89,7 @@ void main() {
   test(
     'flipping the theme name rebuilds the child with the new theme',
     () async {
-      final s = _setup(tmp);
+      final s = _Setup(tmp);
       addTearDown(s.useCase.dispose);
 
       await testNocterm('flip theme', (tester) async {
@@ -116,7 +121,7 @@ void main() {
   );
 
   test('unknown theme name falls back to the default', () async {
-    final s = _setup(tmp);
+    final s = _Setup(tmp);
     addTearDown(s.useCase.dispose);
 
     await testNocterm('unknown theme falls back', (tester) async {
@@ -142,7 +147,7 @@ void main() {
   });
 
   test('provides the math styling of the active theme by default', () async {
-    final s = _setup(tmp);
+    final s = _Setup(tmp);
     addTearDown(s.useCase.dispose);
 
     await testNocterm('default math colors', (tester) async {
@@ -167,7 +172,7 @@ void main() {
   });
 
   test('turning math colors off stops painting equations', () async {
-    final s = _setup(tmp);
+    final s = _Setup(tmp);
     addTearDown(s.useCase.dispose);
 
     await testNocterm('math colors off', (tester) async {
@@ -195,7 +200,7 @@ void main() {
   });
 
   test('stops following config once it is unmounted', () async {
-    final s = _setup(tmp);
+    final s = _Setup(tmp);
     addTearDown(s.useCase.dispose);
 
     await testNocterm('unmount', (tester) async {
@@ -231,7 +236,7 @@ void main() {
   });
 
   test('math styling follows a theme change', () async {
-    final s = _setup(tmp);
+    final s = _Setup(tmp);
     addTearDown(s.useCase.dispose);
 
     await testNocterm('math follows theme', (tester) async {

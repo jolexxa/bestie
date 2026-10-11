@@ -3,9 +3,6 @@ import 'dart:async';
 import 'package:clock/clock.dart';
 import 'package:intentions/intentions.dart';
 
-/// Starts a one-shot timer; injectable so tests control time.
-typedef StartTimer = Timer Function(Duration duration, void Function() fire);
-
 /// Passes values through at most once per [interval]: the first value at
 /// once, then the latest of any that arrive too soon at the end of the
 /// interval, so the last value always lands.
@@ -15,16 +12,13 @@ final class LatestThrottle<Value> {
     required this.interval,
     required this.emit,
     required Clock clock,
-    required StartTimer startTimer,
-  }) : _clock = clock,
-       _startTimer = startTimer;
+  }) : _clock = clock;
 
   final Duration interval;
 
   final void Function(Value value) emit;
 
   final Clock _clock;
-  final StartTimer _startTimer;
   DateTime? _lastEmitted;
   Timer? _timer;
   Value? _pending;
@@ -37,7 +31,7 @@ final class LatestThrottle<Value> {
       final last => interval - _clock.now().difference(last),
     };
     if (wait <= Duration.zero) return _flush();
-    _timer = _startTimer(wait, _flush);
+    _timer = Timer(wait, _flush);
   }
 
   void cancel() {
@@ -57,13 +51,11 @@ Stream<Value> latestThrottled<Value>(
   Stream<Value> source, {
   required Duration interval,
   required Clock clock,
-  required StartTimer startTimer,
 }) => Stream<Value>.multi((controller) {
   final throttle = LatestThrottle<Value>(
     interval: interval,
     emit: controller.add,
     clock: clock,
-    startTimer: startTimer,
   );
   final subscription = source.listen(
     throttle.add,

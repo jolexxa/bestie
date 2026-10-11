@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:agent_provider_protocol/agent_provider_protocol.dart';
 import 'package:agent_repository/src/agent/agent_repository.dart';
 import 'package:agent_repository/src/agent/agent_session_id.dart';
 import 'package:agent_repository/src/agent/conversation_state.dart';
@@ -19,6 +18,7 @@ import 'package:agent_repository/src/turn/turn_activity.dart';
 import 'package:agent_repository/src/turn/turn_failure.dart';
 import 'package:agent_repository/src/turn/turn_options.dart';
 import 'package:agent_repository/src/turn/turn_projector.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart';
 import 'package:intentions/intentions.dart';
 import 'package:meta/meta.dart';
 import 'package:prompt_builder/prompt_builder.dart'

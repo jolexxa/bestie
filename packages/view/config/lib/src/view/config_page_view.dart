@@ -53,7 +53,7 @@ class _ConfigPageViewState extends State<ConfigPageView> {
     _listController.jumpTo(0);
   }
 
-  /// Maps a logical entry index to its visual row index, accounting for
+  /// Maps a logical row index to its visual row index, accounting for
   /// inline section headings on multi-section pages and the info page's
   /// custom layout.
   int _visualIndex(int paramIdx) {
@@ -68,16 +68,16 @@ class _ConfigPageViewState extends State<ConfigPageView> {
     return paramIdx;
   }
 
-  /// Moves the selection to entry [index] — the click equivalent of arrowing.
-  void _selectEntry(int index) {
+  /// Moves the selection to row [index].
+  void _selectRow(int index) {
     final current = _cubit.state.selectedIndex;
     if (index != current) _cubit.moveSelection(index - current);
   }
 
-  /// Double-click: select the entry, then begin editing if it's editable.
-  void _activateEntry(int index, ConfigEntry entry) {
-    _selectEntry(index);
-    if (entry.field.customEditable) _cubit.beginEdit();
+  /// Double-click: select the row, then begin editing if it's editable.
+  void _activateRow(int index, ConfigAddressBase address) {
+    _selectRow(index);
+    if (address.key.field.customEditable) _cubit.beginEdit();
   }
 
   /// Click a section tab: change to that page (mouse equivalent of Tab).
@@ -94,15 +94,10 @@ class _ConfigPageViewState extends State<ConfigPageView> {
       _editController.clear();
       return;
     }
-    final entry = state.selectedEntry;
-    if (entry == null) return;
-    final address = state.addressFor(entry);
-    if (address == null) {
-      _editController.text = '';
-      return;
-    }
-    final value = state.editStartValueFor(entry, address);
-    _editController.text = entry.field.formatValue(value);
+    final address = state.selectedAddress;
+    if (address == null) return;
+    final value = state.editStartValueFor(address);
+    _editController.text = address.key.field.formatValue(value);
   }
 
   /// Inserts a newline character at the current cursor position in the
@@ -163,7 +158,7 @@ class _ConfigPageViewState extends State<ConfigPageView> {
           visible: false,
           onActivate: () => _cubit.adjustValue(1),
         ),
-        if (state.selectedEntry?.field.customEditable ?? false)
+        if (state.selectedAddress?.key.field.customEditable ?? false)
           KeyAction(
             label: 'Edit',
             key: LogicalKey.enter,
@@ -234,8 +229,6 @@ class _ConfigPageViewState extends State<ConfigPageView> {
           final baseActions = _buildBaseActions(state, appTheme);
           final editingActions = _buildEditingActions(state);
           final resolver = _cubit.resolver;
-          final targetScope = state.data.targetScope;
-          final targetScopeLabel = targetScope?.path.last;
 
           Component pageContent(BuildContext ctx) => Focusable(
             focused: true,
@@ -259,13 +252,7 @@ class _ConfigPageViewState extends State<ConfigPageView> {
                         child: Container(color: theme.outlineVariant),
                       ),
                       Expanded(
-                        child: _buildPage(
-                          state,
-                          appTheme,
-                          resolver,
-                          targetScope,
-                          targetScopeLabel,
-                        ),
+                        child: _buildPage(state, appTheme, resolver),
                       ),
                     ],
                   ),
@@ -303,8 +290,6 @@ class _ConfigPageViewState extends State<ConfigPageView> {
     ConfigState state,
     AppThemeData appTheme,
     ConfigView resolver,
-    ConfigScope? targetScope,
-    String? targetScopeLabel,
   ) {
     final page = state.selectedPage;
     return switch (page) {
@@ -312,22 +297,14 @@ class _ConfigPageViewState extends State<ConfigPageView> {
         state: state,
         appTheme: appTheme,
         resolver: resolver,
-        targetScope: targetScope,
         sections: p.sections,
-        header: p.requiresTargetScope
-            ? PageHeader(
-                title: p.label,
-                scope: state.hasTargetScope ? targetScopeLabel : 'no target',
-                scopeWarning: !state.hasTargetScope,
-              )
-            : PageHeader(title: p.label),
+        header: PageHeader(title: p.label),
       ),
       final ConfigParamPage p => _buildParamListPage(
         title: p.label,
         state: state,
         appTheme: appTheme,
         resolver: resolver,
-        targetScope: targetScope,
       ),
       ConfigInfoPage(:final label) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -337,7 +314,7 @@ class _ConfigPageViewState extends State<ConfigPageView> {
             child: InfoSection(
               selectedIndex: state.selectedIndex,
               controller: _listController,
-              onSelect: _selectEntry,
+              onSelect: _selectRow,
             ),
           ),
         ],
@@ -357,18 +334,17 @@ class _ConfigPageViewState extends State<ConfigPageView> {
     };
   }
 
-  /// Single-section editable page: page title + flat scrollable entry list.
+  /// Single-section editable page: page title + flat scrollable row list.
   Component _buildParamListPage({
     required String title,
     required ConfigState state,
     required AppThemeData appTheme,
     required ConfigView resolver,
-    required ConfigScope? targetScope,
   }) {
-    final entries = state.visibleEntries;
+    final addresses = state.visibleAddresses;
     final header = PageHeader(title: title);
 
-    if (entries.isEmpty) {
+    if (addresses.isEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -392,17 +368,16 @@ class _ConfigPageViewState extends State<ConfigPageView> {
         Expanded(
           child: ScrollableListShell(
             controller: _listController,
-            itemCount: entries.length,
+            itemCount: addresses.length,
             itemBuilder: (_, i) {
               final isSelected = i == state.selectedIndex;
               final isEditing = state.editing && isSelected;
               return Hoverable(
-                onTap: () => _selectEntry(i),
-                onActivate: () => _activateEntry(i, entries[i]),
+                onTap: () => _selectRow(i),
+                onActivate: () => _activateRow(i, addresses[i]),
                 builder: (context, {required hovered}) => ConfigRow(
-                  entry: entries[i],
+                  address: addresses[i],
                   resolver: resolver,
-                  targetScope: targetScope,
                   isSelected: isSelected,
                   isEditing: isEditing,
                   hovered: hovered,
@@ -418,19 +393,16 @@ class _ConfigPageViewState extends State<ConfigPageView> {
     );
   }
 
-  /// Multi-section editable page: page title + flat scrollable entry list
-  /// with inline section headings from [ConfigSection.heading].
+  /// Multi-section editable page: page title + flat scrollable row list
+  /// with inline section headings.
   Component _buildSectionedPage({
     required ConfigState state,
     required AppThemeData appTheme,
     required ConfigView resolver,
-    required ConfigScope? targetScope,
     required List<ConfigSection> sections,
     required PageHeader header,
   }) {
-    final entries = sections.expand((s) => s.entries).toList();
-
-    if (entries.isEmpty) {
+    if (state.visibleAddresses.isEmpty) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -447,8 +419,6 @@ class _ConfigPageViewState extends State<ConfigPageView> {
       );
     }
 
-    // Flatten entries into a visual list with inline section headings
-    // sourced from the layout.
     final visual = <Component>[];
     var paramIdx = 0;
     for (var s = 0; s < sections.length; s++) {
@@ -459,18 +429,17 @@ class _ConfigPageViewState extends State<ConfigPageView> {
           suppressTopSpacer: s == 0,
         ),
       );
-      for (final entry in section.entries) {
+      for (final address in section.addresses) {
         final index = paramIdx;
         final isSelected = index == state.selectedIndex;
         final isEditing = state.editing && isSelected;
         visual.add(
           Hoverable(
-            onTap: () => _selectEntry(index),
-            onActivate: () => _activateEntry(index, entry),
+            onTap: () => _selectRow(index),
+            onActivate: () => _activateRow(index, address),
             builder: (context, {required hovered}) => ConfigRow(
-              entry: entry,
+              address: address,
               resolver: resolver,
-              targetScope: targetScope,
               isSelected: isSelected,
               isEditing: isEditing,
               hovered: hovered,
@@ -505,9 +474,10 @@ int _visualIndexFor(ConfigParamPage page, int paramIdx) {
   var offset = 0;
   var remaining = paramIdx;
   for (final section in page.sections) {
-    if (remaining < section.entries.length) return offset + 1 + remaining;
-    remaining -= section.entries.length;
-    offset += section.entries.length + 1;
+    final count = section.addresses.length;
+    if (remaining < count) return offset + 1 + remaining;
+    remaining -= count;
+    offset += count + 1;
   }
   return offset;
 }

@@ -1,10 +1,9 @@
+import 'package:bestie_local_models_use_case/src/models/local_server_status.dart';
 import 'package:bestie_local_models_use_case/src/wording/command_statuses.dart';
 import 'package:command_protocol/command_protocol.dart';
-import 'package:inference_protocol/inference_protocol.dart'
-    show InferenceFailureKind;
 import 'package:local_models_repository/local_models_repository.dart';
-import 'package:local_server_repository/local_server_repository.dart';
-import 'package:provider_protocol/provider_protocol.dart' show ProviderFailure;
+import 'package:provider_protocol/provider_protocol.dart'
+    show ProviderCancelled, ProviderOccupied, ProviderServerFailed;
 import 'package:test/test.dart';
 
 import '../../helpers/fixtures.dart';
@@ -88,30 +87,19 @@ void main() {
   });
 
   group('serverStatus', () {
-    const loadFailed = ProviderFailure(
-      kind: InferenceFailureKind.server,
-      message: 'The local model server ran out of memory.',
+    const loadFailed = ProviderServerFailed(
+      'The local model server ran out of memory.',
     );
-    const stopped = ProviderFailure(
-      kind: InferenceFailureKind.cancelled,
-      message: 'Stopped.',
-    );
+    const stopped = ProviderCancelled('Stopped.');
 
-    CommandStatus? statusOf(
-      LocalServerStatus server, {
-      ProviderFailure? failure,
-    }) => serverStatus(
+    CommandStatus? statusOf(LocalServerStatus server) => serverStatus(
       server,
-      failure: failure,
       nameOf: (localId) => localId == 'qwen3-8b' ? 'Qwen 3 8B' : localId,
     );
 
     test('is null while idle or stopped on purpose', () {
       expect(statusOf(const ServerIdle()), isNull);
-      expect(
-        statusOf(const ServerFailed('The server exited'), failure: stopped),
-        isNull,
-      );
+      expect(statusOf(const ServerFailed(stopped)), isNull);
     });
 
     test('names the model it serves', () {
@@ -137,28 +125,20 @@ void main() {
       expect(loading!.progress, isNull);
     });
 
-    test('warns while another window holds the server', () {
-      for (final server in const [
-        ServerOwnedElsewhere(ownerPid: 4121),
-        ServerIncompatible(serverVersion: '0.1.0', protocolVersion: 2),
-      ]) {
-        final status = statusOf(server, failure: loadFailed);
-        expect(textOf(status), '⚠ in use elsewhere');
-        expect(toneOf(status), PaneTone.warning);
-      }
+    test('says it failed when the app could not run its local model', () {
+      final status = statusOf(const ServerFailed(loadFailed));
+      expect(textOf(status), '✕ failed');
+      expect(toneOf(status), PaneTone.danger);
     });
 
-    test('says it failed when the app or the server did', () {
-      for (final status in [
-        statusOf(serving(), failure: loadFailed),
-        statusOf(const ServerFailed('The server exited')),
-        statusOf(
-          const ServerLoadFailed(localId: 'qwen3-8b', reason: 'out of memory'),
+    test('warns when another bestie holds the server', () {
+      final status = statusOf(
+        const ServerFailed(
+          ProviderOccupied('Another bestie (pid 12) is using Bestie Server.'),
         ),
-      ]) {
-        expect(textOf(status), '✕ failed');
-        expect(toneOf(status), PaneTone.danger);
-      }
+      );
+      expect(textOf(status), '⚠ in use elsewhere');
+      expect(toneOf(status), PaneTone.warning);
     });
   });
 }

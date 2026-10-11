@@ -14,8 +14,8 @@ dependencies:
   dart_mappable: ^4.3.0
   file: ^7.0.1
   intentions: ^0.1.0
-  local_inference_protocol:
-    path: ../../infra/local_inference_protocol
+  local_server_protocol:
+    path: ../../infra/local_server_protocol
 
 dev_dependencies:
   build_runner: ^2.4.12

@@ -11,10 +11,12 @@ environment:
   sdk: ^3.11.0
 
 dependencies:
+  agent_runtime:
+    path: ../../infra/agent_runtime
   clock: ^1.1.1
+  completion_openai:
+    path: ../../infra/completion_openai
   http: ^1.1.0
-  inference_protocol:
-    path: ../../infra/inference_protocol
   intentions: ^0.1.0
   provider_protocol:
     path: ../../infra/provider_protocol

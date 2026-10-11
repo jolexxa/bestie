@@ -5,7 +5,6 @@ import 'package:file/file.dart';
 import 'package:file/local.dart';
 import 'package:gguf_reader/gguf_reader.dart';
 import 'package:intentions/intentions.dart';
-import 'package:local_inference_protocol/local_inference_protocol.dart';
 import 'package:local_models_repository/src/local_models_repository.dart';
 import 'package:local_models_repository/src/models/local_model.dart';
 import 'package:local_models_repository/src/models/model_source.dart';
@@ -17,6 +16,7 @@ import 'package:local_models_repository/src/support/local_id.dart';
 import 'package:local_models_repository/src/support/model_family.dart';
 import 'package:local_models_repository/src/support/model_task.dart';
 import 'package:local_models_repository/src/support/reasoning.dart';
+import 'package:local_server_protocol/local_server_protocol.dart';
 
 /// Finds every GGUF model under a set of folders and reads what each one is,
 /// on a background isolate so header reads never stall the UI.

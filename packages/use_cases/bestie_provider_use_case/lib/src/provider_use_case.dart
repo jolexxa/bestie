@@ -1,9 +1,6 @@
 import 'dart:async';
 
-import 'package:agent_provider_protocol/agent_provider_protocol.dart'
-    show SamplingOptions;
 import 'package:agent_repository/agent_repository.dart';
-import 'package:bestie_provider_use_case/src/built_in_providers.dart';
 import 'package:bestie_provider_use_case/src/provider_config_keys.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:config_repository/config_repository.dart';
@@ -78,47 +75,26 @@ class ProviderUseCase implements CommandContribution {
   final _creditsController = StreamController<CreditsResult>.broadcast();
   CreditsResult? _lastCredits;
 
-  late final Set<String> _sessionKeyIds = {
-    for (final key in _configKeys.sessionKeys) key.id,
+  late final Set<String> _settingsKeyIds = {
+    for (final key in _configKeys.settingsKeys) key.id,
   };
 
-  /// The session settings as configured right now; accounts are listed in
-  /// the order their models should appear, the user's own models first.
-  ProviderSettings get settings => ProviderSettings(
-    accounts: [
-      const ProviderAccount(descriptor: localDescriptor, apiKey: ''),
-      ProviderAccount(
-        descriptor: customDescriptor,
-        apiKey: _resolve(_configKeys.customApiKey),
-        baseUrl: _endpointUrl(_resolve(_configKeys.customBaseUrl)),
-        fallbackContextWindow: _resolve(_configKeys.customContextWindow),
-      ),
-      ProviderAccount(
-        descriptor: openRouterDescriptor,
-        apiKey: _resolve(_configKeys.openRouterApiKey),
-      ),
-      ProviderAccount(
-        descriptor: fireworksDescriptor,
-        apiKey: _resolve(_configKeys.fireworksApiKey),
-      ),
-    ],
-    model: ProviderModelRef.parse(_resolve(_configKeys.model)),
-    maxAgents: _resolve(_configKeys.maxAgents),
-  );
-
-  /// The sampling every turn runs under, as configured right now. Anything
-  /// left unset is omitted so the model's own defaults apply.
-  SamplingOptions get sampling => SamplingOptions(
-    seed: _config.resolve(_configKeys.sampling.seed.global),
-    temperature: _chosen(_configKeys.sampling.temperature),
-    topP: _chosen(_configKeys.sampling.topP),
-    penaltyFreq: _chosen(_configKeys.sampling.frequencyPenalty),
-    penaltyPresent: _chosen(_configKeys.sampling.presencePenalty),
-  );
-
-  double? _chosen(ConfigKey<double> key) {
-    final resolved = _config.inspect(key.global);
-    return resolved.isDefault ? null : resolved.value;
+  /// The session settings as configured right now.
+  ProviderSettings get settings {
+    final contextCap = _resolve(_configKeys.contextCap);
+    return ProviderSettings(
+      credentials: {
+        for (final keys in _configKeys.accounts)
+          keys.provider.id: ?keys.credentials(
+            apiKey: _resolve(keys.apiKey),
+            baseUrl: _resolve(keys.baseUrl),
+            contextWindow: _resolve(keys.contextWindow),
+          ),
+      },
+      model: ProviderModelRef.parse(_resolve(_configKeys.model)),
+      maxAgents: _resolve(_configKeys.maxAgents),
+      contextCap: contextCap > 0 ? contextCap : null,
+    );
   }
 
   ProviderStatus get status => _providers.status;
@@ -148,8 +124,6 @@ class ProviderUseCase implements CommandContribution {
     }
   }
 
-  Future<KeyInfoResult> keyInfo() => _providers.keyInfo();
-
   /// Every model across every provider, whether or not it can be used yet.
   Future<ModelList> models() => _providers.models();
 
@@ -168,14 +142,8 @@ class ProviderUseCase implements CommandContribution {
 
   T _resolve<T>(ConfigKey<T> key) => _config.resolve(key.global);
 
-  /// An absolute URL, or null when the setting is blank or not one.
-  static Uri? _endpointUrl(String setting) {
-    final url = Uri.tryParse(setting.trim());
-    return url != null && url.hasScheme && url.host.isNotEmpty ? url : null;
-  }
-
   void _onConfigChange(ConfigChange change) {
-    if (!change.keyIds.any(_sessionKeyIds.contains)) return;
+    if (!change.keyIds.any(_settingsKeyIds.contains)) return;
     _providers.configure(settings);
   }
 
@@ -243,7 +211,7 @@ class ProviderUseCase implements CommandContribution {
 
   static String _modelDetail(ListedModel listed) =>
       '${listed.providerName} · ${listed.model.id}'
-      '${listed.hasAccess ? '' : ' (no key)'}';
+      '${listed.hasAccess ? '' : ' (not set up)'}';
 
   Future<CommandResult> _selectModelInvoke(Answers answers) async {
     if (_idleGate() case Unavailable(:final reason)) {

@@ -1,17 +1,18 @@
 import 'dart:async';
 
-import 'package:agent_provider_protocol/agent_provider_protocol.dart'
-    show AgentProvider;
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
+    show AgentRuntime;
 import 'package:clock/clock.dart';
 import 'package:intentions/intentions.dart';
 import 'package:provider_protocol/provider_protocol.dart'
-    show Provider, ProviderFailure, ProviderKeyInfo;
+    show
+        ProviderConnection,
+        ProviderCredentials,
+        ProviderFailure,
+        ProviderModel,
+        ProviderModelLoadProgress;
 import 'package:provider_repository/src/models/provider_settings.dart';
 import 'package:provider_repository/src/models/resolved_model.dart';
-import 'package:provider_repository/src/state/provider_session/provider_connection.dart';
-
-/// Starts a timer that calls [fire] once [duration] has passed.
-typedef StartTimer = Timer Function(Duration duration, void Function() fire);
 
 /// Mutable data shared by the provider session states.
 @model
@@ -20,28 +21,26 @@ final class ProviderSessionData {
 
   ProviderSettings? settings;
 
-  /// Bumped whenever the settings change so a probe that started under older
-  /// settings is ignored when it lands.
+  /// Bumped whenever the session starts over, so that work begun before is
+  /// ignored when it lands.
   int attempt = 0;
 
-  /// One connection per usable account, keyed by provider id.
-  Map<String, ProviderConnection> connections = const {};
+  /// One live connection per provider, keyed by provider id.
+  Map<String, ProviderConnection> connections = {};
 
-  /// The connection the chosen model runs on.
-  ProviderConnection? connection;
+  /// The credentials each connection was made with, keyed by provider id.
+  Map<String, ProviderCredentials> connectedWith = {};
 
   ResolvedModel? model;
 
   /// How far the chosen model is from serving, once its provider says.
-  double? activationProgress;
+  ProviderModelLoadProgress? loading;
 
-  ProviderKeyInfo? keyInfo;
+  /// The model being served; held only while the session is ready.
+  ProviderModel? loaded;
 
-  AgentProvider? handle;
-
-  /// The provider last asked to activate a model, until the session moves to
-  /// another provider.
-  Provider? activated;
+  /// The agent runtime running on [loaded].
+  AgentRuntime? runtime;
 
   ProviderFailure? failure;
 
@@ -51,18 +50,17 @@ final class ProviderSessionData {
   /// When the chosen model last started serving.
   late DateTime servingSince;
 
-  /// The wait before activating a lost model again.
+  /// The wait before loading a lost model again.
   Timer? recovery;
 }
 
-/// How a model that stops being served is activated again: after a wait
-/// that doubles with each loss in a row, at most [maxLosses] times, where a
+/// How a model that stops being served is loaded again: after a wait that
+/// doubles with each loss in a row, at most [maxLosses] times, where a
 /// model that served for [stableAfter] starts the count over.
 @model
 final class RecoveryPolicy {
   const RecoveryPolicy({
     required this.clock,
-    required this.startTimer,
     this.maxLosses = 3,
     this.firstDelay = const Duration(seconds: 1),
     this.stableAfter = const Duration(minutes: 5),
@@ -70,14 +68,12 @@ final class RecoveryPolicy {
 
   final Clock clock;
 
-  final StartTimer startTimer;
-
   final int maxLosses;
 
   final Duration firstDelay;
 
   final Duration stableAfter;
 
-  /// The wait before the [loss]th activation in a row, counting from 1.
+  /// The wait before the [loss]th load in a row, counting from 1.
   Duration delayBefore(int loss) => firstDelay * (1 << (loss - 1));
 }

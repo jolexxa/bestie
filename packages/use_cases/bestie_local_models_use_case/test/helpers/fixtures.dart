@@ -1,11 +1,10 @@
 import 'package:bestie_local_models_use_case/src/local_models_operations.dart';
+import 'package:bestie_local_models_use_case/src/models/local_server_status.dart';
 import 'package:bestie_platform_abstractions/bestie_platform_abstractions.dart';
 import 'package:command_protocol/command_protocol.dart';
-import 'package:local_inference_protocol/local_inference_protocol.dart';
 import 'package:local_models_repository/local_models_repository.dart';
-import 'package:local_server_repository/local_server_repository.dart';
+import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:provider_protocol/provider_protocol.dart' show ProviderFailure;
 
 final class MockLocalModelsOperations extends Mock
     implements LocalModelsOperations {}
@@ -125,13 +124,13 @@ const readyLibrary = ModelLibrary(
 
 ServerServing serving({
   String localId = 'qwen3-8b',
-  LocalAgentPool? pool,
+  int? leased,
 }) => ServerServing(
   localId: localId,
   contextSize: 32768,
   maxAgents: 4,
   deviceBytes: 6100000000,
-  pool: pool,
+  leased: leased,
 );
 
 String spansText(Iterable<PaneSpan> spans) =>
@@ -158,7 +157,6 @@ void stubOperations(
   Stream<LocalServerStatus>? server,
   Stream<String?>? inUseIds,
   String? inUseId,
-  Stream<ProviderFailure?>? failures,
   int memoryBytes = 24 * gigabyte,
   int freeMemoryBytes = 18 * gigabyte,
 }) {
@@ -173,9 +171,6 @@ void stubOperations(
     (_) => inUseIds ?? Stream.value(inUseId),
   );
   when(() => operations.inUseId).thenReturn(inUseId);
-  when(() => operations.failures).thenAnswer(
-    (_) => failures ?? Stream.value(null),
-  );
   when(() => operations.shorten(any())).thenAnswer(
     (invocation) => linuxPlatform.paths.shortenHome(
       invocation.positionalArguments.single as String,

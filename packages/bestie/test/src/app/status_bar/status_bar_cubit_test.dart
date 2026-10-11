@@ -1,12 +1,11 @@
 import 'dart:async';
 
-import 'package:agent_provider_protocol/agent_provider_protocol.dart';
 import 'package:agent_repository/agent_repository.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart';
 import 'package:bestie/src/app/status_bar/status_bar.dart';
 import 'package:bestie_chat_use_case/bestie_chat_use_case.dart';
 import 'package:bestie_provider_use_case/bestie_provider_use_case.dart';
 import 'package:bestie_sandbox_use_case/bestie_sandbox_use_case.dart';
-import 'package:inference_protocol/inference_protocol.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 import 'package:provider_repository/provider_repository.dart';
@@ -19,7 +18,7 @@ class _MockChatUseCase extends Mock implements ChatUseCase {}
 
 class _MockSandboxUseCase extends Mock implements SandboxUseCase {}
 
-class _MockAgentProvider extends Mock implements AgentProvider {}
+class _MockAgentRuntime extends Mock implements AgentRuntime {}
 
 const _modelRef = ProviderModelRef(providerId: 'openrouter', modelId: 'x/y');
 
@@ -27,12 +26,13 @@ final _ready = ProviderStatusReady(
   model: const ResolvedModel(
     ref: _modelRef,
     name: 'Why',
+    providerName: 'OpenRouter',
     contextWindow: 1024,
     supportsTools: true,
   ),
-  handle: _MockAgentProvider(),
-  keyInfo: null,
-  providerName: 'OpenRouter',
+  runtime: _MockAgentRuntime(),
+  maxAgents: 1,
+  deviceBytes: null,
 );
 
 const _idle = ConversationIdle(
@@ -272,7 +272,7 @@ void main() {
       expect(
         creditsReading(
           const CreditsFailed(
-            ProviderFailure(kind: InferenceFailureKind.network, message: 'x'),
+            ProviderUnreachable('x'),
           ),
         ),
         '',
@@ -297,7 +297,7 @@ void main() {
               name: 'Qwen 3 8B',
               providerName: 'Local models',
               contextWindow: 40960,
-              progress: 0.62,
+              progress: ProviderModelLoading(0.62),
             ),
           ),
         ),
@@ -305,12 +305,23 @@ void main() {
       );
       expect(
         providerReading(
+          const ProviderStatusConnecting(
+            model: _modelRef,
+            loading: LoadingModel(
+              name: 'Qwen 3 8B',
+              providerName: 'Local models',
+              contextWindow: 40960,
+              progress: ProviderModelMeasuring(),
+            ),
+          ),
+        ),
+        'measuring Qwen 3 8B…',
+      );
+      expect(
+        providerReading(
           const ProviderStatusFailed(
             model: _modelRef,
-            failure: ProviderFailure(
-              kind: InferenceFailureKind.network,
-              message: 'nope',
-            ),
+            failure: ProviderUnreachable('nope'),
           ),
         ),
         'openrouter:x/y · nope',

@@ -367,9 +367,18 @@ class InfoSection extends StatelessComponent {
 @visibleForTesting
 String providerSummary(ProviderStatus status) => switch (status) {
   ProviderStatusUnconfigured() => 'Not configured',
-  ProviderStatusConnecting(loading: final loading?) =>
-    'Loading ${loading.providerName} · ${loading.name} '
-        '${(loading.progress * 100).round()}%',
+  ProviderStatusConnecting(
+    loading: LoadingModel(
+      :final providerName,
+      :final name,
+      progress: ProviderModelLoading(:final fraction),
+    ),
+  ) =>
+    'Loading $providerName · $name ${(fraction * 100).round()}%',
+  ProviderStatusConnecting(
+    loading: LoadingModel(:final providerName, :final name),
+  ) =>
+    'Measuring $providerName · $name…',
   ProviderStatusConnecting(:final model) => 'Connecting to ${model.qualified}…',
   ProviderStatusReady(:final providerName, :final model) =>
     '$providerName · ${model.name} (${model.id})',

@@ -17,23 +17,23 @@ dependencies:
   args: ^2.7.0
   bestie_platform_abstractions:
     path: ../data/bestie_platform_abstractions
-  completion_runtime:
-    path: ../infra/completion_runtime
+  engine_completions:
+    path: ../infra/engine_completions
+  engine_llama:
+    path: ../infra/engine_llama
+  engine_protocol:
+    path: ../infra/engine_protocol
+  engine_scheduler:
+    path: ../infra/engine_scheduler
+  engine_templates:
+    path: ../infra/engine_templates
   file: ^7.0.1
   good_intentions: ^0.8.0
-  inference:
-    path: ../infra/inference
-  inference_llama:
-    path: ../infra/inference_llama
-  inference_runtime:
-    path: ../infra/inference_runtime
-  inference_server:
-    path: ../infra/inference_server
   intentions: ^0.1.0
-  llm_model_templates:
-    path: ../infra/llm_model_templates
-  local_inference_protocol:
-    path: ../infra/local_inference_protocol
+  local_server:
+    path: ../infra/local_server
+  local_server_protocol:
+    path: ../infra/local_server_protocol
   path: ^1.9.1
 
 dev_dependencies:

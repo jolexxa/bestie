@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:agent_provider_protocol/agent_provider_protocol.dart';
 import 'package:agent_repository/agent_repository.dart';
 import 'package:agent_repository/src/conversation/agent_journal.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart';
 import 'package:file/memory.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';

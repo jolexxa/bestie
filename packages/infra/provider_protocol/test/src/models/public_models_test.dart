@@ -1,36 +1,72 @@
-import 'package:inference_protocol/inference_protocol.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 import 'package:test/test.dart';
 
 void main() {
-  const failure = ProviderFailure(
-    kind: InferenceFailureKind.auth,
-    message: 'nope',
-  );
+  const failure = ProviderAuthFailed('nope');
 
   group('ProviderFailure', () {
-    test('compares by kind and message', () {
+    test('compares by type and message', () {
       expect(
         failure,
-        const ProviderFailure(kind: InferenceFailureKind.auth, message: 'nope'),
+        const ProviderAuthFailed('nope'),
       );
       expect(
         failure.hashCode,
-        const ProviderFailure(
-          kind: InferenceFailureKind.auth,
-          message: 'nope',
-        ).hashCode,
+        const ProviderAuthFailed('nope').hashCode,
       );
       expect(
         failure,
         isNot(
-          const ProviderFailure(
-            kind: InferenceFailureKind.auth,
-            message: 'other',
-          ),
+          const ProviderAuthFailed('other'),
         ),
       );
-      expect(failure.toString(), 'ProviderFailure(auth): nope');
+      expect(failure.toString(), 'ProviderAuthFailed(nope)');
+    });
+
+    test('tells every kind apart with the same message', () {
+      const failures = <ProviderFailure>[
+        ProviderAuthFailed('x'),
+        ProviderRateLimited('x'),
+        ProviderUnreachable('x'),
+        ProviderRejected('x'),
+        ProviderServerFailed('x'),
+        ProviderResponseMalformed('x'),
+        ProviderCancelled('x'),
+        ProviderOccupied('x'),
+      ];
+
+      expect(failures.toSet(), hasLength(failures.length));
+      expect(failures.map((failure) => failure.message), everyElement('x'));
+      expect(failures.map((failure) => failure.toString()), [
+        'ProviderAuthFailed(x)',
+        'ProviderRateLimited(x)',
+        'ProviderUnreachable(x)',
+        'ProviderRejected(x)',
+        'ProviderServerFailed(x)',
+        'ProviderResponseMalformed(x)',
+        'ProviderCancelled(x)',
+        'ProviderOccupied(x)',
+      ]);
+    });
+
+    test('reads an HTTP status as the failure it stands for', () {
+      const expectations = <int, ProviderFailure>{
+        401: ProviderAuthFailed('m'),
+        403: ProviderAuthFailed('m'),
+        429: ProviderRateLimited('m'),
+        500: ProviderServerFailed('m'),
+        503: ProviderServerFailed('m'),
+        404: ProviderRejected('m'),
+        402: ProviderRejected('m'),
+      };
+      for (final MapEntry(key: status, value: failure)
+          in expectations.entries) {
+        expect(
+          ProviderFailure.forStatus(status, 'm'),
+          failure,
+          reason: '$status',
+        );
+      }
     });
   });
 
@@ -123,53 +159,9 @@ void main() {
     });
   });
 
-  group('ProviderKeyInfo', () {
+  group('ProviderModelInfo', () {
     test('compares by value', () {
-      const info = ProviderKeyInfo(
-        label: 'sk-or-v1-abc',
-        usage: 1.5,
-        isFreeTier: false,
-        limit: 20,
-        limitRemaining: 18.5,
-      );
-
-      expect(
-        info,
-        const ProviderKeyInfo(
-          label: 'sk-or-v1-abc',
-          usage: 1.5,
-          isFreeTier: false,
-          limit: 20,
-          limitRemaining: 18.5,
-        ),
-      );
-      expect(
-        info.hashCode,
-        const ProviderKeyInfo(
-          label: 'sk-or-v1-abc',
-          usage: 1.5,
-          isFreeTier: false,
-          limit: 20,
-          limitRemaining: 18.5,
-        ).hashCode,
-      );
-      expect(
-        info,
-        isNot(
-          const ProviderKeyInfo(
-            label: 'sk-or-v1-abc',
-            usage: 1.5,
-            isFreeTier: true,
-          ),
-        ),
-      );
-      expect(info.toString(), 'ProviderKeyInfo(sk-or-v1-abc, used: 1.5)');
-    });
-  });
-
-  group('ProviderModel', () {
-    test('compares by value', () {
-      const model = ProviderModel(
+      const model = ProviderModelInfo(
         id: 'openai/gpt-4o-mini',
         name: 'GPT-4o mini',
         contextLength: 128000,
@@ -180,7 +172,7 @@ void main() {
 
       expect(
         model,
-        const ProviderModel(
+        const ProviderModelInfo(
           id: 'openai/gpt-4o-mini',
           name: 'GPT-4o mini',
           contextLength: 128000,
@@ -191,7 +183,7 @@ void main() {
       );
       expect(
         model.hashCode,
-        const ProviderModel(
+        const ProviderModelInfo(
           id: 'openai/gpt-4o-mini',
           name: 'GPT-4o mini',
           contextLength: 128000,
@@ -203,7 +195,7 @@ void main() {
       expect(
         model,
         isNot(
-          const ProviderModel(
+          const ProviderModelInfo(
             id: 'openai/gpt-4o-mini',
             name: 'GPT-4o mini',
             contextLength: 128000,
@@ -214,7 +206,7 @@ void main() {
       );
       expect(model.contextLength, 128000);
       expect(model.reasoning, isNull);
-      expect(model.toString(), startsWith('ProviderModel('));
+      expect(model.toString(), startsWith('ProviderModelInfo('));
     });
   });
 
@@ -316,12 +308,7 @@ void main() {
         remaining: 1,
         window: SpendWindow.lifetime,
       );
-      const keyInfo = ProviderKeyInfo(
-        label: 'key',
-        usage: 0,
-        isFreeTier: true,
-      );
-      const model = ProviderModel(
+      const model = ProviderModelInfo(
         id: 'm',
         name: 'M',
         contextLength: 1,
@@ -332,11 +319,6 @@ void main() {
         CreditsFailed(failure),
         CreditsUnsupported(),
       ];
-      const keyResults = <KeyInfoResult>[
-        KeyInfoFetched(keyInfo),
-        KeyInfoFailed(failure),
-        KeyInfoUnsupported(),
-      ];
       const modelResults = <ProviderModelsResult>[
         ProviderModelsListed([model]),
         ProviderModelsFailed(failure),
@@ -344,62 +326,9 @@ void main() {
 
       expect((creditsResults[0] as CreditsFetched).credits, credits);
       expect((creditsResults[1] as CreditsFailed).failure, failure);
-      expect((keyResults[0] as KeyInfoFetched).keyInfo, keyInfo);
-      expect((keyResults[1] as KeyInfoFailed).failure, failure);
       expect(creditsResults[2], isA<CreditsUnsupported>());
-      expect(keyResults[2], isA<KeyInfoUnsupported>());
       expect((modelResults[0] as ProviderModelsListed).models, [model]);
       expect((modelResults[1] as ProviderModelsFailed).failure, failure);
-    });
-  });
-
-  group('ProviderDescriptor', () {
-    test('compares by value', () {
-      final descriptor = ProviderDescriptor(
-        id: 'fireworks',
-        displayName: 'Fireworks AI',
-        requiresApiKey: true,
-        dialect: InferenceDialect.openAi,
-        baseUrl: Uri.parse('https://api.fireworks.ai/inference/v1'),
-        catalogId: 'fireworks-ai',
-      );
-
-      expect(
-        descriptor,
-        ProviderDescriptor(
-          id: 'fireworks',
-          displayName: 'Fireworks AI',
-          requiresApiKey: true,
-          dialect: InferenceDialect.openAi,
-          baseUrl: Uri.parse('https://api.fireworks.ai/inference/v1'),
-          catalogId: 'fireworks-ai',
-        ),
-      );
-      expect(
-        descriptor.hashCode,
-        ProviderDescriptor(
-          id: 'fireworks',
-          displayName: 'Fireworks AI',
-          requiresApiKey: true,
-          dialect: InferenceDialect.openAi,
-          baseUrl: Uri.parse('https://api.fireworks.ai/inference/v1'),
-          catalogId: 'fireworks-ai',
-        ).hashCode,
-      );
-      expect(
-        descriptor,
-        isNot(
-          const ProviderDescriptor(
-            id: 'custom',
-            displayName: 'Custom endpoint',
-            requiresApiKey: false,
-            dialect: InferenceDialect.openAi,
-            requiresBaseUrl: true,
-          ),
-        ),
-      );
-      expect(descriptor.requiresBaseUrl, isFalse);
-      expect(descriptor.toString(), startsWith('ProviderDescriptor('));
     });
   });
 
@@ -437,19 +366,6 @@ void main() {
       expect(ProviderModelRef.parse('openai/gpt-4o-mini'), isNull);
       expect(ProviderModelRef.parse(':model'), isNull);
       expect(ProviderModelRef.parse('openrouter:'), isNull);
-    });
-  });
-
-  group('CatalogResult', () {
-    test('exposes listed models and failures', () {
-      const model = ProviderModel(id: 'm', name: 'M', supportsTools: true);
-      const results = <CatalogResult>[
-        CatalogListed([model]),
-        CatalogUnavailable(failure),
-      ];
-
-      expect((results[0] as CatalogListed).models, [model]);
-      expect((results[1] as CatalogUnavailable).failure, failure);
     });
   });
 }

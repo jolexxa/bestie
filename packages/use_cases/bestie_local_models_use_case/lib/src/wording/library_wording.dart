@@ -2,8 +2,8 @@
 library;
 
 import 'package:command_protocol/command_protocol.dart';
-import 'package:local_inference_protocol/local_inference_protocol.dart';
 import 'package:local_models_repository/local_models_repository.dart';
+import 'package:local_server_protocol/local_server_protocol.dart';
 
 /// The prompt formats bestie runs, for explaining what it can't.
 const runnableFamilies = 'qwen2/3/3.5, gpt-oss, gemma4 and glm4';

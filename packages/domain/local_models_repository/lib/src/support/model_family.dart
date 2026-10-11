@@ -4,8 +4,8 @@
 library;
 
 import 'package:intentions/intentions.dart';
-import 'package:llm_model_profiles/llm_model_profiles.dart';
 import 'package:local_models_repository/src/models/unsupported_reason.dart';
+import 'package:model_profiles/model_profiles.dart';
 
 /// Architectures with exactly one prompt format, in canonical form.
 const _profileByArchitecture = <String, ModelProfileId>{

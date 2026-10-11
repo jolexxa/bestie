@@ -1,18 +1,20 @@
 import 'dart:async';
 
 import 'package:agent_repository/agent_repository.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
+    show ContextPoolSnapshot;
 import 'package:bestie_local_models_use_case/src/config/local_models_config_keys.dart';
 import 'package:bestie_local_models_use_case/src/local_models_use_case.dart';
+import 'package:bestie_local_models_use_case/src/models/local_server_status.dart';
 import 'package:bestie_local_models_use_case/src/support/latest_throttle.dart';
 import 'package:clock/clock.dart';
 import 'package:collection/collection.dart';
 import 'package:config_repository/config_repository.dart';
 import 'package:intentions/intentions.dart';
 import 'package:local_models_repository/local_models_repository.dart';
-import 'package:local_server_repository/local_server_repository.dart';
 import 'package:platform_repository/platform_repository.dart';
 import 'package:provider_protocol/provider_protocol.dart'
-    show ProviderFailure, ProviderModelRef;
+    show ProviderModelLoading, ProviderModelMeasuring, ProviderModelRef;
 import 'package:provider_repository/provider_repository.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -23,7 +25,6 @@ import 'package:rxdart/rxdart.dart';
 class LocalModelsOperations {
   LocalModelsOperations({
     required LocalModelsRepository library,
-    required LocalServerRepository server,
     required ProviderRepository providers,
     required ConfigRepository config,
     required LocalModelsConfigKeys configKeys,
@@ -32,9 +33,7 @@ class LocalModelsOperations {
     required AgentRepository agents,
     required OSPlatformRepository platform,
     required Clock clock,
-    required StartTimer startTimer,
   }) : _library = library,
-       _server = server,
        _providers = providers,
        _config = config,
        _configKeys = configKeys,
@@ -47,7 +46,6 @@ class LocalModelsOperations {
       interval: libraryInterval,
       emit: _throttledLibrary.add,
       clock: clock,
-      startTimer: startTimer,
     );
     _subscriptions = [
       library.library.listen(_throttle.add),
@@ -64,7 +62,6 @@ class LocalModelsOperations {
   static const libraryInterval = Duration(milliseconds: 250);
 
   final LocalModelsRepository _library;
-  final LocalServerRepository _server;
   final ProviderRepository _providers;
   final ConfigRepository _config;
   final LocalModelsConfigKeys _configKeys;
@@ -82,7 +79,15 @@ class LocalModelsOperations {
 
   ModelLibrary get currentLibrary => _throttledLibrary.value;
 
-  Stream<LocalServerStatus> get server => _server.status;
+  /// What the local server is doing for the app, read from the session
+  /// and the agents leased on its model.
+  Stream<LocalServerStatus> get server => Rx.combineLatest2(
+    _providers.statusStream,
+    _agents.poolStream
+        .map<ContextPoolSnapshot?>((pool) => pool)
+        .startWith(null),
+    _serverOf,
+  );
 
   /// The local model the app is set to run on, if it is set to one.
   String? get selectedId => _localIdOf(_config.resolve(_modelKey.global));
@@ -93,10 +98,6 @@ class LocalModelsOperations {
   /// [inUseId] now and whenever it changes.
   Stream<String?> get inUseIds =>
       _providers.statusStream.map(_inUseOf).distinct();
-
-  /// Why the app could not run on a local model, while it is set to one.
-  Stream<ProviderFailure?> get failures =>
-      _providers.statusStream.map(_failureOf).distinct();
 
   /// Whether no turn is running, so the model may change under the app.
   bool get idle => _agents.primary.conversationPhase == ConversationPhase.idle;
@@ -203,11 +204,34 @@ class LocalModelsOperations {
     ProviderStatusUnconfigured() || ProviderStatusFailed() => null,
   };
 
-  ProviderFailure? _failureOf(ProviderStatus status) => switch (status) {
+  LocalServerStatus _serverOf(
+    ProviderStatus status,
+    ContextPoolSnapshot? pool,
+  ) => switch (status) {
+    ProviderStatusConnecting(:final model)
+        when model.providerId != _providerId =>
+      const ServerIdle(),
+    ProviderStatusConnecting(loading: null) => const ServerStarting(),
+    ProviderStatusConnecting(:final model, :final loading?) => ServerLoading(
+      localId: model.modelId,
+      progress: switch (loading.progress) {
+        ProviderModelMeasuring() => null,
+        ProviderModelLoading(:final fraction) => fraction,
+      },
+    ),
+    ProviderStatusReady(:final model, :final maxAgents, :final deviceBytes)
+        when model.ref.providerId == _providerId =>
+      ServerServing(
+        localId: model.id,
+        contextSize: model.contextWindow,
+        maxAgents: maxAgents,
+        deviceBytes: deviceBytes,
+        leased: pool?.leases.length,
+      ),
     ProviderStatusFailed(:final failure, :final model)
         when model.providerId == _providerId =>
-      failure,
-    _ => null,
+      ServerFailed(failure),
+    _ => const ServerIdle(),
   };
 }
 

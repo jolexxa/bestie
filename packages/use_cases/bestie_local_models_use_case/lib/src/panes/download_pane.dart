@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:bestie_local_models_use_case/src/local_models_operations.dart';
 import 'package:bestie_local_models_use_case/src/local_models_use_case.dart';
 import 'package:bestie_local_models_use_case/src/panes/quant_pane.dart';
-import 'package:bestie_local_models_use_case/src/support/latest_throttle.dart';
 import 'package:bestie_local_models_use_case/src/wording/library_wording.dart';
 import 'package:bestie_local_models_use_case/src/wording/units.dart';
 import 'package:command_protocol/command_protocol.dart';
@@ -17,13 +16,10 @@ import 'package:rxdart/rxdart.dart';
 class DownloadPane extends Pane {
   DownloadPane({
     required LocalModelsOperations operations,
-    required StartTimer startTimer,
     this.debounce = const Duration(milliseconds: 350),
-  }) : _operations = operations,
-       _startTimer = startTimer;
+  }) : _operations = operations;
 
   final LocalModelsOperations _operations;
-  final StartTimer _startTimer;
 
   /// How long typing must pause before a search goes out.
   final Duration debounce;
@@ -69,7 +65,7 @@ class DownloadPane extends Pane {
         final cached = _last;
         final timer = cached != null && cached.query == query
             ? null
-            : _startTimer(query.trim().isEmpty ? Duration.zero : debounce, () {
+            : Timer(query.trim().isEmpty ? Duration.zero : debounce, () {
                 unawaited(searchNow());
               });
         if (timer == null) show(cached!);

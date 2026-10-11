@@ -5,9 +5,9 @@ import 'dart:math' as math;
 
 import 'package:bestie_platform_abstractions/bestie_platform_abstractions.dart';
 import 'package:bestie_server/bestie_server.dart';
+import 'package:engine_llama/engine_llama.dart';
 import 'package:file/local.dart';
-import 'package:inference_llama/inference_llama.dart';
-import 'package:inference_server/inference_server.dart';
+import 'package:local_server/local_server.dart';
 import 'package:path/path.dart' as p;
 
 const _serverVersion = '0.0.0';

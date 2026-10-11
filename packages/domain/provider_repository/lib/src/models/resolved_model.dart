@@ -13,6 +13,7 @@ final class ResolvedModel with ResolvedModelMappable {
   const ResolvedModel({
     required this.ref,
     required this.name,
+    required this.providerName,
     required this.contextWindow,
     required this.supportsTools,
     this.reasoning,
@@ -21,6 +22,8 @@ final class ResolvedModel with ResolvedModelMappable {
   final ProviderModelRef ref;
 
   final String name;
+
+  final String providerName;
 
   final int contextWindow;
 

@@ -1,9 +1,9 @@
 import 'dart:ffi';
 
 import 'package:bestie_server/bestie_server.dart';
-import 'package:inference_llama/inference_llama.dart';
-import 'package:inference_server/inference_server.dart';
+import 'package:engine_llama/engine_llama.dart';
 import 'package:llama_cpp_dart/llama_cpp_dart.dart';
+import 'package:local_server/local_server.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 

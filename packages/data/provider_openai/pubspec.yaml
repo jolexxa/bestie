@@ -1,0 +1,27 @@
+name: provider_openai
+description: >-
+  Any OpenAI-compatible server the user points bestie at, such as a local
+  llama.cpp server.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  agent_runtime:
+    path: ../../infra/agent_runtime
+  completion_openai:
+    path: ../../infra/completion_openai
+  http: ^1.1.0
+  intentions: ^0.1.0
+  provider_protocol:
+    path: ../../infra/provider_protocol
+
+dev_dependencies:
+  coverage: ^1.9.0
+  mocktail: ^1.0.4
+  test: ^1.25.0
+  very_good_analysis: ^10.0.0

@@ -1,6 +1,6 @@
-import 'package:agent_provider_protocol/agent_provider_protocol.dart';
 import 'package:agent_repository/src/conversation/job_in_background.dart';
 import 'package:agent_repository/src/conversation/job_report.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:intentions/intentions.dart';
 

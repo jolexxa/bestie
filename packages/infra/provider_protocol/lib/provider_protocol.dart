@@ -1,25 +1,41 @@
-/// The hosted-provider contract for bestie.
+/// Model providers for bestie: what each one asks for, and the connection
+/// that lists, loads, and bills its models.
 library;
 
-export 'src/hosted_models.dart' show HostedModels;
-export 'src/model_catalog.dart'
-    show CatalogListed, CatalogResult, CatalogUnavailable, ModelCatalog;
 export 'src/models/credits_result.dart'
     show CreditsFailed, CreditsFetched, CreditsResult, CreditsUnsupported;
-export 'src/models/key_info_result.dart'
-    show KeyInfoFailed, KeyInfoFetched, KeyInfoResult, KeyInfoUnsupported;
-export 'src/models/model_activation.dart'
+export 'src/models/provider_credentials.dart'
     show
-        ModelActivated,
-        ModelActivation,
-        ModelActivationFailed,
-        ModelActivationRequest,
-        ModelActivationResult;
+        ApiKeyCredentials,
+        EndpointCredentials,
+        NoCredentials,
+        ProviderCredentials;
+export 'src/models/provider_credentials_kind.dart' show ProviderCredentialsKind;
 export 'src/models/provider_credits.dart' show ProviderCredits, SpendWindow;
-export 'src/models/provider_descriptor.dart' show ProviderDescriptor;
-export 'src/models/provider_failure.dart' show ProviderFailure;
-export 'src/models/provider_key_info.dart' show ProviderKeyInfo;
-export 'src/models/provider_model.dart' show ProviderModel;
+export 'src/models/provider_failure.dart'
+    show
+        ProviderAuthFailed,
+        ProviderCancelled,
+        ProviderFailure,
+        ProviderOccupied,
+        ProviderRateLimited,
+        ProviderRejected,
+        ProviderResponseMalformed,
+        ProviderServerFailed,
+        ProviderUnreachable;
+export 'src/models/provider_model.dart' show HostedProviderModel, ProviderModel;
+export 'src/models/provider_model_info.dart' show ProviderModelInfo;
+export 'src/models/provider_model_load.dart'
+    show
+        ProviderModelLoad,
+        ProviderModelLoadFailed,
+        ProviderModelLoadProgress,
+        ProviderModelLoadResult,
+        ProviderModelLoaded,
+        ProviderModelLoading,
+        ProviderModelMeasuring;
+export 'src/models/provider_model_load_request.dart'
+    show ProviderModelLoadRequest;
 export 'src/models/provider_model_ref.dart' show ProviderModelRef;
 export 'src/models/provider_models_result.dart'
     show ProviderModelsFailed, ProviderModelsListed, ProviderModelsResult;
@@ -30,3 +46,5 @@ export 'src/models/provider_reasoning.dart'
         ProviderReasoningFixed,
         ProviderReasoningToggle;
 export 'src/provider.dart' show Provider;
+export 'src/provider_connection.dart' show ProviderConnection;
+export 'src/unconfigured_connection.dart' show UnconfiguredConnection;

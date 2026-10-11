@@ -9,8 +9,6 @@ environment:
   sdk: ^3.11.0
 
 dependencies:
-  agent_provider_remote:
-    path: ../infra/agent_provider_remote
   agent_repository:
     path: ../domain/agent_repository
   agentic_terminal:
@@ -93,18 +91,12 @@ dependencies:
   hugging_face_client:
     path: ../data/hugging_face_client
   humanizer: ^3.0.1
-  inference_openai_compat:
-    path: ../data/inference_openai_compat
   intentions: ^0.1.0
   io: ^1.0.4
-  local_inference_client:
-    path: ../data/local_inference_client
-  local_inference_protocol:
-    path: ../infra/local_inference_protocol
   local_models_repository:
     path: ../domain/local_models_repository
-  local_server_repository:
-    path: ../domain/local_server_repository
+  local_server_protocol:
+    path: ../infra/local_server_protocol
   logger: ^2.4.0
   logic_bloc_adapter:
     path: ../infra/logic_bloc_adapter
@@ -114,18 +106,17 @@ dependencies:
   meta: ^1.18.0
   metasearch_client:
     path: ../data/metasearch_client
-  model_catalog_modelsdev:
-    path: ../data/model_catalog_modelsdev
   model_downloader:
     path: ../data/model_downloader
   model_index_store:
     path: ../data/model_index_store
   nocterm: ^0.6.0
-  openrouter_sdk: ^0.0.8
   path: ^1.9.1
   platform: ^3.1.5
   platform_repository:
     path: ../domain/platform_repository
+  posix_dart:
+    path: ../ffi/posix_dart
   process_host:
     path: ../infra/process_host
   process_host_posix:
@@ -136,8 +127,10 @@ dependencies:
     path: ../infra/prompt_builder
   provider_fireworks:
     path: ../data/provider_fireworks
-  provider_openai_compat:
-    path: ../data/provider_openai_compat
+  provider_local:
+    path: ../data/provider_local
+  provider_openai:
+    path: ../data/provider_openai
   provider_openrouter:
     path: ../data/provider_openrouter
   provider_protocol:
@@ -178,13 +171,11 @@ dependencies:
     path: ../ffi/win32_dart
 
 dev_dependencies:
-  agent_provider_protocol:
-    path: ../infra/agent_provider_protocol
+  agent_runtime_protocol:
+    path: ../infra/agent_runtime_protocol
   build_runner: ^2.8.0
   build_verify: ^3.1.1
   fake_async: ^1.3.2
-  inference_protocol:
-    path: ../infra/inference_protocol
   mocktail: ^1.0.4
   test: ^1.26.3
   very_good_analysis: ^10.0.0

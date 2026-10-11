@@ -1,40 +1,67 @@
-import 'package:dart_mappable/dart_mappable.dart';
 import 'package:intentions/intentions.dart';
-import 'package:provider_protocol/provider_protocol.dart' show ProviderModelRef;
-import 'package:provider_protocol/provider_protocol_mappers.dart';
-import 'package:provider_repository/src/models/provider_account.dart';
+import 'package:meta/meta.dart';
+import 'package:provider_protocol/provider_protocol.dart'
+    show ProviderCredentials, ProviderModelRef;
 
-part 'provider_settings.mapper.dart';
-
-/// What the user asked to run against: which accounts, which model, how
-/// many agents at once.
+/// What the user asked to run against: the credentials for each provider
+/// they set up, which model, how many agents at once, and how much context
+/// to load it with.
 @model
-@MappableClass(generateMethods: GenerateMethods.equals | GenerateMethods.copy)
-final class ProviderSettings with ProviderSettingsMappable {
+@immutable
+final class ProviderSettings {
   const ProviderSettings({
-    required this.accounts,
+    required this.credentials,
     required this.model,
     required this.maxAgents,
+    this.contextCap,
   });
 
-  final List<ProviderAccount> accounts;
+  /// Keyed by provider id. A provider left out runs without credentials.
+  final Map<String, ProviderCredentials> credentials;
 
   final ProviderModelRef? model;
 
   final int maxAgents;
 
-  bool get hasUsableAccount => accounts.any((account) => account.isUsable);
-
-  ProviderAccount? accountFor(String providerId) => accounts
-      .where((account) => account.descriptor.id == providerId)
-      .firstOrNull;
+  /// The most context to run the model with, for providers that load
+  /// models; null for as much as fits.
+  final int? contextCap;
 
   /// Whether there is enough here to attempt a connection.
-  bool get isComplete => model != null && maxAgents > 0 && hasUsableAccount;
+  bool get isComplete => model != null && maxAgents > 0;
+
+  /// Whether [other] runs the same credentials, model, and agents, so that
+  /// a session running these need not be rebuilt for it. The context cap is
+  /// read when a model is loaded, so it alone may differ.
+  bool runsSameSessionAs(ProviderSettings other) =>
+      other.model == model &&
+      other.maxAgents == maxAgents &&
+      other.credentials.length == credentials.length &&
+      credentials.entries.every(
+        (entry) => other.credentials[entry.key] == entry.value,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is ProviderSettings &&
+      other.contextCap == contextCap &&
+      runsSameSessionAs(other);
+
+  @override
+  int get hashCode => Object.hash(
+    model,
+    maxAgents,
+    contextCap,
+    Object.hashAllUnordered(
+      credentials.entries.map(
+        (entry) => Object.hash(entry.key, entry.value),
+      ),
+    ),
+  );
 
   /// Never prints a key.
   @override
   String toString() =>
       'ProviderSettings(model: ${model?.qualified}, maxAgents: $maxAgents, '
-      'accounts: $accounts)';
+      'contextCap: $contextCap, credentials: $credentials)';
 }

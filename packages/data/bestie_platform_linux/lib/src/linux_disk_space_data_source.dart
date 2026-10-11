@@ -4,10 +4,7 @@ import 'package:posix_dart/posix_dart.dart';
 
 @dataSource
 class LinuxDiskSpaceDataSource implements DiskSpaceDataSource {
-  /// [reader] defaults to the host's libc; pass one to substitute a
-  /// double.
-  LinuxDiskSpaceDataSource({StatvfsReader? reader})
-    : _reader = reader ?? LinuxStatvfsReader();
+  LinuxDiskSpaceDataSource({required StatvfsReader reader}) : _reader = reader;
 
   final StatvfsReader _reader;
 
