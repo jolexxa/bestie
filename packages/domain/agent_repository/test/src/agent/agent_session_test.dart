@@ -1363,6 +1363,41 @@ void main() {
       expect(snippet.codeUnitAt(snippet.length - 1), 0x2026);
     });
 
+    test('elides a long many-line block after collapsing it', () async {
+      final words = [for (var index = 0; index < 60; index++) 'cow$index'];
+      await begin(session);
+      events
+        ..add(started(transcript: handedToRun))
+        ..add(reasoning('\n  ${words.join(' \n\t ')}  \n'));
+      await pump();
+
+      expect(
+        (session.state as TurnInProgress).reasoningSnippet,
+        '${words.join(' ').substring(0, 120)}…',
+      );
+    });
+
+    test('keeps a snippet that lands exactly on the limit whole', () async {
+      final exact = '${'a' * 59} ${'b' * 60}';
+      await begin(session);
+      events
+        ..add(started(transcript: handedToRun))
+        ..add(reasoning('  $exact  '));
+      await pump();
+
+      expect((session.state as TurnInProgress).reasoningSnippet, exact);
+    });
+
+    test('has no snippet while reasoning is only whitespace', () async {
+      await begin(session);
+      events
+        ..add(started(transcript: handedToRun))
+        ..add(reasoning(' \n\t '));
+      await pump();
+
+      expect((session.state as TurnInProgress).reasoningSnippet, isNull);
+    });
+
     test('has no snippet before any reasoning streams', () async {
       await begin(session);
       events.add(started(transcript: handedToRun));

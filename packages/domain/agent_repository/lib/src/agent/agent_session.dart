@@ -375,13 +375,23 @@ final class _AgentSession extends AgentSession {
   /// A one-line preview of the latest lexed reasoning block for the chat stub.
   String? _reasoningSnippet() {
     for (final block in currentTurnReasoning.reversed) {
-      final line = block.trim().replaceAll(RegExp(r'\s+'), ' ');
-      if (line.isEmpty) continue;
-      return line.length > _reasoningSnippetMaxChars
-          ? '${line.substring(0, _reasoningSnippetMaxChars)}…'
-          : line;
+      if (_snippetOf(block) case final snippet?) return snippet;
     }
     return null;
+  }
+
+  /// The opening of [block] on one line, read only as far as the snippet
+  /// shows, so a long block costs no more than a short one.
+  static String? _snippetOf(String block) {
+    final line = StringBuffer();
+    for (final word in _word.allMatches(block)) {
+      if (line.isNotEmpty) line.write(' ');
+      line.write(word[0]);
+      if (line.length > _reasoningSnippetMaxChars) {
+        return '${line.toString().substring(0, _reasoningSnippetMaxChars)}…';
+      }
+    }
+    return line.isEmpty ? null : line.toString();
   }
 
   /// Commits the user's [message] to history before the turn it seeds runs, so
@@ -902,6 +912,8 @@ final class _AgentSession extends AgentSession {
 
 /// Max characters shown in the live reasoning snippet before eliding.
 const _reasoningSnippetMaxChars = 120;
+
+final _word = RegExp(r'\S+');
 
 /// One row of a projected turn, in the order it belongs.
 sealed class _TurnSlot {
