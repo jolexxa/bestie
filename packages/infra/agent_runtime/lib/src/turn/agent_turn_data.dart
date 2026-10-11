@@ -119,11 +119,11 @@ final class StepFrame {
     ];
     final reasoningShares = splitProportionally(reasoning, [
       for (var index = 0; index < blocks.length; index++)
-        countedApart[index] ? _outputLengths[index] : 0,
+        if (countedApart[index]) _outputLengths[index] else 0,
     ]);
     final outputShares = splitProportionally(completionTokens - reasoning, [
       for (var index = 0; index < blocks.length; index++)
-        countedApart[index] ? 0 : _outputLengths[index],
+        if (countedApart[index]) 0 else _outputLengths[index],
     ]);
     for (var index = 0; index < blocks.length; index++) {
       blocks[index] = blocks[index].copyWith.stat!(
