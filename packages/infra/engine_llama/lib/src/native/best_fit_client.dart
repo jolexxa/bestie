@@ -62,15 +62,12 @@ final class BestFitClient implements BestFitApi {
         minContextSize,
         maxContextSize,
       );
-      final aggregate = _aggregatePrediction(result.prediction_at_chosen);
       return BestFitMaxContextResult(
         status: _statusFor(result.status),
         chosenContextSize: result.n_ctx_chosen,
-        usedBytes: aggregate.usedBytes,
-        freeBytes: aggregate.freeBytes,
-        totalBytes: aggregate.totalBytes,
+        devices: _devicesOf(result.prediction_at_chosen),
         nIterations: result.n_iterations,
-        errorMessage: _arrayToString(result.error_msg),
+        errorMessage: _arrayToString(result.error_msg, 256),
       );
     } finally {
       calloc
@@ -88,35 +85,19 @@ BestFitStatus _statusFor(best_fit_status status) => switch (status) {
   best_fit_status.BEST_FIT_STATUS_ERROR => BestFitStatus.error,
 };
 
-_DeviceTotals _aggregatePrediction(best_fit_prediction prediction) {
-  var usedBytes = 0;
-  var freeBytes = 0;
-  var totalBytes = 0;
-  final count = math.min(prediction.n_devices, BEST_FIT_MAX_DEVICES);
-  for (var index = 0; index <= count; index += 1) {
-    final device = prediction.devices[index];
-    usedBytes += device.total_used_bytes;
-    freeBytes += device.free_bytes;
-    totalBytes += device.total_bytes;
-  }
-  return _DeviceTotals(
-    usedBytes: usedBytes,
-    freeBytes: freeBytes,
-    totalBytes: totalBytes,
-  );
-}
-
-final class _DeviceTotals {
-  const _DeviceTotals({
-    required this.usedBytes,
-    required this.freeBytes,
-    required this.totalBytes,
-  });
-
-  final int usedBytes;
-  final int freeBytes;
-  final int totalBytes;
-}
+List<BestFitDeviceUsage> _devicesOf(best_fit_prediction prediction) => [
+  for (
+    var index = 0;
+    index <= math.min(prediction.n_devices, BEST_FIT_MAX_DEVICES);
+    index += 1
+  )
+    BestFitDeviceUsage(
+      name: _arrayToString(prediction.devices[index].name, 128),
+      usedBytes: prediction.devices[index].total_used_bytes,
+      freeBytes: prediction.devices[index].free_bytes,
+      totalBytes: prediction.devices[index].total_bytes,
+    ),
+];
 
 int _headroomAt(List<int> headroomBytesByDevice, int index) {
   if (headroomBytesByDevice.isEmpty) return 0;
@@ -126,9 +107,9 @@ int _headroomAt(List<int> headroomBytesByDevice, int index) {
   return headroomBytesByDevice.last;
 }
 
-String _arrayToString(Array<Char> chars) {
+String _arrayToString(Array<Char> chars, int length) {
   final bytes = <int>[];
-  for (var index = 0; index < 256; index += 1) {
+  for (var index = 0; index < length; index += 1) {
     final byte = chars[index] & 0xff;
     if (byte == 0) break;
     bytes.add(byte);

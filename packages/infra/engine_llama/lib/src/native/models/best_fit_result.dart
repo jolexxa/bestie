@@ -16,9 +16,7 @@ final class BestFitMaxContextResult {
   const BestFitMaxContextResult({
     required this.status,
     required this.chosenContextSize,
-    required this.usedBytes,
-    required this.freeBytes,
-    required this.totalBytes,
+    required this.devices,
     required this.nIterations,
     this.errorMessage = '',
   });
@@ -32,18 +30,38 @@ final class BestFitMaxContextResult {
   /// Largest fitting context size chosen by the native predictor.
   final int chosenContextSize;
 
-  /// Predicted bytes used by the loaded model and chosen context.
-  final int usedBytes;
+  /// Predicted memory per device at the chosen context, the host last.
+  final List<BestFitDeviceUsage> devices;
 
-  /// Free bytes reported by the native predictor.
-  final int freeBytes;
-
-  /// Total bytes reported by the native predictor.
-  final int totalBytes;
+  /// Predicted bytes used across every device.
+  int get usedBytes => devices.fold(0, (sum, device) => sum + device.usedBytes);
 
   /// Number of native search iterations.
   final int nIterations;
 
   /// Native error message, when available.
   final String errorMessage;
+}
+
+/// Predicted memory for one device at the chosen context.
+final class BestFitDeviceUsage {
+  /// Creates a device usage prediction.
+  const BestFitDeviceUsage({
+    required this.name,
+    required this.usedBytes,
+    required this.freeBytes,
+    required this.totalBytes,
+  });
+
+  /// Device name reported by the native predictor.
+  final String name;
+
+  /// Predicted bytes the model and context use on this device.
+  final int usedBytes;
+
+  /// Free bytes the device reported before loading.
+  final int freeBytes;
+
+  /// Total bytes the device reported.
+  final int totalBytes;
 }

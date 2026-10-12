@@ -224,9 +224,7 @@ void main() {
       const result = BestFitMaxContextResult(
         status: BestFitStatus.success,
         chosenContextSize: 4096,
-        usedBytes: 1,
-        freeBytes: 2,
-        totalBytes: 3,
+        devices: [],
         nIterations: 2,
       );
       when(
