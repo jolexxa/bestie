@@ -148,7 +148,7 @@ final class BatchingSequenceScheduler implements SequenceScheduler {
     }
 
     final slicedPlans = _materializer._sliceMaterializePlans(
-      prefillPlans,
+      _materializer._announceFreshPlans(prefillPlans, materializeResults),
       materializeResults,
       maxPrefillRows: stepBudget.maxPrefillRows,
     );
@@ -530,6 +530,7 @@ final class _MaterializePrefillPlan extends _MaterializePlan {
     required this.startOffset,
     required this.strategy,
     required this.reusedTokenCount,
+    this.resumes = false,
   });
 
   final Lease lease;
@@ -537,6 +538,10 @@ final class _MaterializePrefillPlan extends _MaterializePlan {
   final int startOffset;
   final MaterializationStrategy strategy;
   final int reusedTokenCount;
+
+  /// Whether this plan continues a materialization already recorded for
+  /// these tokens, as opposed to starting one.
+  final bool resumes;
 }
 
 final class _SlicedMaterializePlan {

@@ -77,6 +77,7 @@ final class _SequenceMaterializer {
           startOffset: previous.materializedTokenCount,
           strategy: previous.strategy,
           reusedTokenCount: previous.reusedTokenCount,
+          resumes: true,
         );
       }
 
@@ -288,6 +289,7 @@ final class _SequenceMaterializer {
     required int startOffset,
     required MaterializationStrategy strategy,
     int? reusedTokenCount,
+    bool resumes = false,
   }) {
     final readiness = _prefillReadinessFor(
       request.lease,
@@ -306,7 +308,35 @@ final class _SequenceMaterializer {
       startOffset: startOffset,
       strategy: strategy,
       reusedTokenCount: reusedTokenCount ?? startOffset,
+      resumes: resumes,
     );
+  }
+
+  /// Records every plan that starts a materialization as advanced to its
+  /// start offset, decoding nothing, so the caller learns how much of the
+  /// prompt is already resident before the first slice runs. Returns the
+  /// plans that resume one, which go on to be sliced.
+  List<_MaterializePrefillPlan> _announceFreshPlans(
+    List<_MaterializePrefillPlan> plans,
+    Map<Lease, SequenceMaterializeResult> results,
+  ) {
+    final resumed = <_MaterializePrefillPlan>[];
+    for (final plan in plans) {
+      if (plan.resumes) {
+        resumed.add(plan);
+        continue;
+      }
+      results[plan.lease] = _ledger.recordMaterializationAdvanced(
+        plan.lease,
+        plan.tokens,
+        positionMin: plan.startOffset,
+        positionMax: plan.startOffset - 1,
+        materializedTokenCount: plan.startOffset,
+        strategy: plan.strategy,
+        reusedTokenCount: plan.reusedTokenCount,
+      );
+    }
+    return resumed;
   }
 
   _MaterializePlan _planMaterializeRebuild(SequenceMaterializeRequest request) {

@@ -329,14 +329,7 @@ void main() {
     );
 
     test('defers sample when effective limit is reached', () {
-      final backend = _FakeSequences(
-        snapshot: const KvSnapshot(
-          contextSize: 8,
-          sequences: [
-            SequenceKvState(sequenceId: 2, positionMin: 0, positionMax: 3),
-          ],
-        ),
-      );
+      final backend = _FakeSequences();
       final subagent = _subagentLease();
       final scheduler = _sequenceScheduler(
         backend: backend,
@@ -1169,12 +1162,12 @@ void main() {
         leases: [first, second],
       );
 
-      final materialized = scheduler.stepBatch(
-        materializes: [
-          SequenceMaterializeRequest(lease: first, tokens: _context([1])),
-          SequenceMaterializeRequest(lease: second, tokens: _context([2])),
-        ],
-      );
+      final requests = [
+        SequenceMaterializeRequest(lease: first, tokens: _context([1])),
+        SequenceMaterializeRequest(lease: second, tokens: _context([2])),
+      ];
+      scheduler.stepBatch(materializes: requests);
+      final materialized = scheduler.stepBatch(materializes: requests);
 
       expect(materialized, isA<SequenceStepResults>());
       expect(_sample(scheduler, first), isA<SequenceSampleSucceeded>());
@@ -2387,7 +2380,9 @@ void main() {
           22,
         ),
       );
-      expect(backend.snapshotCalls, 1);
+      // The explicit usage read and the announced prefill's resume each
+      // refreshed once; sampling and the final read used the cache.
+      expect(backend.snapshotCalls, 2);
     });
 
     test('sets sampling for an owned lease', () async {
@@ -2707,6 +2702,147 @@ void main() {
     );
   });
 
+  group('announcing a prefill', () {
+    test('a fresh prefill is announced at its start before anything is '
+        'decoded', () {
+      final backend = _FakeSequences();
+      final primary = _primaryLease();
+      final scheduler = _sequenceScheduler(backend: backend, leases: [primary]);
+
+      final announced = _stepMaterialize(scheduler, primary, _context([1, 2]));
+
+      expect(backend.stepBatchCalls, 0);
+      expect(
+        announced,
+        isA<SequenceMaterializeAdvanced>()
+            .having((result) => result.isAnnouncement, 'isAnnouncement', true)
+            .having(
+              (result) => result.materialization.materializedTokenCount,
+              'materializedTokenCount',
+              0,
+            )
+            .having(
+              (result) => result.materialization.strategy,
+              'strategy',
+              MaterializationStrategy.fullPrefill,
+            ),
+      );
+
+      final decoded = _stepMaterialize(scheduler, primary, _context([1, 2]));
+
+      expect(backend.prefillBatchCalls, 1);
+      expect(backend.lastPrefillRequests.single.tokens, orderedEquals([1, 2]));
+      expect(decoded, isA<SequenceMaterializeSucceeded>());
+    });
+
+    test('a prefix reuse is announced at the reused length', () {
+      final backend = _FakeSequences();
+      final primary = _primaryLease();
+      final scheduler = _sequenceScheduler(backend: backend, leases: [primary]);
+      _materialize(scheduler, primary, _context([1, 2]));
+
+      final announced = _stepMaterialize(
+        scheduler,
+        primary,
+        _context([1, 2, 3, 4]),
+      );
+
+      expect(backend.prefillBatchCalls, 1);
+      expect(
+        announced,
+        isA<SequenceMaterializeAdvanced>()
+            .having((result) => result.isAnnouncement, 'isAnnouncement', true)
+            .having(
+              (result) => result.materialization.materializedTokenCount,
+              'materializedTokenCount',
+              2,
+            )
+            .having(
+              (result) => result.materialization.reusedTokenCount,
+              'reusedTokenCount',
+              2,
+            )
+            .having(
+              (result) => result.materialization.strategy,
+              'strategy',
+              MaterializationStrategy.prefixReuse,
+            ),
+      );
+      expect(
+        _stepMaterialize(scheduler, primary, _context([1, 2, 3, 4])),
+        isA<SequenceMaterializeSucceeded>(),
+      );
+      expect(backend.lastPrefillRequests.single.tokens, orderedEquals([3, 4]));
+    });
+
+    test('a resumed slice is decoded, not announced again', () {
+      final backend = _FakeSequences(maxBatchTokens: 2);
+      final primary = _primaryLease();
+      final scheduler = _sequenceScheduler(backend: backend, leases: [primary]);
+      final context = _context([1, 2, 3, 4]);
+
+      final steps = [
+        _stepMaterialize(scheduler, primary, context),
+        _stepMaterialize(scheduler, primary, context),
+        _stepMaterialize(scheduler, primary, context),
+      ];
+
+      expect(
+        steps.map(
+          (result) => switch (result) {
+            SequenceMaterializeAdvanced(:final isAnnouncement) =>
+              isAnnouncement,
+            _ => null,
+          },
+        ),
+        [true, false, null],
+      );
+      expect(steps.last, isA<SequenceMaterializeSucceeded>());
+      expect(backend.prefillBatchCalls, 2);
+    });
+
+    test('a fully cached prompt needs no announcement', () {
+      final backend = _FakeSequences();
+      final primary = _primaryLease();
+      final scheduler = _sequenceScheduler(backend: backend, leases: [primary]);
+      _materialize(scheduler, primary, _context([1, 2]));
+
+      expect(
+        _stepMaterialize(scheduler, primary, _context([1, 2])),
+        isA<SequenceMaterializeSucceeded>(),
+      );
+    });
+
+    test('samples in the announcing step still decode', () {
+      final backend = _FakeSequences();
+      final running = _subagentLease(id: 1, claimSize: 16);
+      final fresh = _subagentLease(claimSize: 16);
+      final scheduler = _sequenceScheduler(
+        backend: backend,
+        leases: [running, fresh],
+      );
+      _materialize(scheduler, running, _context([1, 2]));
+
+      final result = scheduler.stepBatch(
+        samples: [SequenceSampleRequest(lease: running)],
+        materializes: [
+          SequenceMaterializeRequest(lease: fresh, tokens: _context([5, 6])),
+        ],
+      );
+
+      expect(result.samples[running], isA<SequenceSampleSucceeded>());
+      expect(
+        result.materializes[fresh],
+        isA<SequenceMaterializeAdvanced>().having(
+          (result) => result.isAnnouncement,
+          'isAnnouncement',
+          true,
+        ),
+      );
+      expect(backend.lastStepRequest!.prefills, isEmpty);
+    });
+  });
+
   group('stepBatch', () {
     test('samples and prefills in a single backend step', () {
       final backend = _FakeSequences();
@@ -2717,16 +2853,16 @@ void main() {
         leases: [running, fresh],
       );
       _materialize(scheduler, running, _context([1, 2]));
+      final request = SequenceMaterializeRequest(
+        lease: fresh,
+        tokens: _context([5, 6, 7, 8]),
+      );
+      scheduler.stepBatch(materializes: [request]);
       backend.stepBatchCalls = 0;
 
       final result = scheduler.stepBatch(
         samples: [SequenceSampleRequest(lease: running)],
-        materializes: [
-          SequenceMaterializeRequest(
-            lease: fresh,
-            tokens: _context([5, 6, 7, 8]),
-          ),
-        ],
+        materializes: [request],
       );
 
       expect(backend.stepBatchCalls, 1);
@@ -2763,28 +2899,23 @@ void main() {
         effectiveLimits: {primary: 100, first: 10, second: 10},
       );
 
-      final result = scheduler.stepBatch(
-        materializes: [
-          SequenceMaterializeRequest(
-            lease: primary,
-            tokens: _context(
-              List<int>.generate(100, (index) => index),
-            ),
-          ),
-          SequenceMaterializeRequest(
-            lease: first,
-            tokens: _context(
-              List<int>.generate(10, (index) => index + 100),
-            ),
-          ),
-          SequenceMaterializeRequest(
-            lease: second,
-            tokens: _context(
-              List<int>.generate(10, (index) => index + 200),
-            ),
-          ),
-        ],
-      );
+      final requests = [
+        SequenceMaterializeRequest(
+          lease: primary,
+          tokens: _context(List<int>.generate(100, (index) => index)),
+        ),
+        SequenceMaterializeRequest(
+          lease: first,
+          tokens: _context(List<int>.generate(10, (index) => index + 100)),
+        ),
+        SequenceMaterializeRequest(
+          lease: second,
+          tokens: _context(List<int>.generate(10, (index) => index + 200)),
+        ),
+      ];
+      scheduler.stepBatch(materializes: requests);
+
+      final result = scheduler.stepBatch(materializes: requests);
 
       expect(
         result.materializes.values,
@@ -2810,20 +2941,18 @@ void main() {
         leases: [running, fresh],
       );
       _materialize(scheduler, running, _context([1]));
+      final request = SequenceMaterializeRequest(
+        lease: fresh,
+        tokens: _context(List<int>.generate(300, (index) => index)),
+      );
+      scheduler.stepBatch(materializes: [request]);
       backend
         ..stepResult = failure
         ..stepBatchCalls = 0;
 
       final rejected = scheduler.stepBatch(
         samples: [SequenceSampleRequest(lease: running)],
-        materializes: [
-          SequenceMaterializeRequest(
-            lease: fresh,
-            tokens: _context(
-              List<int>.generate(300, (index) => index),
-            ),
-          ),
-        ],
+        materializes: [request],
       );
 
       expect(backend.lastPrefillRequests.single.tokens, hasLength(300));
@@ -2847,14 +2976,7 @@ void main() {
       backend.stepResult = null;
       final retried = scheduler.stepBatch(
         samples: [SequenceSampleRequest(lease: running)],
-        materializes: [
-          SequenceMaterializeRequest(
-            lease: fresh,
-            tokens: _context(
-              List<int>.generate(300, (index) => index),
-            ),
-          ),
-        ],
+        materializes: [request],
       );
 
       expect(backend.lastPrefillRequests.single.tokens, hasLength(150));
@@ -2875,6 +2997,8 @@ void main() {
         lease: fresh,
         tokens: _context(List<int>.generate(300, (index) => index)),
       );
+
+      scheduler.stepBatch(materializes: [request]);
 
       final rejected = scheduler.stepBatch(materializes: [request]);
 
@@ -2906,17 +3030,18 @@ void main() {
       final first = _subagentLease(id: 1, claimSize: 16);
       final second = _subagentLease(claimSize: 16);
       final third = _subagentLease(id: 3, claimSize: 16);
-      final scheduler =
-          _sequenceScheduler(
-            backend: backend,
-            leases: [first, second, third],
-          )..stepBatch(
-            materializes: [
-              SequenceMaterializeRequest(lease: first, tokens: _context([1])),
-              SequenceMaterializeRequest(lease: second, tokens: _context([2])),
-              SequenceMaterializeRequest(lease: third, tokens: _context([3])),
-            ],
-          );
+      final scheduler = _sequenceScheduler(
+        backend: backend,
+        leases: [first, second, third],
+      );
+      final requests = [
+        SequenceMaterializeRequest(lease: first, tokens: _context([1])),
+        SequenceMaterializeRequest(lease: second, tokens: _context([2])),
+        SequenceMaterializeRequest(lease: third, tokens: _context([3])),
+      ];
+      scheduler
+        ..stepBatch(materializes: requests)
+        ..stepBatch(materializes: requests);
       backend.stepResult = failure;
 
       final rejected = scheduler.stepBatch(
@@ -3004,16 +3129,16 @@ void main() {
         _materialize(scheduler, running, _context([1])),
         isA<SequenceMaterializeSucceeded>(),
       );
+      final request = SequenceMaterializeRequest(
+        lease: fresh,
+        tokens: _context([5]),
+      );
+      scheduler.stepBatch(materializes: [request]);
       backend.stepBatchCalls = 0;
 
       final result = scheduler.stepBatch(
         samples: [SequenceSampleRequest(lease: running)],
-        materializes: [
-          SequenceMaterializeRequest(
-            lease: fresh,
-            tokens: _context([5]),
-          ),
-        ],
+        materializes: [request],
       );
 
       expect(backend.stepBatchCalls, 1);
@@ -3058,6 +3183,11 @@ void main() {
         leases: [running, fresh],
       );
       _materialize(scheduler, running, _context([1, 2]));
+      final request = SequenceMaterializeRequest(
+        lease: fresh,
+        tokens: _context([5]),
+      );
+      scheduler.stepBatch(materializes: [request]);
       backend.stepResult = const StepBatchFailed(
         message: 'step failed',
         stackTrace: '',
@@ -3065,12 +3195,7 @@ void main() {
 
       final result = scheduler.stepBatch(
         samples: [SequenceSampleRequest(lease: running)],
-        materializes: [
-          SequenceMaterializeRequest(
-            lease: fresh,
-            tokens: _context([5]),
-          ),
-        ],
+        materializes: [request],
       );
 
       expect(
@@ -3117,7 +3242,9 @@ BatchingSequenceScheduler _sequenceScheduler({
   );
 }
 
-SequenceMaterializeResult _materialize(
+/// One scheduler step for [tokens]. A prefill that starts here is only
+/// announced; the step after it decodes.
+SequenceMaterializeResult _stepMaterialize(
   BatchingSequenceScheduler scheduler,
   Lease lease,
   TokenizedString tokens, {
@@ -3131,6 +3258,30 @@ SequenceMaterializeResult _materialize(
       const SequenceMaterializeFailed(
         reason: SequenceSchedulerFailureReason.missingBatchResult,
       );
+}
+
+/// Steps [tokens] through its announcement to the first step that decodes.
+SequenceMaterializeResult _materialize(
+  BatchingSequenceScheduler scheduler,
+  Lease lease,
+  TokenizedString tokens, {
+  IsolateCancellationToken? cancellationToken,
+}) {
+  final first = _stepMaterialize(
+    scheduler,
+    lease,
+    tokens,
+    cancellationToken: cancellationToken,
+  );
+  if (first is SequenceMaterializeAdvanced && first.isAnnouncement) {
+    return _stepMaterialize(
+      scheduler,
+      lease,
+      tokens,
+      cancellationToken: cancellationToken,
+    );
+  }
+  return first;
 }
 
 SequenceSampleResult _sample(
@@ -3267,6 +3418,8 @@ final class _FakeSequences implements Sequences {
     _positionMaxBySequence.addAll(initialPositionMaxes);
   }
 
+  /// A frozen snapshot standing in for backend drift. The scheduler's own
+  /// mutations replace it with the tracked state, as a real backend would.
   KvSnapshot? _snapshot;
   KvSnapshotResult? _snapshotResult;
   List<PrefillSequenceResult>? prefillResults;
@@ -3316,6 +3469,7 @@ final class _FakeSequences implements Sequences {
     clearCalls += 1;
     onClear?.call();
     if (_clearResult is ClearSequenceSucceeded) {
+      _snapshot = null;
       _positionMinBySequence.remove(id);
       _positionMaxBySequence.remove(id);
     }
@@ -3429,6 +3583,7 @@ final class _FakeSequences implements Sequences {
     lastRemoveRangeStart = start;
     lastRemoveRangeEnd = end;
     if (_removeRangeResult is RemoveRangeSucceeded) {
+      _snapshot = null;
       final current = _positionMaxBySequence[id] ?? -1;
       if (current >= start) {
         _positionMaxBySequence[id] = start - 1;
@@ -3491,6 +3646,9 @@ final class _FakeSequences implements Sequences {
   RestoreCheckpointResult restoreCheckpoint(SequenceId id, Uint8List bytes) {
     restoreCheckpointCalls += 1;
     lastRestoredBytes = bytes;
+    if (restoreCheckpointResult is RestoreCheckpointSucceeded) {
+      _snapshot = null;
+    }
     return restoreCheckpointResult;
   }
 }
