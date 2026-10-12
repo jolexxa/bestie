@@ -276,6 +276,30 @@ void main() {
         );
       });
 
+      test('prefers what the endpoint says an agent holds', () async {
+        final harness = _Harness()..serveReplies([_textReply('hello')]);
+        final primary = await harness.startPrimary();
+        await primary.agent.run(transcriptOf([userEntry('hi')]));
+        await pumpEventQueue();
+
+        harness.reports.add(
+          const AgentPoolReport(
+            contextSize: 8192,
+            reservedTokens: 0,
+            agents: [
+              AgentPoolEntry(
+                agent: _primaryIdentity,
+                claimedTokens: 0,
+                usedTokens: 75,
+              ),
+            ],
+          ),
+        );
+        await pumpEventQueue();
+
+        expect(harness.snapshots.last.leases.single.residentTokens, 75);
+      });
+
       test('rejects an agent the endpoint has no session for', () async {
         final harness = _Harness();
         await harness.startPrimary();

@@ -10,35 +10,73 @@ sealed class CompletionEvent {
 }
 
 final class CompletionTextDelta extends CompletionEvent {
-  const CompletionTextDelta(this.text);
+  const CompletionTextDelta(this.text, {this.tokens});
 
   final String text;
 
+  /// How many generated tokens [text] decodes from; null when the server does
+  /// not say.
+  final int? tokens;
+
   @override
   bool operator ==(Object other) =>
-      other is CompletionTextDelta && other.text == text;
+      other is CompletionTextDelta &&
+      other.text == text &&
+      other.tokens == tokens;
 
   @override
-  int get hashCode => Object.hash(CompletionTextDelta, text);
+  int get hashCode => Object.hash(CompletionTextDelta, text, tokens);
 
   @override
-  String toString() => 'CompletionTextDelta($text)';
+  String toString() => 'CompletionTextDelta($text, tokens: $tokens)';
 }
 
 final class CompletionReasoningDelta extends CompletionEvent {
-  const CompletionReasoningDelta(this.text);
+  const CompletionReasoningDelta(this.text, {this.tokens});
 
   final String text;
 
+  /// How many generated tokens [text] decodes from; null when the server does
+  /// not say.
+  final int? tokens;
+
   @override
   bool operator ==(Object other) =>
-      other is CompletionReasoningDelta && other.text == text;
+      other is CompletionReasoningDelta &&
+      other.text == text &&
+      other.tokens == tokens;
 
   @override
-  int get hashCode => Object.hash(CompletionReasoningDelta, text);
+  int get hashCode => Object.hash(CompletionReasoningDelta, text, tokens);
 
   @override
-  String toString() => 'CompletionReasoningDelta($text)';
+  String toString() => 'CompletionReasoningDelta($text, tokens: $tokens)';
+}
+
+/// The server has read [processed] of the [total] prompt tokens it must hold
+/// before generating, counting any it already held.
+final class CompletionPrefillProgressed extends CompletionEvent {
+  const CompletionPrefillProgressed({
+    required this.total,
+    required this.processed,
+  });
+
+  final int total;
+
+  final int processed;
+
+  @override
+  bool operator ==(Object other) =>
+      other is CompletionPrefillProgressed &&
+      other.total == total &&
+      other.processed == processed;
+
+  @override
+  int get hashCode =>
+      Object.hash(CompletionPrefillProgressed, total, processed);
+
+  @override
+  String toString() => 'CompletionPrefillProgressed($processed/$total)';
 }
 
 /// The model opened a tool call whose arguments are still streaming. Emitted
@@ -62,19 +100,25 @@ final class CompletionToolCallStarted extends CompletionEvent {
 /// A complete tool call; clients accumulate argument fragments before
 /// emitting this.
 final class CompletionToolCallEmitted extends CompletionEvent {
-  const CompletionToolCallEmitted(this.call);
+  const CompletionToolCallEmitted(this.call, {this.tokens});
 
   final CompletionToolCall call;
 
+  /// How many generated tokens spelled out [call]; null when the server does
+  /// not say.
+  final int? tokens;
+
   @override
   bool operator ==(Object other) =>
-      other is CompletionToolCallEmitted && other.call == call;
+      other is CompletionToolCallEmitted &&
+      other.call == call &&
+      other.tokens == tokens;
 
   @override
-  int get hashCode => call.hashCode;
+  int get hashCode => Object.hash(call, tokens);
 
   @override
-  String toString() => 'CompletionToolCallEmitted($call)';
+  String toString() => 'CompletionToolCallEmitted($call, tokens: $tokens)';
 }
 
 final class CompletionUsageReported extends CompletionEvent {

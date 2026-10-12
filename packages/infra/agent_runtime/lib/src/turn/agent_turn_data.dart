@@ -44,6 +44,10 @@ final class StepFrame {
 
   /// How much output each of [blocks] holds, in characters.
   final List<int> _outputLengths = [];
+
+  /// The tokens the provider counted for each of [blocks], when it counts.
+  final List<int> _countedTokens = [];
+  var _counted = false;
   final List<ToolCall> toolCalls = [];
   CompletionStopReason? stop;
   _OpenBlockKind? _openKind;
@@ -60,6 +64,7 @@ final class StepFrame {
     String text, {
     required bool reasoning,
     required DateTime at,
+    int? tokens,
   }) {
     final kind = reasoning ? _OpenBlockKind.reasoning : _OpenBlockKind.text;
     if (_openKind != kind) {
@@ -69,11 +74,13 @@ final class StepFrame {
       _openText.clear();
       blocks.add(_openBlock(at));
       _outputLengths.add(0);
+      _countedTokens.add(0);
     }
     _openText.write(text);
     _lastEndedAt = at;
     blocks[blocks.length - 1] = _openBlock(at);
     _outputLengths[_outputLengths.length - 1] = _openText.length;
+    _count(tokens);
     return _openId;
   }
 
@@ -88,7 +95,11 @@ final class StepFrame {
 
   /// Records a complete tool call and returns its block; the next text
   /// delta opens a fresh block.
-  TranscriptBlockId addToolCall(ToolCall toolCall, {required DateTime at}) {
+  TranscriptBlockId addToolCall(
+    ToolCall toolCall, {
+    required DateTime at,
+    int? tokens,
+  }) {
     _openKind = null;
     final id = TranscriptBlockId.v7();
     blocks.add(
@@ -102,16 +113,27 @@ final class StepFrame {
     _outputLengths.add(
       toolCall.name.length + jsonEncode(toolCall.arguments).length,
     );
+    _countedTokens.add(0);
+    _count(tokens);
     toolCalls.add(toolCall);
     return id;
   }
 
-  /// Shares the [completionTokens] the step decoded among its blocks by how
-  /// much of the output each one holds, so every block's stat carries its
-  /// part. When the provider counts [reasoningTokens], reasoning blocks share
-  /// exactly those and the rest share what is left, so reasoning the provider
-  /// never streamed lands on no block.
+  void _count(int? tokens) {
+    if (tokens == null) return;
+    _counted = true;
+    _countedTokens.last += tokens;
+  }
+
+  /// Gives every block's stat its part of the step's tokens. When the
+  /// provider counted the tokens behind each delta, every block carries
+  /// exactly those. Otherwise the [completionTokens] the step decoded are
+  /// shared by how much of the output each block holds; when the provider
+  /// counts [reasoningTokens], reasoning blocks share exactly those and the
+  /// rest share what is left, so reasoning the provider never streamed lands
+  /// on no block.
   void shareTokens(int completionTokens, {int? reasoningTokens}) {
+    if (_counted) return _setTokenCounts(_countedTokens);
     final reasoning = reasoningTokens ?? 0;
     final countedApart = [
       for (final block in blocks)
@@ -125,10 +147,15 @@ final class StepFrame {
       for (var index = 0; index < blocks.length; index++)
         if (countedApart[index]) 0 else _outputLengths[index],
     ]);
+    _setTokenCounts([
+      for (var index = 0; index < blocks.length; index++)
+        reasoningShares[index] + outputShares[index],
+    ]);
+  }
+
+  void _setTokenCounts(List<int> counts) {
     for (var index = 0; index < blocks.length; index++) {
-      blocks[index] = blocks[index].copyWith.stat!(
-        tokenCount: reasoningShares[index] + outputShares[index],
-      );
+      blocks[index] = blocks[index].copyWith.stat!(tokenCount: counts[index]);
     }
   }
 

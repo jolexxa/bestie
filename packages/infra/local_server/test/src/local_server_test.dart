@@ -29,6 +29,8 @@ const _usage = EngineCompletionUsage(
   promptTokens: 3,
   completionTokens: 2,
   cachedTokens: 1,
+  promptTime: Duration(milliseconds: 8),
+  generationTime: Duration(milliseconds: 20),
 );
 
 void main() {
@@ -392,6 +394,36 @@ void main() {
           borrowedTokens: 512,
         ),
       ]);
+      await session.hangUp();
+    });
+
+    test('sends the first and the last of a burst of pool changes', () async {
+      final session = await openSession();
+      await loadModel();
+      for (var count = 0; count < 3; count++) {
+        await session.nextJson();
+      }
+
+      for (final used in [1, 2, 3]) {
+        poolChanges.add(
+          PoolSnapshot(
+            contextSize: 4096,
+            maxAgents: 2,
+            agents: [PrimaryPoolLease(id: 'primary:1', usedTokens: used)],
+          ),
+        );
+      }
+
+      final used = [
+        for (var count = 0; count < 2; count++)
+          switch (SessionEventMapper.fromJson(
+            jsonEncode(await session.nextJson()),
+          )) {
+            PoolSnapshotEvent(:final agents) => agents.single.usedTokens,
+            _ => null,
+          },
+      ];
+      expect(used, [1, 3]);
       await session.hangUp();
     });
 
@@ -819,7 +851,7 @@ void main() {
       await loadModel();
       final session = await openSession();
       completes(const [
-        EngineCompletionTextDelta('Hi'),
+        EngineCompletionTextDelta('Hi', tokens: 1),
         EngineCompletionFinished(
           reason: EngineCompletionStopReason.stop,
           usage: _usage,
@@ -887,12 +919,19 @@ void main() {
     test('stream a completion, then its usage', () async {
       await loadModel();
       completes(const [
-        EngineCompletionReasoningDelta('hmm'),
-        EngineCompletionTextDelta('Hi'),
+        EngineCompletionPrefillProgressed(
+          total: 3,
+          cached: 1,
+          processed: 3,
+          elapsed: Duration(milliseconds: 8),
+        ),
+        EngineCompletionReasoningDelta('hmm', tokens: 1),
+        EngineCompletionTextDelta('Hi', tokens: 1),
         EngineCompletionToolCalled(
           id: 'call_1',
           name: 'read',
           argumentsJson: '{}',
+          tokens: 0,
         ),
         EngineCompletionFinished(
           reason: EngineCompletionStopReason.toolCalls,
@@ -932,6 +971,48 @@ void main() {
       );
       expect(chunks[5]['usage'], containsPair('total_tokens', 5));
       expect(sentRequest().agentId, isNull);
+    });
+
+    test('stream prefill progress and timings when asked', () async {
+      await loadModel();
+      completes(const [
+        EngineCompletionPrefillProgressed(
+          total: 3,
+          cached: 1,
+          processed: 3,
+          elapsed: Duration(milliseconds: 8),
+        ),
+        EngineCompletionTextDelta('Hi', tokens: 2),
+        EngineCompletionFinished(
+          reason: EngineCompletionStopReason.stop,
+          usage: _usage,
+        ),
+      ]);
+
+      final stream = await client.events(
+        _chatPath,
+        method: 'POST',
+        body: {
+          ..._hello,
+          'stream': true,
+          bestieReturnProgressField: true,
+          bestieTimingsPerTokenField: true,
+        },
+      );
+      final events = await stream.rest();
+      final chunks = [
+        for (final data in events.take(events.length - 1))
+          jsonDecode(data) as Map<String, Object?>,
+      ];
+
+      expect(chunks[1]['prompt_progress'], {
+        'total': 3,
+        'cache': 1,
+        'processed': 3,
+        'time_ms': 8.0,
+      });
+      expect(chunks[2]['timings'], containsPair('predicted_n', 2));
+      expect(chunks[3]['timings'], containsPair('predicted_ms', 20.0));
     });
 
     test('stream a failure as an error event', () async {
@@ -985,7 +1066,7 @@ void main() {
       );
       final socket = await client.raw('POST', _chatPath, body: _hello);
       await untilCalled(() => runtime.complete(any()));
-      events.add(const EngineCompletionTextDelta('Hi'));
+      events.add(const EngineCompletionTextDelta('Hi', tokens: 1));
 
       socket.destroy();
 
@@ -1008,7 +1089,7 @@ void main() {
         method: 'POST',
         body: {..._hello, 'stream': true},
       );
-      events.add(const EngineCompletionTextDelta('Hi'));
+      events.add(const EngineCompletionTextDelta('Hi', tokens: 1));
       await stream.next();
       await stream.next();
 

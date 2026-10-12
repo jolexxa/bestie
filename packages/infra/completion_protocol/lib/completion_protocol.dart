@@ -8,6 +8,7 @@ export 'src/models/completion_event.dart'
         CompletionEvent,
         CompletionFailed,
         CompletionFinished,
+        CompletionPrefillProgressed,
         CompletionReasoningDelta,
         CompletionTextDelta,
         CompletionToolCallEmitted,

@@ -179,7 +179,7 @@ void main() {
         .toList();
 
     expect(
-      (events.single as EngineCompletionFailed).failure,
+      (events.last as EngineCompletionFailed).failure,
       EngineCompletionFailure.engineFailed,
     );
   });

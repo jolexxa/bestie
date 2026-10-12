@@ -59,6 +59,7 @@ final class LocalAgentSessions implements AgentSessions {
                 },
               ),
               claimedTokens: agent.claimedTokens,
+              usedTokens: agent.usedTokens,
             ),
         ],
       );

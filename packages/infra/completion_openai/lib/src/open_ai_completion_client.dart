@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:completion_openai/src/cost_tapping_client.dart';
 import 'package:completion_openai/src/open_ai_dialect.dart';
 import 'package:completion_protocol/completion_protocol.dart';
 import 'package:http/http.dart' as http;
@@ -43,20 +42,16 @@ final class OpenAiCompletionClient implements CompletionClient {
   final http.Client Function() _clientFactory;
   final openai.OpenAIConfig _config;
 
-  /// Each completion gets a client of its own so the charge tapped off its
-  /// wire can only be its own, however many stream at once.
   @override
   Stream<CompletionEvent> complete(
     CompletionRequest request, {
     Future<void>? abortTrigger,
   }) async* {
     final accumulator = openai.ChatStreamAccumulator();
+    final ledger = _TokenLedger();
     var announcedToolCalls = 0;
     double? cost;
-    final wire = CostTappingClient(
-      _clientFactory(),
-      onCost: (charge) => cost = charge,
-    );
+    final wire = _clientFactory();
     final extensions = dialect.extensionsFor(request);
     final client = openai.OpenAIClient(
       config: _config.copyWith(
@@ -66,13 +61,18 @@ final class OpenAiCompletionClient implements CompletionClient {
       streamClientFactory: () => wire,
     );
     try {
-      final events = client.chat.completions.createStream(
-        _toRequest(request, extensions.body),
-        abortTrigger: abortTrigger,
+      final chunks = _chunks(
+        client.chat.completions,
+        _toBody(request, extensions.body),
+        abortTrigger,
       );
-      await for (final event in events) {
+      await for (final raw in chunks) {
+        final event = openai.ChatStreamEvent.fromJson(raw);
         accumulator.add(event);
-        yield* _deltaEvents(event.firstChoice?.delta);
+        ledger.read(raw);
+        cost = _costOf(raw) ?? cost;
+        yield* _progressEvents(raw);
+        yield* _deltaEvents(event.firstChoice?.delta, ledger);
         final known = accumulator.toolCalls;
         while (announcedToolCalls < known.length) {
           final call = known[announcedToolCalls++];
@@ -87,7 +87,10 @@ final class OpenAiCompletionClient implements CompletionClient {
       wire.close();
     }
     for (final call in accumulator.toolCalls) {
-      yield CompletionToolCallEmitted(_toToolCall(call));
+      yield CompletionToolCallEmitted(
+        _toToolCall(call),
+        tokens: ledger.toolCallTokens(call.id),
+      );
     }
     if (accumulator.usage case final usage?) {
       yield CompletionUsageReported(
@@ -100,27 +103,69 @@ final class OpenAiCompletionClient implements CompletionClient {
     yield CompletionFinished(_toStopReason(accumulator.finishReason));
   }
 
-  Stream<CompletionEvent> _deltaEvents(openai.ChatDelta? delta) async* {
+  /// Every streamed chunk both as openai_dart reads it and as it arrived, so
+  /// fields openai_dart drops can still be read.
+  static Stream<Map<String, dynamic>> _chunks(
+    openai.ChatCompletionsResource completions,
+    Map<String, dynamic> body,
+    Future<void>? abortTrigger,
+  ) => completions
+      .streamSseEvents(
+        endpoint: '/chat/completions',
+        body: body,
+        abortTrigger: abortTrigger,
+      )
+      .map((json) {
+        final sseEvent = json['_event'] as String?;
+        final error = json['error'];
+        if (sseEvent == 'error' || error != null) {
+          completions.throwInlineStreamError(json, sseEvent, error);
+        }
+        return json;
+      });
+
+  static double? _costOf(Map<String, dynamic> raw) => switch (raw) {
+    {'usage': {'cost': final num cost}} => cost.toDouble(),
+    _ => null,
+  };
+
+  static Stream<CompletionEvent> _progressEvents(
+    Map<String, dynamic> raw,
+  ) async* {
+    if (raw case {
+      'prompt_progress': {
+        'total': final int total,
+        'processed': final int processed,
+      },
+    }) {
+      yield CompletionPrefillProgressed(total: total, processed: processed);
+    }
+  }
+
+  static Stream<CompletionEvent> _deltaEvents(
+    openai.ChatDelta? delta,
+    _TokenLedger ledger,
+  ) async* {
     if (delta == null) {
       return;
     }
     final reasoning = delta.reasoningContent ?? delta.reasoning;
     if (reasoning != null && reasoning.isNotEmpty) {
-      yield CompletionReasoningDelta(reasoning);
+      yield CompletionReasoningDelta(reasoning, tokens: ledger.claim());
     }
     final text = delta.content;
     if (text != null && text.isNotEmpty) {
-      yield CompletionTextDelta(text);
+      yield CompletionTextDelta(text, tokens: ledger.claim());
     }
+    (delta.toolCalls ?? const []).forEach(ledger.claimForToolCall);
   }
 
-  static _ExtendedChatRequest _toRequest(
+  static Map<String, dynamic> _toBody(
     CompletionRequest request,
     Map<String, Object?> extraFields,
   ) {
     final sampling = request.sampling;
-    return _ExtendedChatRequest(
-      extraFields: extraFields,
+    final typed = openai.ChatCompletionCreateRequest(
       model: request.model,
       messages: [for (final message in request.messages) _toMessage(message)],
       tools: request.tools.isEmpty
@@ -142,6 +187,7 @@ final class OpenAiCompletionClient implements CompletionClient {
       stop: request.stopSequences.isEmpty ? null : request.stopSequences,
       streamOptions: const openai.StreamOptions(includeUsage: true),
     );
+    return {...typed.toJson(), ...extraFields, 'stream': true};
   }
 
   static openai.ChatMessage _toMessage(CompletionMessage message) =>
@@ -239,26 +285,49 @@ final class OpenAiCompletionClient implements CompletionClient {
       );
 }
 
-/// A chat request carrying body fields openai_dart does not model, merged into
-/// the JSON it sends.
-final class _ExtendedChatRequest extends openai.ChatCompletionCreateRequest {
-  const _ExtendedChatRequest({
-    required this.extraFields,
-    required super.model,
-    required super.messages,
-    super.tools,
-    super.temperature,
-    super.topP,
-    super.frequencyPenalty,
-    super.presencePenalty,
-    super.seed,
-    super.maxCompletionTokens,
-    super.stop,
-    super.streamOptions,
-  });
+/// One streamed chunk, typed and raw.
 
-  final Map<String, Object?> extraFields;
+/// Credits the generated tokens a server counts in its cumulative
+/// `timings.predicted_n` to the deltas they decoded into. A chunk that carries
+/// nothing passes its tokens on to the next one that does.
+final class _TokenLedger {
+  int? _predicted;
+  var _unclaimed = 0;
+  final _toolCallIds = <int, String>{};
+  final _toolCallTokens = <String, int>{};
 
-  @override
-  Map<String, dynamic> toJson() => {...super.toJson(), ...extraFields};
+  void read(Map<String, dynamic> raw) {
+    if (raw case {'timings': {'predicted_n': final int predicted}}) {
+      _unclaimed += predicted - (_predicted ?? 0);
+      _predicted = predicted;
+    }
+  }
+
+  /// The tokens not yet credited to anything; null while the server has not
+  /// counted any.
+  int? claim() {
+    if (_predicted == null) {
+      return null;
+    }
+    final claimed = _unclaimed;
+    _unclaimed = 0;
+    return claimed;
+  }
+
+  void claimForToolCall(openai.ToolCallDelta fragment) {
+    if (fragment.id case final id?) {
+      _toolCallIds[fragment.index] = id;
+    }
+    final id = _toolCallIds[fragment.index];
+    final tokens = claim();
+    if (id != null && tokens != null) {
+      _toolCallTokens.update(
+        id,
+        (held) => held + tokens,
+        ifAbsent: () => tokens,
+      );
+    }
+  }
+
+  int? toolCallTokens(String id) => _toolCallTokens[id];
 }

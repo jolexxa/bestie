@@ -6,32 +6,32 @@ import 'package:provider_local/src/local_connection.dart';
 
 /// The local bestie server: the agent identity on every completion so each
 /// agent keeps its own cached prefix, thinking toggled through the chat
-/// template, and effort through the base protocol.
+/// template, effort through the base protocol, and prefill progress and
+/// per-chunk timings streamed back.
 @PartOf(LocalConnection)
 final class BestieServerDialect implements OpenAiDialect {
   const BestieServerDialect();
 
   static const _standard = StandardOpenAiDialect();
 
+  static const Map<String, Object?> _streamed = {
+    bestieReturnProgressField: true,
+    bestieTimingsPerTokenField: true,
+  };
+
   @override
-  OpenAiExtensions extensionsFor(CompletionRequest request) {
-    final headers = {bestieAgentHeader: ?request.agent?.id};
-    return switch (request.reasoning) {
-      CompletionReasoningDefault() => OpenAiExtensions(headers: headers),
-      CompletionReasoningDisabled() => OpenAiExtensions(
-        headers: headers,
-        body: _thinking(enabled: false),
-      ),
-      CompletionReasoningEnabled() => OpenAiExtensions(
-        headers: headers,
-        body: _thinking(enabled: true),
-      ),
-      CompletionReasoningEffort() => OpenAiExtensions(
-        headers: headers,
-        body: _standard.extensionsFor(request).body,
-      ),
-    };
-  }
+  OpenAiExtensions extensionsFor(CompletionRequest request) => OpenAiExtensions(
+    headers: {bestieAgentHeader: ?request.agent?.id},
+    body: {..._streamed, ..._reasoning(request)},
+  );
+
+  static Map<String, Object?> _reasoning(CompletionRequest request) =>
+      switch (request.reasoning) {
+        CompletionReasoningDefault() => const {},
+        CompletionReasoningDisabled() => _thinking(enabled: false),
+        CompletionReasoningEnabled() => _thinking(enabled: true),
+        CompletionReasoningEffort() => _standard.extensionsFor(request).body,
+      };
 
   static Map<String, Object?> _thinking({required bool enabled}) => {
     bestieChatTemplateKwargsField: {bestieEnableThinkingKey: enabled},

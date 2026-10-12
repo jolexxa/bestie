@@ -18,8 +18,33 @@ CompletionRequest _asking(
   agent: agent,
 );
 
+const Map<String, Object?> _streamed = {
+  bestieReturnProgressField: true,
+  bestieTimingsPerTokenField: true,
+};
+
 void main() {
   const dialect = BestieServerDialect();
+
+  test('asks for prefill progress and per-chunk timings every time', () {
+    for (final reasoning in [
+      const CompletionReasoningDefault(),
+      const CompletionReasoningEnabled(),
+      const CompletionReasoningDisabled(),
+      const CompletionReasoningEffort(CompletionEffort.low),
+    ]) {
+      expect(
+        dialect.extensionsFor(_asking(reasoning)).body,
+        containsPair(bestieReturnProgressField, true),
+        reason: '$reasoning',
+      );
+      expect(
+        dialect.extensionsFor(_asking(reasoning)).body,
+        containsPair(bestieTimingsPerTokenField, true),
+        reason: '$reasoning',
+      );
+    }
+  });
 
   test('names the agent on every completion', () {
     for (final reasoning in [
@@ -48,12 +73,14 @@ void main() {
     expect(
       dialect.extensionsFor(_asking(const CompletionReasoningEnabled())).body,
       {
+        ..._streamed,
         bestieChatTemplateKwargsField: {bestieEnableThinkingKey: true},
       },
     );
     expect(
       dialect.extensionsFor(_asking(const CompletionReasoningDisabled())).body,
       {
+        ..._streamed,
         bestieChatTemplateKwargsField: {bestieEnableThinkingKey: false},
       },
     );
@@ -65,7 +92,7 @@ void main() {
         _asking(CompletionReasoningEffort(effort)),
       );
 
-      expect(extensions.body, {'reasoning_effort': effort.name});
+      expect(extensions.body, {..._streamed, 'reasoning_effort': effort.name});
     }
   });
 
@@ -74,6 +101,6 @@ void main() {
       _asking(const CompletionReasoningDefault()),
     );
 
-    expect(extensions.body, isEmpty);
+    expect(extensions.body, _streamed);
   });
 }

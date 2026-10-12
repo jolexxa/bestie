@@ -24,6 +24,8 @@ const _usage = EngineCompletionUsage(
   promptTokens: 1,
   completionTokens: 1,
   cachedTokens: 0,
+  promptTime: Duration.zero,
+  generationTime: Duration.zero,
 );
 
 const _pool = PoolSnapshot(
@@ -322,7 +324,7 @@ void main() {
         final collected = events.toList();
 
         turn
-          ..add(const EngineCompletionTextDelta('Hi'))
+          ..add(const EngineCompletionTextDelta('Hi', tokens: 1))
           ..add(
             const EngineCompletionFinished(
               reason: EngineCompletionStopReason.stop,
@@ -344,32 +346,29 @@ void main() {
       test('merge deltas that pile up before the server pulls', () async {
         final events = await started();
         turn
-          ..add(const EngineCompletionTextDelta('a'))
-          ..add(const EngineCompletionTextDelta('b'))
-          ..add(const EngineCompletionReasoningDelta('x'))
-          ..add(const EngineCompletionReasoningDelta('y'))
+          ..add(const EngineCompletionTextDelta('a', tokens: 1))
+          ..add(const EngineCompletionTextDelta('b', tokens: 1))
+          ..add(const EngineCompletionReasoningDelta('x', tokens: 1))
+          ..add(const EngineCompletionReasoningDelta('y', tokens: 1))
           ..add(
             const EngineCompletionToolCalled(
               id: 'call_1',
               name: 'read',
               argumentsJson: '{}',
+              tokens: 1,
             ),
           )
-          ..add(const EngineCompletionTextDelta('c'));
+          ..add(const EngineCompletionTextDelta('c', tokens: 1));
         await turn.close();
         await pumpEventQueue();
 
         expect(await events.toList(), [
-          isA<EngineCompletionTextDelta>().having(
-            (delta) => delta.text,
-            'text',
-            'ab',
-          ),
-          isA<EngineCompletionReasoningDelta>().having(
-            (delta) => delta.text,
-            'text',
-            'xy',
-          ),
+          isA<EngineCompletionTextDelta>()
+              .having((delta) => delta.text, 'text', 'ab')
+              .having((delta) => delta.tokens, 'tokens', 2),
+          isA<EngineCompletionReasoningDelta>()
+              .having((delta) => delta.text, 'text', 'xy')
+              .having((delta) => delta.tokens, 'tokens', 2),
           isA<EngineCompletionToolCalled>(),
           isA<EngineCompletionTextDelta>().having(
             (delta) => delta.text,
@@ -380,16 +379,49 @@ void main() {
         expect(sent.whereType<PullTurnCommand>(), hasLength(1));
       });
 
+      test('keep only the newest prefill progress that piles up', () async {
+        final events = await started();
+        turn
+          ..add(
+            const EngineCompletionPrefillProgressed(
+              total: 8,
+              cached: 0,
+              processed: 2,
+              elapsed: Duration.zero,
+            ),
+          )
+          ..add(
+            const EngineCompletionPrefillProgressed(
+              total: 8,
+              cached: 0,
+              processed: 8,
+              elapsed: Duration.zero,
+            ),
+          )
+          ..add(const EngineCompletionTextDelta('a', tokens: 1));
+        await turn.close();
+        await pumpEventQueue();
+
+        expect(await events.toList(), [
+          isA<EngineCompletionPrefillProgressed>().having(
+            (progress) => progress.processed,
+            'processed',
+            8,
+          ),
+          isA<EngineCompletionTextDelta>(),
+        ]);
+      });
+
       test('hold one batch at most while the server is paused', () async {
         final events = await started();
         final received = <EngineCompletionEvent>[];
         final subscription = events.listen(received.add);
-        turn.add(const EngineCompletionTextDelta('a'));
+        turn.add(const EngineCompletionTextDelta('a', tokens: 1));
         await pumpEventQueue();
         subscription.pause();
         turn
-          ..add(const EngineCompletionTextDelta('b'))
-          ..add(const EngineCompletionTextDelta('c'));
+          ..add(const EngineCompletionTextDelta('b', tokens: 1))
+          ..add(const EngineCompletionTextDelta('c', tokens: 1));
         await pumpEventQueue();
         final pullsWhilePaused = sent.whereType<PullTurnCommand>().length;
         final receivedWhilePaused = [...received];

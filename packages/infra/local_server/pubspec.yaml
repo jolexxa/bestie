@@ -24,6 +24,7 @@ dependencies:
     path: ../local_server_protocol
   logic_blocks: ^1.0.0
   path: ^1.9.1
+  rxdart: ^0.28.0
   tool_protocol:
     path: ../tool_protocol
 

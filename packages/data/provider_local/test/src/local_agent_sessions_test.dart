@@ -71,6 +71,7 @@ void main() {
       const AgentIdentity(id: 'subagent:3', kind: AgentIdentityKind.subagent),
     ]);
     expect(report.agents.map((entry) => entry.claimedTokens), [0, 2048, 1024]);
+    expect(report.agents.map((entry) => entry.usedTokens), [900, 100, 0]);
   });
 
   test('reserves borrowed claims alongside the subagent claims', () {

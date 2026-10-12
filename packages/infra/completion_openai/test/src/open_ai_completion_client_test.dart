@@ -32,6 +32,8 @@ Map<String, Object?> _chunk({
   List<Map<String, Object?>>? toolCalls,
   String? finishReason,
   Map<String, Object?>? usage,
+  int? predicted,
+  Map<String, Object?>? promptProgress,
   bool withChoice = true,
 }) => {
   'id': 'chatcmpl-1',
@@ -53,6 +55,8 @@ Map<String, Object?> _chunk({
   else
     'choices': <Object?>[],
   'usage': ?usage,
+  if (predicted != null) 'timings': {'predicted_n': predicted},
+  'prompt_progress': ?promptProgress,
 };
 
 const _primary = AgentIdentity(
@@ -619,6 +623,89 @@ void main() {
       ]);
     });
 
+    test('reports how far the server has read the prompt', () async {
+      final client = clientFor(
+        respond: streamBody(
+          _sse([
+            _chunk(
+              promptProgress: {
+                'total': 100,
+                'cache': 20,
+                'processed': 60,
+                'time_ms': 12,
+              },
+            ),
+            _chunk(promptProgress: {'total': 100, 'processed': 'lots'}),
+            _chunk(content: 'ok', finishReason: 'stop'),
+          ]),
+        ),
+      );
+
+      final events = await client.complete(request).toList();
+
+      expect(events, const [
+        CompletionPrefillProgressed(total: 100, processed: 60),
+        CompletionTextDelta('ok'),
+        CompletionFinished(CompletionStopReason.stop),
+      ]);
+    });
+
+    test('credits counted tokens to the deltas they decoded into', () async {
+      final client = clientFor(
+        respond: streamBody(
+          _sse([
+            _chunk(predicted: 0),
+            _chunk(reasoningContent: 'hm', predicted: 2),
+            _chunk(predicted: 3),
+            _chunk(reasoningContent: 'm', content: 'Hi', predicted: 5),
+            _chunk(
+              toolCalls: [
+                {
+                  'index': 0,
+                  'id': 'call_a',
+                  'function': {'name': 'echo', 'arguments': '{'},
+                },
+              ],
+              predicted: 7,
+            ),
+            _chunk(
+              toolCalls: [
+                {
+                  'index': 0,
+                  'function': {'arguments': '}'},
+                },
+                {
+                  'index': 1,
+                  'function': {'arguments': 'lost'},
+                },
+              ],
+              predicted: 8,
+            ),
+            _chunk(finishReason: 'tool_calls', predicted: 9),
+          ]),
+        ),
+      );
+
+      final events = await client.complete(request).toList();
+
+      expect(events, const [
+        CompletionReasoningDelta('hm', tokens: 2),
+        CompletionReasoningDelta('m', tokens: 3),
+        CompletionTextDelta('Hi', tokens: 0),
+        CompletionToolCallStarted(name: 'echo'),
+        CompletionToolCallEmitted(
+          CompletionToolCall(
+            id: 'call_a',
+            name: 'echo',
+            arguments: {},
+            rawArguments: '{}',
+          ),
+          tokens: 3,
+        ),
+        CompletionFinished(CompletionStopReason.toolCalls),
+      ]);
+    });
+
     test('maps the remaining finish reasons', () async {
       const reasons = {
         'length': CompletionStopReason.length,
@@ -781,7 +868,9 @@ void main() {
       final httpClient = MockHttpClient();
       final closed = Completer<void>();
       when(httpClient.close).thenAnswer((_) {
-        closed.completeError(http.ClientException('closed'));
+        if (!closed.isCompleted) {
+          closed.completeError(http.ClientException('closed'));
+        }
       });
       when(() => httpClient.send(any())).thenAnswer((_) async {
         await closed.future;

@@ -4,7 +4,14 @@ import 'package:local_server/src/http/json_reply.dart';
 /// Writes one completion's events as OpenAI chat-completion JSON, either as
 /// stream chunks or as one whole response.
 final class ChatResponse {
-  ChatResponse({required this.id, required this.model, required this.created});
+  ChatResponse({
+    required this.id,
+    required this.model,
+    required this.created,
+    this.includeUsage = false,
+    this.returnProgress = false,
+    this.timingsPerToken = false,
+  });
 
   final String id;
   final String model;
@@ -12,7 +19,23 @@ final class ChatResponse {
   /// Seconds since the epoch.
   final int created;
 
+  /// Whether a finished stream ends with a usage chunk.
+  final bool includeUsage;
+
+  /// Whether prefill progress streams as `prompt_progress` chunks.
+  final bool returnProgress;
+
+  /// Whether every generated chunk carries `timings`.
+  final bool timingsPerToken;
+
   var _toolCallCount = 0;
+  var _predicted = 0;
+  var _prefill = const EngineCompletionPrefillProgressed(
+    total: 0,
+    cached: 0,
+    processed: 0,
+    elapsed: Duration.zero,
+  );
 
   /// The chunk that opens the stream, naming the assistant role.
   Map<String, Object?> get opening => _chunk({'role': 'assistant'});
@@ -20,32 +43,81 @@ final class ChatResponse {
   /// The chunks [event] streams as. A finished completion streams its finish
   /// reason, then its usage when [includeUsage]; a failed one streams an
   /// error.
-  List<Map<String, Object?>> chunksFor(
-    EngineCompletionEvent event, {
-    required bool includeUsage,
-  }) => switch (event) {
-    EngineCompletionReasoningDelta(:final text) => [
-      _chunk({'reasoning_content': text}),
-    ],
-    EngineCompletionTextDelta(:final text) => [
-      _chunk({'content': text}),
-    ],
-    EngineCompletionToolCalled() => [
-      _chunk({
-        'tool_calls': [_toolCall(event, index: _toolCallCount++)],
-      }),
-    ],
-    EngineCompletionFinished(:final reason, :final usage) => [
-      _chunk(const {}, finishReason: _finishReason(reason)),
-      if (includeUsage)
-        {
-          ..._envelope('chat.completion.chunk'),
-          'choices': const <Object?>[],
-          'usage': _usage(usage),
+  List<Map<String, Object?>> chunksFor(EngineCompletionEvent event) {
+    switch (event) {
+      case EngineCompletionPrefillProgressed():
+        _prefill = event;
+        return [
+          if (returnProgress)
+            {
+              ..._chunk({'role': 'assistant', 'content': null}),
+              'prompt_progress': {
+                'total': event.total,
+                'cache': event.cached,
+                'processed': event.processed,
+                'time_ms': _milliseconds(event.elapsed),
+              },
+            },
+        ];
+      case EngineCompletionReasoningDelta(:final text, :final tokens):
+        return [
+          _generated({'reasoning_content': text}, tokens: tokens),
+        ];
+      case EngineCompletionTextDelta(:final text, :final tokens):
+        return [
+          _generated({'content': text}, tokens: tokens),
+        ];
+      case EngineCompletionToolCalled(:final tokens):
+        return [
+          _generated({
+            'tool_calls': [_toolCall(event, index: _toolCallCount++)],
+          }, tokens: tokens),
+        ];
+      case EngineCompletionFinished(:final reason, :final usage):
+        return [
+          {
+            ..._chunk(const {}, finishReason: _finishReason(reason)),
+            if (timingsPerToken) 'timings': _finalTimings(usage),
+          },
+          if (includeUsage)
+            {
+              ..._envelope('chat.completion.chunk'),
+              'choices': const <Object?>[],
+              'usage': _usage(usage),
+            },
+        ];
+      case EngineCompletionFailed():
+        return [errorFor(event)];
+    }
+  }
+
+  Map<String, Object?> _generated(
+    Map<String, Object?> delta, {
+    required int tokens,
+  }) {
+    _predicted += tokens;
+    return {
+      ..._chunk(delta),
+      if (timingsPerToken)
+        'timings': {
+          'cache_n': _prefill.cached,
+          'prompt_n': _prefill.processed - _prefill.cached,
+          'prompt_ms': _milliseconds(_prefill.elapsed),
+          'predicted_n': _predicted,
         },
-    ],
-    EngineCompletionFailed() => [errorFor(event)],
+    };
+  }
+
+  static Map<String, Object?> _finalTimings(EngineCompletionUsage usage) => {
+    'cache_n': usage.cachedTokens,
+    'prompt_n': usage.promptTokens - usage.cachedTokens,
+    'prompt_ms': _milliseconds(usage.promptTime),
+    'predicted_n': usage.completionTokens,
+    'predicted_ms': _milliseconds(usage.generationTime),
   };
+
+  static double _milliseconds(Duration duration) =>
+      duration.inMicroseconds / Duration.microsecondsPerMillisecond;
 
   /// The whole response for a completion that ended with [events].
   Map<String, Object?> whole(List<EngineCompletionEvent> events) {

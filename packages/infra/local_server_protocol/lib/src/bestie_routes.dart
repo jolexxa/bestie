@@ -21,6 +21,15 @@ const bestieChatTemplateKwargsField = 'chat_template_kwargs';
 /// can toggle it. `reasoning_effort` takes precedence when both are sent.
 const bestieEnableThinkingKey = 'enable_thinking';
 
+/// The chat-completion switch that streams how far the prompt has been read
+/// as `prompt_progress` chunks, as llama.cpp's server names it.
+const bestieReturnProgressField = 'return_progress';
+
+/// The chat-completion switch that puts a `timings` object on every streamed
+/// chunk, whose `predicted_n` counts the tokens generated so far, as
+/// llama.cpp's server names it.
+const bestieTimingsPerTokenField = 'timings_per_token';
+
 /// `GET`: the handshake, answered with a health response.
 const bestieHealthPath = '/bestie/v1/health';
 

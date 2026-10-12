@@ -226,23 +226,53 @@ void main() {
       message: 'offline',
     );
 
-    test('text delta compares by text', () {
-      const delta = CompletionTextDelta('hi');
+    test('text delta compares by text and tokens', () {
+      const delta = CompletionTextDelta('hi', tokens: 1);
 
-      expect(delta, const CompletionTextDelta('hi'));
-      expect(delta.hashCode, const CompletionTextDelta('hi').hashCode);
-      expect(delta, isNot(const CompletionTextDelta('ho')));
-      expect(delta, isNot(const CompletionReasoningDelta('hi')));
-      expect(delta.toString(), 'CompletionTextDelta(hi)');
+      expect(delta, const CompletionTextDelta('hi', tokens: 1));
+      expect(
+        delta.hashCode,
+        const CompletionTextDelta('hi', tokens: 1).hashCode,
+      );
+      expect(delta, isNot(const CompletionTextDelta('ho', tokens: 1)));
+      expect(delta, isNot(const CompletionTextDelta('hi')));
+      expect(delta, isNot(const CompletionReasoningDelta('hi', tokens: 1)));
+      expect(delta.toString(), 'CompletionTextDelta(hi, tokens: 1)');
     });
 
-    test('reasoning delta compares by text', () {
-      const delta = CompletionReasoningDelta('hmm');
+    test('reasoning delta compares by text and tokens', () {
+      const delta = CompletionReasoningDelta('hmm', tokens: 2);
 
-      expect(delta, const CompletionReasoningDelta('hmm'));
-      expect(delta.hashCode, const CompletionReasoningDelta('hmm').hashCode);
-      expect(delta, isNot(const CompletionReasoningDelta('huh')));
-      expect(delta.toString(), 'CompletionReasoningDelta(hmm)');
+      expect(delta, const CompletionReasoningDelta('hmm', tokens: 2));
+      expect(
+        delta.hashCode,
+        const CompletionReasoningDelta('hmm', tokens: 2).hashCode,
+      );
+      expect(delta, isNot(const CompletionReasoningDelta('huh', tokens: 2)));
+      expect(delta, isNot(const CompletionReasoningDelta('hmm')));
+      expect(delta.toString(), 'CompletionReasoningDelta(hmm, tokens: 2)');
+    });
+
+    test('prefill progress compares by counts', () {
+      const progress = CompletionPrefillProgressed(total: 10, processed: 4);
+
+      expect(
+        progress,
+        const CompletionPrefillProgressed(total: 10, processed: 4),
+      );
+      expect(
+        progress.hashCode,
+        const CompletionPrefillProgressed(total: 10, processed: 4).hashCode,
+      );
+      expect(
+        progress,
+        isNot(const CompletionPrefillProgressed(total: 10, processed: 5)),
+      );
+      expect(
+        progress,
+        isNot(const CompletionPrefillProgressed(total: 11, processed: 4)),
+      );
+      expect(progress.toString(), 'CompletionPrefillProgressed(4/10)');
     });
 
     test('tool call started compares by name', () {
@@ -257,12 +287,16 @@ void main() {
       expect(started.toString(), 'CompletionToolCallStarted(echo)');
     });
 
-    test('tool call emitted compares by call', () {
-      const emitted = CompletionToolCallEmitted(call);
+    test('tool call emitted compares by call and tokens', () {
+      const emitted = CompletionToolCallEmitted(call, tokens: 7);
 
-      expect(emitted, const CompletionToolCallEmitted(call));
-      expect(emitted.hashCode, call.hashCode);
-      expect(emitted.toString(), 'CompletionToolCallEmitted($call)');
+      expect(emitted, const CompletionToolCallEmitted(call, tokens: 7));
+      expect(
+        emitted.hashCode,
+        const CompletionToolCallEmitted(call, tokens: 7).hashCode,
+      );
+      expect(emitted, isNot(const CompletionToolCallEmitted(call)));
+      expect(emitted.toString(), 'CompletionToolCallEmitted($call, tokens: 7)');
     });
 
     test('usage compares by counts and sums totals', () {

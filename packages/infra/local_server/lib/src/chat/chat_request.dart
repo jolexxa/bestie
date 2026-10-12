@@ -12,6 +12,8 @@ final class ChatRequest {
     required this.tools,
     required this.stream,
     required this.includeUsage,
+    this.returnProgress = false,
+    this.timingsPerToken = false,
     this.stopSequences = const [],
     this.model,
     this.maxTokens,
@@ -29,6 +31,12 @@ final class ChatRequest {
   final List<PromptTool> tools;
   final bool stream;
   final bool includeUsage;
+
+  /// Whether to stream how far the prompt has been read before generating.
+  final bool returnProgress;
+
+  /// Whether every streamed chunk carries the completion's timings so far.
+  final bool timingsPerToken;
 
   /// Text that ends the completion when generated; it is left out of the
   /// reply.
@@ -120,6 +128,8 @@ abstract final class ChatRequestParser {
       ],
       stream: body.optional<bool>('stream') ?? false,
       includeUsage: streamOptions?.optional<bool>('include_usage') ?? false,
+      returnProgress: body.optional<bool>(bestieReturnProgressField) ?? false,
+      timingsPerToken: body.optional<bool>(bestieTimingsPerTokenField) ?? false,
       stopSequences: _stops(body),
       maxTokens: _maxTokens(body),
       temperature: body.optional<num>('temperature')?.toDouble(),
