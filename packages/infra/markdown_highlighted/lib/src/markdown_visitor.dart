@@ -51,13 +51,19 @@ class MarkdownVisitor {
   int _listDepth = 0;
 
   /// Walks [nodes] and returns the document as a list of top-level blocks.
-  List<MarkdownBlock> visit(List<md.Node> nodes) {
-    final blocks = <MarkdownBlock>[];
-    for (final node in nodes) {
-      final block = _blockFor(node);
-      if (block != null) blocks.add(block);
+  List<MarkdownBlock> visit(List<md.Node> nodes) => [
+    for (final node in nodes) ...blocksFor(node),
+  ];
+
+  /// The blocks one top-level [node] renders as. A `div` is a transparent
+  /// group, so each of its children is a block of its own; most other nodes
+  /// are exactly one block.
+  List<MarkdownBlock> blocksFor(md.Node node) {
+    if (node is md.Element && node.tag == 'div') {
+      return visit(node.children ?? const []);
     }
-    return blocks;
+    final block = _blockFor(node);
+    return block == null ? const [] : [block];
   }
 
   MarkdownBlock? _blockFor(md.Node node) {
