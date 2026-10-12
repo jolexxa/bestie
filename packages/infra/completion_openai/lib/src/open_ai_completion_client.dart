@@ -133,12 +133,21 @@ final class OpenAiCompletionClient implements CompletionClient {
     Map<String, dynamic> raw,
   ) async* {
     if (raw case {
-      'prompt_progress': {
-        'total': final int total,
-        'processed': final int processed,
-      },
+      'prompt_progress':
+          {
+            'total': final int total,
+            'processed': final int processed,
+          } &&
+          final progress,
     }) {
-      yield CompletionPrefillProgressed(total: total, processed: processed);
+      final cached = switch (progress) {
+        {'cache': final int cache} => cache,
+        _ => 0,
+      };
+      yield CompletionPrefillProgressed(
+        total: total - cached,
+        processed: processed - cached,
+      );
     }
   }
 

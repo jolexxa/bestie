@@ -636,6 +636,7 @@ void main() {
               },
             ),
             _chunk(promptProgress: {'total': 100, 'processed': 'lots'}),
+            _chunk(promptProgress: {'total': 10, 'processed': 5}),
             _chunk(content: 'ok', finishReason: 'stop'),
           ]),
         ),
@@ -644,7 +645,8 @@ void main() {
       final events = await client.complete(request).toList();
 
       expect(events, const [
-        CompletionPrefillProgressed(total: 100, processed: 60),
+        CompletionPrefillProgressed(total: 80, processed: 40),
+        CompletionPrefillProgressed(total: 10, processed: 5),
         CompletionTextDelta('ok'),
         CompletionFinished(CompletionStopReason.stop),
       ]);

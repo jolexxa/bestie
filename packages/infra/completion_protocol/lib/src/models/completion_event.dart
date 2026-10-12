@@ -53,8 +53,9 @@ final class CompletionReasoningDelta extends CompletionEvent {
   String toString() => 'CompletionReasoningDelta($text, tokens: $tokens)';
 }
 
-/// The server has read [processed] of the [total] prompt tokens it must hold
-/// before generating, counting any it already held.
+/// The server has read [processed] of the [total] prompt tokens this request
+/// has to prefill. Tokens it already held are not counted, so a request whose
+/// prompt is fully cached has a [total] of zero.
 final class CompletionPrefillProgressed extends CompletionEvent {
   const CompletionPrefillProgressed({
     required this.total,
