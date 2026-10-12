@@ -1,4 +1,5 @@
 import 'package:markdown/markdown.dart' as md;
+import 'package:markdown_highlighted/src/internal/block_boundary_probe.dart';
 import 'package:markdown_highlighted/src/internal/math_syntax.dart';
 import 'package:markdown_highlighted/src/internal/orphan_indent_syntax.dart';
 
@@ -29,15 +30,16 @@ final List<md.BlockSyntax> markdownBlockSyntaxes = List.unmodifiable([
 ///
 /// Registers the inline math delimiters ([mathInlineSyntaxes]) for
 /// mid-paragraph and table-cell contexts ahead of the GitHub-flavored inline
-/// syntaxes, and [markdownBlockSyntaxes] as the only block syntaxes.
-md.Document buildMarkdownDocument() {
+/// syntaxes, and [markdownBlockSyntaxes] as the only block syntaxes. A
+/// [probe] goes ahead of them all, where it sees every block start.
+md.Document buildMarkdownDocument({BlockBoundaryProbe? probe}) {
   return md.Document(
     extensionSet: md.ExtensionSet(
       const [],
       md.ExtensionSet.gitHubFlavored.inlineSyntaxes,
     ),
     inlineSyntaxes: mathInlineSyntaxes,
-    blockSyntaxes: markdownBlockSyntaxes,
+    blockSyntaxes: [?probe, ...markdownBlockSyntaxes],
     withDefaultBlockSyntaxes: false,
     encodeHtml: false,
   );
