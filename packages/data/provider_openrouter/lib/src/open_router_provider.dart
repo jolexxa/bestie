@@ -30,6 +30,12 @@ final class OpenRouterProvider implements Provider {
 
   static const _baseUrl = 'https://openrouter.ai/api/v1';
 
+  // Unfiltered, OpenRouter also lists models with output kinds the SDK cannot
+  // parse (e.g. `decisions`), which fails the whole list.
+  static const Set<openrouter.Modality> _chatOutputModalities = {
+    openrouter.Modality.text,
+  };
+
   final openrouter.OpenRouter _client;
 
   @override
@@ -78,7 +84,9 @@ final class OpenRouterProvider implements Provider {
   @override
   Future<ProviderModelsResult> models() async {
     try {
-      final models = await _client.models.list();
+      final models = await _client.models.list(
+        outputModalities: _chatOutputModalities,
+      );
       return ProviderModelsListed([
         for (final model in models) _toProviderModel(model),
       ]);
