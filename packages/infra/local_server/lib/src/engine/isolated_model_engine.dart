@@ -274,7 +274,8 @@ final class _IsolatedRuntime implements EngineCompletionRuntime {
 }
 
 /// A completion's events as they arrive from the engine, pulled one batch
-/// at a time while someone is listening and not paused.
+/// at a time while someone is listening and not paused. The engine sends
+/// the first batch on its own.
 final class _IsolatedTurn {
   _IsolatedTurn(this._turnId, this._engine) {
     _events = StreamController(
@@ -291,7 +292,7 @@ final class _IsolatedTurn {
   final int _turnId;
   final IsolatedModelEngine _engine;
   late final StreamController<EngineCompletionEvent> _events;
-  var _pulled = false;
+  var _pulled = true;
 
   Stream<EngineCompletionEvent> get events => _events.stream;
 

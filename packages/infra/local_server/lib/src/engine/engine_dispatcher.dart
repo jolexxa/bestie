@@ -142,6 +142,10 @@ final class _ForwardedModel {
 /// adjacent deltas and keeping only the newest of adjacent prefill progress
 /// so a slow server receives fewer, larger batches. The
 /// completion itself never waits on the server.
+///
+/// The first batch goes out unasked: the server's first pull cannot beat a
+/// completion's opening events, and a prefill announcement held until then
+/// would be replaced by the progress of the slice it announces.
 final class _TurnRelay {
   _TurnRelay({
     required this.turnId,
@@ -170,7 +174,7 @@ final class _TurnRelay {
   final void Function() _onEnded;
   late final StreamSubscription<EngineCompletionEvent> _subscription;
   final _held = <EngineCompletionEvent>[];
-  var _pulls = 0;
+  var _pulls = 1;
   var _ended = false;
 
   void pull() {
