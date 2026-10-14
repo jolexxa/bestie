@@ -201,8 +201,12 @@ void main() {
   });
 
   group('models', () {
+    Future<List<openrouter.Model>> listModels() => modelsResource.list(
+      outputModalities: const {openrouter.Modality.text},
+    );
+
     test('maps the catalog', () async {
-      when(modelsResource.list).thenAnswer(
+      when(listModels).thenAnswer(
         (_) async => [
           _model(
             id: 'a/tools',
@@ -303,7 +307,7 @@ void main() {
     });
 
     test('maps failures', () async {
-      when(modelsResource.list).thenThrow(
+      when(listModels).thenThrow(
         openrouter.OpenRouterException(
           message: 'slow down',
           code: 429,
