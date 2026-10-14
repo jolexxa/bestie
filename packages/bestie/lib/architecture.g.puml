@@ -19,28 +19,14 @@ package "bestie" {
   class ArxivTools << repository >>
   package "BuiltInServerClient" as _BuiltInServerClient {
     class BuiltInServerClient << dataSource >>
-    class AttachHeld << dataSource >>
-    BuiltInServerClient +-- AttachHeld
-    class AttachOutcome << dataSource >>
-    BuiltInServerClient +-- AttachOutcome
-    class AttachSettled << dataSource >>
-    BuiltInServerClient +-- AttachSettled
     class BuiltInAgentSessions << dataSource >>
     BuiltInServerClient +-- BuiltInAgentSessions
     class BuiltInServerLink << dataSource >>
     BuiltInServerClient +-- BuiltInServerLink
     class BuiltInServerModel << dataSource >>
     BuiltInServerClient +-- BuiltInServerModel
-    class LoadSettled << dataSource >>
-    BuiltInServerClient +-- LoadSettled
     class ModelIndexFile << dataSource >>
     BuiltInServerClient +-- ModelIndexFile
-    class ModelStatusReported << dataSource >>
-    BuiltInServerClient +-- ModelStatusReported
-    class OwnerSession << dataSource >>
-    BuiltInServerClient +-- OwnerSession
-    class OwnerSessionOpened << dataSource >>
-    BuiltInServerClient +-- OwnerSessionOpened
     class ServerApi << dataSource >>
     BuiltInServerClient +-- ServerApi
     class ServerAttacher << dataSource >>
@@ -53,18 +39,10 @@ package "bestie" {
     BuiltInServerClient +-- ServerConnectionState
     class ServerDiscovery << dataSource >>
     BuiltInServerClient +-- ServerDiscovery
-    class ServerDiscoveryResult << dataSource >>
-    BuiltInServerClient +-- ServerDiscoveryResult
     class ServerSpawner << dataSource >>
     BuiltInServerClient +-- ServerSpawner
-    class SessionEnded << dataSource >>
-    BuiltInServerClient +-- SessionEnded
     class SessionLeases << dataSource >>
     BuiltInServerClient +-- SessionLeases
-    class SessionStarted << dataSource >>
-    BuiltInServerClient +-- SessionStarted
-    class UnloadSettled << dataSource >>
-    BuiltInServerClient +-- UnloadSettled
   }
   class BuiltInServerRepository << repository >>
   class BuiltInServerUseCase << useCase >>
@@ -145,12 +123,6 @@ package "bestie" {
     ModelDownloader +-- ChunkedFileDownloader
     class FileHasher << dataSource >>
     ModelDownloader +-- FileHasher
-    class FileOutcome << dataSource >>
-    ModelDownloader +-- FileOutcome
-    class FileProgress << dataSource >>
-    ModelDownloader +-- FileProgress
-    class FileTransfer << dataSource >>
-    ModelDownloader +-- FileTransfer
   }
   class ModelIndexStore << dataSource >>
   class OSPlatformRepository << repository >>
@@ -226,12 +198,6 @@ package "bestie" {
     class UtilityToolsUseCase << useCase >>
     class ToolCommandHandler << useCase >>
     UtilityToolsUseCase +-- ToolCommandHandler
-    class ToolIsolateWorker << useCase >>
-    UtilityToolsUseCase +-- ToolIsolateWorker
-    class ToolWorkReady << useCase >>
-    UtilityToolsUseCase +-- ToolWorkReady
-    class ToolWorkRequest << useCase >>
-    UtilityToolsUseCase +-- ToolWorkRequest
     class ToolWorker << useCase >>
     UtilityToolsUseCase +-- ToolWorker
     class ToolWorkerCreated << useCase >>
@@ -255,8 +221,6 @@ package "bestie" {
   AppTerminalEnvironmentUseCase --> OSPlatformRepository
   ArxivTools --> ArxivSearchClient
   ArxivTools --> FilesDataSource
-  AttachHeld --> OwnerSession
-  AttachSettled --> AttachOutcome
   BuiltInAgentSessions --> BuiltInServerLink
   BuiltInServerClient --> ModelIndexFile
   BuiltInServerClient --> ServerConnectionData
@@ -292,8 +256,6 @@ package "bestie" {
   DownloadQueue --> DownloadLogic
   DownloadQueue --> LedgerWriter
   DownloadQueue --> ModelDownloader
-  FileTransfer --> FileOutcome
-  FileTransfer --> FileProgress
   FireworksRepository --> FireworksClient
   FireworksUseCase --> ConfigRepository
   FireworksUseCase --> FireworksRepository
@@ -301,7 +263,6 @@ package "bestie" {
   InstalledPane --> LocalModelsOperations
   InteractiveTerminalView --> ShellPaneCubit
   LedgerWriter --> DownloadLedgerStore
-  LoadSettled --> OwnerSession
   LocalModelsOperations --> AgentRepository
   LocalModelsOperations --> BuiltInServerRepository
   LocalModelsOperations --> ConfigRepository
@@ -328,7 +289,6 @@ package "bestie" {
   MascotUseCase --> ConfigRepository
   ModelDetailsPane --> LocalModelsOperations
   ModelScanner --> GgufReader
-  ModelStatusReported --> OwnerSession
   OSPlatformRepository --> ClipboardDataSource
   OSPlatformRepository --> DiskSpaceDataSource
   OSPlatformRepository --> SystemInfoDataSource
@@ -339,7 +299,6 @@ package "bestie" {
   OpenRouterRepository --> OpenRouterClient
   OpenRouterUseCase --> ConfigRepository
   OpenRouterUseCase --> OpenRouterRepository
-  OwnerSessionOpened --> OwnerSession
   PaletteCubit --> CommandsUseCase
   PendingToolCalls --> ConversationStore
   ProviderUseCase --> AgentRepository
@@ -358,8 +317,6 @@ package "bestie" {
   ScanLogic --> ModelScanner
   ScanState --> ModelScanner
   ServerAttacher --> ServerDiscovery
-  ServerConnectionData --> AttachHeld
-  ServerConnectionData --> AttachOutcome
   ServerConnectionData --> SessionLeases
   ServerConnectionLogic --> ServerApi
   ServerConnectionLogic --> ServerAttacher
@@ -367,11 +324,8 @@ package "bestie" {
   ServerConnectionState --> ServerAttacher
   ServerConnectionState --> ServerConnectionData
   ServerDiscovery --> ServerApi
-  ServerDiscovery --> ServerDiscoveryResult
   ServerDiscovery --> ServerSpawner
-  SessionEnded --> OwnerSession
   SessionLeases --> ServerApi
-  SessionStarted --> OwnerSession
   Settlement --> JobReporter
   ShellCallIndex --> ShellRepository
   ShellPaneCubit --> ShellPaneLogic
@@ -392,11 +346,9 @@ package "bestie" {
   StatusBarLogic --> ProviderUseCase
   StatusBarLogic --> SandboxUseCase
   ToolCommandHandler --> Toolbox
-  ToolIsolateWorker --> ToolWorkRequest
   ToolRouter --> JobManager
   ToolRouter --> JobReporter
   ToolRouter --> Settlement
-  ToolWorkReady --> ToolWorkRequest
   ToolWorkerCreated --> ToolWorker
   ToolWorkerPool --> ToolWorker
   Toolbox --> ArxivTools
@@ -407,7 +359,6 @@ package "bestie" {
   Toolbox --> WebSearchTools
   Toolbox --> WikipediaTools
   ToolsUseCase --> ToolRouter
-  UnloadSettled --> OwnerSession
   UtilityToolsUseCase --> ConfigRepository
   UtilityToolsUseCase --> SandboxRepository
   UtilityToolsUseCase --> ToolWorkerPool

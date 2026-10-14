@@ -10,6 +10,7 @@ import 'package:local_server_protocol/local_server_protocol.dart';
 
 /// The owner session's event stream, held open on a client of its own so
 /// closing it hangs up at once and the server frees every lease.
+@model
 @PartOf(BuiltInServerClient)
 final class OwnerSession {
   OwnerSession._({
@@ -138,12 +139,12 @@ final class OwnerSession {
 }
 
 /// How asking for the owner session went.
-@PartOf(BuiltInServerClient)
+@model
 sealed class OwnerSessionOpening {
   const OwnerSessionOpening();
 }
 
-@PartOf(BuiltInServerClient)
+@model
 final class OwnerSessionOpened extends OwnerSessionOpening {
   const OwnerSessionOpened(this.session);
 
@@ -151,7 +152,7 @@ final class OwnerSessionOpened extends OwnerSessionOpening {
 }
 
 /// Another bestie holds the session.
-@PartOf(BuiltInServerClient)
+@model
 final class OwnerSessionRefused extends OwnerSessionOpening {
   const OwnerSessionRefused({required this.ownerPid});
 
@@ -160,14 +161,14 @@ final class OwnerSessionRefused extends OwnerSessionOpening {
 
 /// The server was gone or shutting down by the time the session was asked
 /// for, so another one has to be found or started.
-@PartOf(BuiltInServerClient)
+@model
 final class OwnerSessionServerGone extends OwnerSessionOpening {
   const OwnerSessionServerGone(this.reason);
 
   final String reason;
 }
 
-@PartOf(BuiltInServerClient)
+@model
 final class OwnerSessionFailed extends OwnerSessionOpening {
   const OwnerSessionFailed(this.reason);
 

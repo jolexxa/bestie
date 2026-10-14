@@ -67,13 +67,13 @@ final class ServerAttacher {
 }
 
 /// How asking for the owner session went.
-@PartOf(BuiltInServerClient)
+@model
 sealed class AttachOutcome {
   const AttachOutcome();
 }
 
 /// This bestie holds [session] on the server [attached] describes.
-@PartOf(BuiltInServerClient)
+@model
 final class AttachHeld extends AttachOutcome {
   const AttachHeld({required this.session, required this.attached});
 
@@ -83,7 +83,7 @@ final class AttachHeld extends AttachOutcome {
 }
 
 /// No session is held, for the reason [connection] gives.
-@PartOf(BuiltInServerClient)
+@model
 final class AttachRefused extends AttachOutcome {
   const AttachRefused(this.connection);
 

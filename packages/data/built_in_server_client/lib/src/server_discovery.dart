@@ -119,12 +119,12 @@ final class ServerDiscovery {
 }
 
 /// What looking for the server found.
-@PartOf(BuiltInServerClient)
+@model
 sealed class ServerDiscoveryResult {
   const ServerDiscoveryResult();
 }
 
-@PartOf(BuiltInServerClient)
+@model
 final class ServerFound extends ServerDiscoveryResult {
   const ServerFound({required this.port, required this.health});
 
@@ -134,14 +134,14 @@ final class ServerFound extends ServerDiscoveryResult {
 }
 
 /// A server runs, but it speaks another protocol version.
-@PartOf(BuiltInServerClient)
+@model
 final class ServerSpeaksOtherProtocol extends ServerDiscoveryResult {
   const ServerSpeaksOtherProtocol(this.health);
 
   final HealthResponse health;
 }
 
-@PartOf(BuiltInServerClient)
+@model
 final class ServerNotStarted extends ServerDiscoveryResult {
   const ServerNotStarted(this.reason);
 

@@ -28,12 +28,12 @@ class FileHasher {
   }
 }
 
-@PartOf(ModelDownloader)
+@model
 sealed class FileHashResult {
   const FileHashResult();
 }
 
-@PartOf(ModelDownloader)
+@model
 final class FileHashed extends FileHashResult {
   const FileHashed(this.digest);
 
@@ -42,7 +42,7 @@ final class FileHashed extends FileHashResult {
 }
 
 /// Hashing stopped part way because the download was cancelled.
-@PartOf(ModelDownloader)
+@model
 final class FileHashCancelled extends FileHashResult {
   const FileHashCancelled();
 }

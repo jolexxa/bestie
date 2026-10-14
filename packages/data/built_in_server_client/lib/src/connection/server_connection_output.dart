@@ -1,16 +1,15 @@
-import 'package:built_in_server_client/src/built_in_server_client.dart';
 import 'package:built_in_server_client/src/models/built_in_server_connection.dart';
 import 'package:built_in_server_client/src/owner_session.dart';
 import 'package:intentions/intentions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
 
-@PartOf(BuiltInServerClient)
+@model
 sealed class ServerConnectionOutput {
   const ServerConnectionOutput();
 }
 
 /// Where this bestie stands with the server changed.
-@PartOf(BuiltInServerClient)
+@model
 final class ConnectionChanged extends ServerConnectionOutput {
   const ConnectionChanged(this.connection);
 
@@ -18,7 +17,7 @@ final class ConnectionChanged extends ServerConnectionOutput {
 }
 
 /// The model's status changed.
-@PartOf(BuiltInServerClient)
+@model
 final class ModelStatusChanged extends ServerConnectionOutput {
   const ModelStatusChanged(this.status);
 
@@ -26,7 +25,7 @@ final class ModelStatusChanged extends ServerConnectionOutput {
 }
 
 /// [session] is now held; whoever owns side effects follows its events.
-@PartOf(BuiltInServerClient)
+@model
 final class SessionStarted extends ServerConnectionOutput {
   const SessionStarted(this.session);
 
