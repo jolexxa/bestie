@@ -5,7 +5,6 @@ library;
 
 export 'src/engine/isolated_engine_starter.dart';
 export 'src/lifetime/server_lifetime.dart';
-export 'src/lifetime/server_stop_reason.dart';
 export 'src/local_server.dart';
 export 'src/model_engine.dart';
 export 'src/model_host.dart';

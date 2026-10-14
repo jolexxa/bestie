@@ -1,6 +1,7 @@
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:local_server_protocol/src/models/agent_lease.dart';
 import 'package:local_server_protocol/src/models/model_status.dart';
+import 'package:local_server_protocol/src/models/server_stop_reason.dart';
 
 part 'session_event.mapper.dart';
 
@@ -79,4 +80,17 @@ final class ModelStatusEvent extends SessionEvent
   const ModelStatusEvent({required this.status});
 
   final ModelStatus status;
+}
+
+/// The server is about to end the session, and every connection, because
+/// it is stopping. A session that ends without this event ended some
+/// other way: the process died.
+@MappableClass(
+  caseStyle: CaseStyle.snakeCase,
+  discriminatorValue: 'session_closing',
+)
+final class SessionClosing extends SessionEvent with SessionClosingMappable {
+  const SessionClosing({required this.reason});
+
+  final ServerStopReason reason;
 }

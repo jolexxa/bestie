@@ -1,15 +1,15 @@
-import 'dart:io';
-
 import 'package:intentions/intentions.dart';
 import 'package:local_server/local_server.dart';
 
-/// Writes timestamped log lines to a sink, such as stderr or a log file.
+/// Writes timestamped log lines through a line writer, one call per line,
+/// so a writer that goes straight to the file loses nothing when the
+/// process dies without warning.
 @dataSource
-final class SinkServerLog implements ServerLog {
-  SinkServerLog(this._sink, {DateTime Function()? now})
+final class LineServerLog implements ServerLog {
+  LineServerLog(this._writeLine, {DateTime Function()? now})
     : _now = now ?? DateTime.now;
 
-  final IOSink _sink;
+  final void Function(String line) _writeLine;
   final DateTime Function() _now;
 
   @override
@@ -19,5 +19,5 @@ final class SinkServerLog implements ServerLog {
   void error(String message) => _write('ERROR', message);
 
   void _write(String level, String message) =>
-      _sink.writeln('${_now().toIso8601String()} $level $message');
+      _writeLine('${_now().toIso8601String()} $level $message');
 }

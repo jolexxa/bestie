@@ -18,6 +18,7 @@ class SessionEventMapper extends ClassMapperBase<SessionEvent> {
       SessionOpenedMapper.ensureInitialized();
       PoolSnapshotEventMapper.ensureInitialized();
       ModelStatusEventMapper.ensureInitialized();
+      SessionClosingMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -665,5 +666,132 @@ class _ModelStatusEventCopyWithImpl<$R, $Out>
   ModelStatusEventCopyWith<$R2, ModelStatusEvent, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   ) => _ModelStatusEventCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class SessionClosingMapper extends SubClassMapperBase<SessionClosing> {
+  SessionClosingMapper._();
+
+  static SessionClosingMapper? _instance;
+  static SessionClosingMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = SessionClosingMapper._());
+      SessionEventMapper.ensureInitialized().addSubMapper(_instance!);
+      ServerStopReasonMapper.ensureInitialized();
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'SessionClosing';
+
+  static ServerStopReason _$reason(SessionClosing v) => v.reason;
+  static const Field<SessionClosing, ServerStopReason> _f$reason = Field(
+    'reason',
+    _$reason,
+  );
+
+  @override
+  final MappableFields<SessionClosing> fields = const {#reason: _f$reason};
+
+  @override
+  final String discriminatorKey = 'type';
+  @override
+  final dynamic discriminatorValue = 'session_closing';
+  @override
+  late final ClassMapperBase superMapper =
+      SessionEventMapper.ensureInitialized();
+
+  static SessionClosing _instantiate(DecodingData data) {
+    return SessionClosing(reason: data.dec(_f$reason));
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static SessionClosing fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<SessionClosing>(map);
+  }
+
+  static SessionClosing fromJson(String json) {
+    return ensureInitialized().decodeJson<SessionClosing>(json);
+  }
+}
+
+mixin SessionClosingMappable {
+  String toJson() {
+    return SessionClosingMapper.ensureInitialized().encodeJson<SessionClosing>(
+      this as SessionClosing,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return SessionClosingMapper.ensureInitialized().encodeMap<SessionClosing>(
+      this as SessionClosing,
+    );
+  }
+
+  SessionClosingCopyWith<SessionClosing, SessionClosing, SessionClosing>
+  get copyWith => _SessionClosingCopyWithImpl<SessionClosing, SessionClosing>(
+    this as SessionClosing,
+    $identity,
+    $identity,
+  );
+  @override
+  String toString() {
+    return SessionClosingMapper.ensureInitialized().stringifyValue(
+      this as SessionClosing,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return SessionClosingMapper.ensureInitialized().equalsValue(
+      this as SessionClosing,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return SessionClosingMapper.ensureInitialized().hashValue(
+      this as SessionClosing,
+    );
+  }
+}
+
+extension SessionClosingValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, SessionClosing, $Out> {
+  SessionClosingCopyWith<$R, SessionClosing, $Out> get $asSessionClosing =>
+      $base.as((v, t, t2) => _SessionClosingCopyWithImpl<$R, $Out>(v, t, t2));
+}
+
+abstract class SessionClosingCopyWith<$R, $In extends SessionClosing, $Out>
+    implements SessionEventCopyWith<$R, $In, $Out> {
+  @override
+  $R call({ServerStopReason? reason});
+  SessionClosingCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _SessionClosingCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, SessionClosing, $Out>
+    implements SessionClosingCopyWith<$R, SessionClosing, $Out> {
+  _SessionClosingCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<SessionClosing> $mapper =
+      SessionClosingMapper.ensureInitialized();
+  @override
+  $R call({ServerStopReason? reason}) =>
+      $apply(FieldCopyWithData({if (reason != null) #reason: reason}));
+  @override
+  SessionClosing $make(CopyWithData data) =>
+      SessionClosing(reason: data.get(#reason, or: $value.reason));
+
+  @override
+  SessionClosingCopyWith<$R2, SessionClosing, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  ) => _SessionClosingCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
 

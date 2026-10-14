@@ -48,6 +48,11 @@ final class LlamaModelEngine implements ModelEngine {
   final Future<void> Function() _closeNative;
   final _loads = <Future<void>>{};
 
+  /// Runs in the engine's own isolate, so losing it takes the isolate down
+  /// instead of ever completing this.
+  @override
+  Future<String> get lost => Completer<String>().future;
+
   /// Loads once listened to. A listener that leaves stops the load at the
   /// next stage, freeing whatever it already holds.
   @override

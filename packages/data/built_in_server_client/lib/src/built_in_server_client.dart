@@ -265,7 +265,7 @@ class BuiltInServerClient implements ProviderClient, BuiltInServerLink {
           ModelStatusReported(session: session, status: status),
         ),
         final PoolSnapshotEvent snapshot => _poolSnapshots.add(snapshot),
-        SessionOpened() => null,
+        SessionOpened() || SessionClosing() => null,
       },
       onDone: () => _logic.input(SessionEnded(session)),
     );

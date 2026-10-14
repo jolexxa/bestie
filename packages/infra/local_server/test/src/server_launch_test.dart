@@ -15,6 +15,7 @@ import '../helpers/mocks.dart';
 void main() {
   late Directory bestieDir;
   late MockModelEngine engine;
+  late Completer<String> engineLost;
   late MockModelEngineStarter starter;
   late MockServerLog log;
   late StreamController<void> shutdownRequests;
@@ -22,7 +23,9 @@ void main() {
   setUp(() {
     bestieDir = Directory.systemTemp.createTempSync('server_launch_');
     engine = MockModelEngine();
+    engineLost = Completer<String>();
     when(engine.close).thenAnswer((_) async {});
+    when(() => engine.lost).thenAnswer((_) => engineLost.future);
     log = MockServerLog();
     starter = MockModelEngineStarter();
     when(() => starter.start(log)).thenAnswer(
@@ -86,7 +89,9 @@ void main() {
     final health = await client.send('GET', bestieHealthPath);
     final session = await client.events(bestieSessionPath);
     final opened = await session.nextJson();
+    await session.nextJson();
     shutdownRequests.add(null);
+    final closing = await session.nextJson();
     final exit = await running;
     client.close();
 
@@ -94,6 +99,8 @@ void main() {
     expect(holder.protocolVersion, bestieProtocolVersion);
     expect(HealthResponseMapper.fromJson(health.body).pid, 1234);
     expect(opened['owner_token'], hasLength(32));
+    expect(closing, {'type': 'session_closing', 'reason': 'requested'});
+    expect(await session.rest(), isEmpty);
     expect(
       exit,
       isA<ServerStopped>().having(
@@ -105,6 +112,53 @@ void main() {
     expect(exit.exitCode, 0);
     verify(engine.close).called(1);
     expectLockFree(server.lockPath);
+  });
+
+  test('stops once its engine is lost', () async {
+    final server = launch();
+    final running = server.run();
+    final holder = await published(server.lockPath);
+    final client = TestClient(holder.port);
+    final session = await client.events(bestieSessionPath);
+    await session.nextJson();
+    await session.nextJson();
+
+    engineLost.complete('The engine stopped.');
+    final closing = await session.nextJson();
+    final exit = await running;
+    client.close();
+
+    expect(closing, {'type': 'session_closing', 'reason': 'engine_lost'});
+    expect(
+      exit,
+      isA<ServerStopped>().having(
+        (stopped) => stopped.reason,
+        'reason',
+        ServerStopReason.engineLost,
+      ),
+    );
+    verify(() => log.error('The engine is gone: The engine stopped.'));
+    verify(engine.close).called(1);
+  });
+
+  test('an engine lost after serving changes nothing', () async {
+    final server = launch();
+    final running = server.run();
+    await published(server.lockPath);
+
+    shutdownRequests.add(null);
+    final exit = await running;
+    engineLost.complete('The engine stopped.');
+    await pumpEventQueue();
+
+    expect(
+      exit,
+      isA<ServerStopped>().having(
+        (stopped) => stopped.reason,
+        'reason',
+        ServerStopReason.requested,
+      ),
+    );
   });
 
   test('defaults to a short startup grace and lock wait', () {

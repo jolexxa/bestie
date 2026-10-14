@@ -29,6 +29,11 @@ final class IsolatedModelEngine implements ModelEngine {
   final _turns = <int, _IsolatedTurn>{};
   var _nextId = 0;
   String? _lostBecause;
+  var _closing = false;
+  final _lost = Completer<String>();
+
+  @override
+  Future<String> get lost => _lost.future;
 
   @override
   Stream<ModelEngineEvent> load(ModelEngineRequest request) {
@@ -53,6 +58,7 @@ final class IsolatedModelEngine implements ModelEngine {
   /// stops it for good.
   @override
   Future<void> close() async {
+    _closing = true;
     await _call<void>(
       (callId) => CloseEngineCall(callId: callId),
       failed: (_) {},
@@ -65,6 +71,7 @@ final class IsolatedModelEngine implements ModelEngine {
   /// Fails everything waiting on the engine, which is gone for [reason].
   void lose(String reason) {
     _lostBecause ??= reason;
+    if (!_closing && !_lost.isCompleted) _lost.complete(reason);
     for (final call in [..._calls.values]) {
       call.fail(reason);
     }

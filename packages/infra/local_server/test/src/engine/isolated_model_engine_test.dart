@@ -145,6 +145,27 @@ void main() {
       ]);
     });
 
+    test('is lost once the engine is gone, but not by closing', () async {
+      var lostBecause = '';
+      engine.lost.then((reason) => lostBecause = reason).ignore();
+
+      await engine.close();
+      await pumpEventQueue();
+      expect(lostBecause, isEmpty);
+
+      engine.lose('The engine stopped.');
+      await pumpEventQueue();
+      expect(lostBecause, isEmpty);
+    });
+
+    test('is lost with the first reason the engine is gone for', () async {
+      engine
+        ..lose('The engine stopped.')
+        ..lose('later');
+
+      expect(await engine.lost, 'The engine stopped.');
+    });
+
     test('report an engine that breaks as a failure', () async {
       when(() => inner.load(any())).thenAnswer(
         (_) => Stream.error(StateError('segfault-ish')),

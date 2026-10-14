@@ -46,6 +46,10 @@ abstract interface class ModelEngine {
   /// loads anyway is unloaded.
   Stream<ModelEngineEvent> load(ModelEngineRequest request);
 
+  /// Completes with why once the engine is gone for good without having
+  /// been closed; nothing loads on it from then on.
+  Future<String> get lost;
+
   /// Frees what the engine holds natively. Every loaded model must be
   /// unloaded first.
   Future<void> close();

@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:bestie_server/bestie_server.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -44,19 +42,14 @@ void main() {
     );
   });
 
-  test('logs timestamped lines', () async {
-    final file = File(
-      '${Directory.systemTemp.createTempSync('server_log_').path}/log',
-    );
-    addTearDown(() => file.parent.deleteSync(recursive: true));
-    final sink = file.openWrite();
+  test('logs timestamped lines', () {
+    final lines = <String>[];
 
-    SinkServerLog(sink, now: () => DateTime.utc(2026, 10, 4))
+    LineServerLog(lines.add, now: () => DateTime.utc(2026, 10, 4))
       ..info('started')
       ..error('broke');
-    await sink.close();
 
-    expect(file.readAsLinesSync(), [
+    expect(lines, [
       '2026-10-04T00:00:00.000Z INFO started',
       '2026-10-04T00:00:00.000Z ERROR broke',
     ]);

@@ -69,6 +69,11 @@ final class LocalServer {
     });
   }
 
+  /// Tells the owner the server stops for [reason], so the session ending
+  /// next is no surprise.
+  void announceClosing(ServerStopReason reason) =>
+      _owners.send(SessionClosing(reason: reason));
+
   /// Ends every open connection, shuts the model host down so a load in
   /// flight is answered as interrupted, waits for every answer under way,
   /// and stops listening to the model.

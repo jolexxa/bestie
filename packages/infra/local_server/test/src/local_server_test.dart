@@ -449,6 +449,25 @@ void main() {
 
       expect(await session.rest(), isEmpty);
     });
+
+    test('announces the server closing to the owner', () async {
+      final session = await openSession();
+
+      server.announceClosing(ServerStopReason.engineLost);
+
+      expect(
+        SessionEventMapper.fromJson(jsonEncode(await session.nextJson())),
+        const SessionClosing(reason: ServerStopReason.engineLost),
+      );
+      await session.hangUp();
+    });
+
+    test('announces closing to nobody when no owner holds the session', () {
+      expect(
+        () => server.announceClosing(ServerStopReason.requested),
+        returnsNormally,
+      );
+    });
   });
 
   group('model routes', () {

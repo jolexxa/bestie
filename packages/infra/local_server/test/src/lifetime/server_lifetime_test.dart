@@ -1,5 +1,6 @@
 import 'package:fake_async/fake_async.dart';
 import 'package:local_server/local_server.dart';
+import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:test/test.dart';
 
 const _grace = Duration(seconds: 30);
@@ -55,6 +56,30 @@ void main() {
         expect(stopped, ServerStopReason.requested);
         expect(lifetime.shuttingDown, isTrue);
         lifetime.dispose();
+      });
+    });
+
+    test('stops for the reason it is given', () {
+      fakeAsync((async) {
+        final lifetime = started()
+          ..requestShutdown(reason: ServerStopReason.engineLost);
+        async.flushMicrotasks();
+
+        expect(stopped, ServerStopReason.engineLost);
+        lifetime.dispose();
+      });
+    });
+
+    test('a request after it ended, even disposed, changes nothing', () {
+      fakeAsync((async) {
+        final lifetime = started()..requestShutdown();
+        async.flushMicrotasks();
+        lifetime
+          ..dispose()
+          ..requestShutdown(reason: ServerStopReason.engineLost);
+        async.flushMicrotasks();
+
+        expect(stopped, ServerStopReason.requested);
       });
     });
   });

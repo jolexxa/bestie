@@ -4,7 +4,6 @@ import 'dart:math';
 
 import 'package:file/file.dart';
 import 'package:local_server/src/lifetime/server_lifetime.dart';
-import 'package:local_server/src/lifetime/server_stop_reason.dart';
 import 'package:local_server/src/local_server.dart';
 import 'package:local_server/src/model_engine.dart';
 import 'package:local_server/src/model_host.dart';
@@ -145,6 +144,12 @@ final class ServerLaunch {
     _log.info('Listening on 127.0.0.1:${http.port} (pid $pid).');
 
     final lifetime = ServerLifetime(startupGrace: startupGrace)..start();
+    unawaited(
+      engine.lost.then((reason) {
+        _log.error('The engine is gone: $reason');
+        lifetime.requestShutdown(reason: ServerStopReason.engineLost);
+      }),
+    );
     final index = ModelIndexReader(fileSystem: _fileSystem, path: indexPath);
     final host = ModelHost(engine: engine, index: index);
     final server = LocalServer(
@@ -166,6 +171,7 @@ final class ServerLaunch {
     final reason = await lifetime.ended;
     _log.info('Shutting down (${reason.name}).');
     await shutdown.cancel();
+    server.announceClosing(reason);
     await http.close();
     await server.close();
     lifetime.dispose();
@@ -191,7 +197,7 @@ final class ServerStopped extends ServerExit {
   final ServerStopReason reason;
 
   @override
-  int get exitCode => 0;
+  int get exitCode => ServerExitCode.stopped.code;
 }
 
 /// Another server already runs for this bestie directory.
@@ -201,7 +207,7 @@ final class ServerAlreadyRunning extends ServerExit {
   final ServerLockFile? holder;
 
   @override
-  int get exitCode => 75;
+  int get exitCode => ServerExitCode.alreadyRunning.code;
 }
 
 final class ServerLockFailed extends ServerExit {
@@ -210,7 +216,7 @@ final class ServerLockFailed extends ServerExit {
   final String message;
 
   @override
-  int get exitCode => 73;
+  int get exitCode => ServerExitCode.lockFailed.code;
 }
 
 /// The native libraries the engine needs are missing.
@@ -220,7 +226,7 @@ final class ServerLibrariesMissing extends ServerExit {
   final String message;
 
   @override
-  int get exitCode => 72;
+  int get exitCode => ServerExitCode.librariesMissing.code;
 }
 
 final class ServerEngineFailed extends ServerExit {
@@ -229,7 +235,7 @@ final class ServerEngineFailed extends ServerExit {
   final String message;
 
   @override
-  int get exitCode => 70;
+  int get exitCode => ServerExitCode.engineFailed.code;
 }
 
 final class ServerBindFailed extends ServerExit {
@@ -238,5 +244,5 @@ final class ServerBindFailed extends ServerExit {
   final String message;
 
   @override
-  int get exitCode => 69;
+  int get exitCode => ServerExitCode.bindFailed.code;
 }

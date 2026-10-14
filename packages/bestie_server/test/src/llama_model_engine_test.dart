@@ -205,6 +205,10 @@ void main() {
   String failureOf(List<ModelEngineEvent> events) =>
       (events.last as ModelEngineFailed).reason;
 
+  test('is never lost from inside its own isolate', () {
+    expect(engine.lost, doesNotComplete);
+  });
+
   test('fits, loads, and serves a model', () async {
     final events = await load(contextCap: 20000);
 
