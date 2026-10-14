@@ -1,6 +1,10 @@
+import 'package:bestie_built_in_server_use_case/bestie_built_in_server_use_case.dart';
 import 'package:bestie_chat_use_case/bestie_chat_use_case.dart';
+import 'package:bestie_fireworks_use_case/bestie_fireworks_use_case.dart';
 import 'package:bestie_local_models_use_case/bestie_local_models_use_case.dart';
 import 'package:bestie_mascot_use_case/bestie_mascot_use_case.dart';
+import 'package:bestie_openai_endpoint_use_case/bestie_openai_endpoint_use_case.dart';
+import 'package:bestie_openrouter_use_case/bestie_openrouter_use_case.dart';
 import 'package:bestie_provider_use_case/bestie_provider_use_case.dart';
 import 'package:bestie_sandbox_use_case/bestie_sandbox_use_case.dart';
 import 'package:bestie_shell_use_case/bestie_shell_use_case.dart';
@@ -15,6 +19,10 @@ final class BestieConfigKeys {
     required this.mascot,
     required this.chat,
     required this.provider,
+    required this.builtInServer,
+    required this.openAiEndpoint,
+    required this.openRouter,
+    required this.fireworks,
     required this.localModels,
     required this.shell,
     required this.sandbox,
@@ -25,6 +33,10 @@ final class BestieConfigKeys {
   final MascotConfigKeys mascot;
   final ChatConfigKeys chat;
   final ProviderConfigKeys provider;
+  final BuiltInServerConfigKeys builtInServer;
+  final OpenAiEndpointConfigKeys openAiEndpoint;
+  final OpenRouterConfigKeys openRouter;
+  final FireworksConfigKeys fireworks;
   final LocalModelsConfigKeys localModels;
   final ShellConfigKeys shell;
   final SandboxConfigKeys sandbox;

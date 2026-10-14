@@ -5,7 +5,7 @@ import 'package:config_protocol/config_protocol.dart';
 /// Arranges each feature's settings into the config overlay's cross-feature
 /// page layout.
 ConfigLayout buildConfigLayout(BestieConfigKeys keys) {
-  final provider = keys.provider;
+  final endpoint = keys.openAiEndpoint;
   final sampling = keys.chat.sampling;
 
   return ConfigLayout(
@@ -53,20 +53,31 @@ ConfigLayout buildConfigLayout(BestieConfigKeys keys) {
         sections: [
           ConfigSection(
             heading: 'Local models',
+            addresses: [keys.localModels.paths.global],
+          ),
+          ConfigSection(
+            heading: 'Built-in server',
+            addresses: [keys.builtInServer.contextCap.global],
+          ),
+          ConfigSection(
+            heading: 'Custom endpoint',
             addresses: [
-              keys.localModels.paths.global,
-              provider.contextCap.global,
+              endpoint.baseUrl.global,
+              endpoint.apiKey.global,
+              endpoint.contextWindow.global,
             ],
           ),
-          for (final account in provider.accounts)
-            if (account.addresses.isNotEmpty)
-              ConfigSection(
-                heading: account.provider.displayName,
-                addresses: account.addresses,
-              ),
+          ConfigSection(
+            heading: 'OpenRouter',
+            addresses: [keys.openRouter.apiKey.global],
+          ),
+          ConfigSection(
+            heading: 'Fireworks AI',
+            addresses: [keys.fireworks.apiKey.global],
+          ),
           ConfigSection(
             heading: 'Agents',
-            addresses: [provider.maxAgents.global],
+            addresses: [keys.provider.maxAgents.global],
           ),
           ConfigSection(
             heading: 'Sampling',

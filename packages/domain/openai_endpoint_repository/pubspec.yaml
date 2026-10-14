@@ -1,0 +1,20 @@
+name: openai_endpoint_repository
+description: The custom OpenAI-compatible endpoint as the user configured it.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  intentions: ^0.1.0
+  provider_openai:
+    path: ../../data/provider_openai
+
+dev_dependencies:
+  coverage: ^1.15.0
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

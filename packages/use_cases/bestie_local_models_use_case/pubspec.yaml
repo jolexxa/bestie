@@ -1,7 +1,7 @@
 name: bestie_local_models_use_case
 description: >-
   Local models in the palette: download GGUFs from Hugging Face, browse the
-  installed library and the local server, and manage model folders.
+  installed library and the built-in server, and manage model folders.
 version: 0.0.0
 publish_to: none
 
@@ -13,8 +13,8 @@ environment:
 dependencies:
   agent_repository:
     path: ../../domain/agent_repository
-  agent_runtime_protocol:
-    path: ../../infra/agent_runtime_protocol
+  built_in_server_repository:
+    path: ../../domain/built_in_server_repository
   clock: ^1.1.1
   collection: ^1.19.0
   command_protocol:
@@ -37,6 +37,8 @@ dependencies:
   rxdart: ^0.28.0
 
 dev_dependencies:
+  agent_runtime_protocol:
+    path: ../../infra/agent_runtime_protocol
   bestie_platform_abstractions:
     path: ../../data/bestie_platform_abstractions
   coverage: ^1.15.0

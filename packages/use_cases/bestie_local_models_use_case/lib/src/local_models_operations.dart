@@ -1,30 +1,28 @@
 import 'dart:async';
 
 import 'package:agent_repository/agent_repository.dart';
-import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
-    show ContextPoolSnapshot;
 import 'package:bestie_local_models_use_case/src/config/local_models_config_keys.dart';
 import 'package:bestie_local_models_use_case/src/local_models_use_case.dart';
-import 'package:bestie_local_models_use_case/src/models/local_server_status.dart';
 import 'package:bestie_local_models_use_case/src/support/latest_throttle.dart';
+import 'package:built_in_server_repository/built_in_server_repository.dart';
 import 'package:clock/clock.dart';
 import 'package:collection/collection.dart';
 import 'package:config_repository/config_repository.dart';
 import 'package:intentions/intentions.dart';
 import 'package:local_models_repository/local_models_repository.dart';
 import 'package:platform_repository/platform_repository.dart';
-import 'package:provider_protocol/provider_protocol.dart'
-    show ProviderModelLoading, ProviderModelMeasuring, ProviderModelRef;
+import 'package:provider_protocol/provider_protocol.dart' show ProviderModelRef;
 import 'package:provider_repository/provider_repository.dart';
 import 'package:rxdart/rxdart.dart';
 
 /// What the model panes and commands show and do: the library at a pace a
-/// terminal can draw, the local server, the model the app runs on, and the
-/// operations on all three.
+/// terminal can draw, the built-in server, the model the app runs on, and
+/// the operations on all three.
 @PartOf(LocalModelsUseCase)
 class LocalModelsOperations {
   LocalModelsOperations({
     required LocalModelsRepository library,
+    required BuiltInServerRepository server,
     required ProviderRepository providers,
     required ConfigRepository config,
     required LocalModelsConfigKeys configKeys,
@@ -34,6 +32,7 @@ class LocalModelsOperations {
     required OSPlatformRepository platform,
     required Clock clock,
   }) : _library = library,
+       _server = server,
        _providers = providers,
        _config = config,
        _configKeys = configKeys,
@@ -62,6 +61,7 @@ class LocalModelsOperations {
   static const libraryInterval = Duration(milliseconds: 250);
 
   final LocalModelsRepository _library;
+  final BuiltInServerRepository _server;
   final ProviderRepository _providers;
   final ConfigRepository _config;
   final LocalModelsConfigKeys _configKeys;
@@ -79,15 +79,8 @@ class LocalModelsOperations {
 
   ModelLibrary get currentLibrary => _throttledLibrary.value;
 
-  /// What the local server is doing for the app, read from the session
-  /// and the agents leased on its model.
-  Stream<LocalServerStatus> get server => Rx.combineLatest2(
-    _providers.statusStream,
-    _agents.poolStream
-        .map<ContextPoolSnapshot?>((pool) => pool)
-        .startWith(null),
-    _serverOf,
-  );
+  /// What the built-in server is doing, now and whenever it changes.
+  Stream<BuiltInServerStatus> get server => _server.statusStream;
 
   /// The local model the app is set to run on, if it is set to one.
   String? get selectedId => _localIdOf(_config.resolve(_modelKey.global));
@@ -167,15 +160,12 @@ class LocalModelsOperations {
     _configKeys.paths.global: ConfigEdit<List<String>>.set(folders),
   });
 
-  /// Unloads the local model the app runs on and lets go of the server, so
-  /// another window can use it; a server left with nothing connected exits.
-  void stop() => _providers.stop();
-
-  /// Takes the server again and reloads the chosen model, after either
-  /// failed. Takes the downloads over too when another window ran them,
-  /// since that window has likely gone.
+  /// Takes the server again and, when the app is set to one of its models,
+  /// loads that model again. Takes the downloads over too when another
+  /// window ran them, since that window has likely gone.
   void retryServer() {
-    _providers.reconnect();
+    unawaited(_server.start());
+    if (selectedId != null) _providers.reconnect();
     if (_library.current.downloadsStatus is DownloadsManagedElsewhere) {
       unawaited(_library.rescan());
     }
@@ -202,36 +192,6 @@ class LocalModelsOperations {
     ProviderStatusReady(:final model) => _localIdIn(model.ref),
     ProviderStatusConnecting(:final model) => _localIdIn(model),
     ProviderStatusUnconfigured() || ProviderStatusFailed() => null,
-  };
-
-  LocalServerStatus _serverOf(
-    ProviderStatus status,
-    ContextPoolSnapshot? pool,
-  ) => switch (status) {
-    ProviderStatusConnecting(:final model)
-        when model.providerId != _providerId =>
-      const ServerIdle(),
-    ProviderStatusConnecting(loading: null) => const ServerStarting(),
-    ProviderStatusConnecting(:final model, :final loading?) => ServerLoading(
-      localId: model.modelId,
-      progress: switch (loading.progress) {
-        ProviderModelMeasuring() => null,
-        ProviderModelLoading(:final fraction) => fraction,
-      },
-    ),
-    ProviderStatusReady(:final model, :final maxAgents, :final deviceBytes)
-        when model.ref.providerId == _providerId =>
-      ServerServing(
-        localId: model.id,
-        contextSize: model.contextWindow,
-        maxAgents: maxAgents,
-        deviceBytes: deviceBytes,
-        leased: pool?.leases.length,
-      ),
-    ProviderStatusFailed(:final failure, :final model)
-        when model.providerId == _providerId =>
-      ServerFailed(failure),
-    _ => const ServerIdle(),
   };
 }
 

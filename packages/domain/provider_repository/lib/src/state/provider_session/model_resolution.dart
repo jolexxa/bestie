@@ -7,12 +7,12 @@ import 'package:provider_repository/src/models/resolved_model.dart';
 sealed class ModelResolution {
   const ModelResolution();
 
-  /// Finds [model] in what [connection] lists and settles its facts.
+  /// Finds [model] in what [client] lists and settles its facts.
   static Future<ModelResolution> of(
     ProviderModelRef model, {
-    required ProviderConnection connection,
+    required ProviderClient client,
     required String providerName,
-  }) async => switch (await connection.models()) {
+  }) async => switch (await client.models()) {
     ProviderModelsFailed(:final failure) => ModelUnresolved(failure),
     ProviderModelsListed(:final models) => _find(
       model,

@@ -5,9 +5,8 @@ import 'package:bestie_local_models_use_case/src/config/local_models_config_keys
 import 'package:bestie_local_models_use_case/src/local_models_operations.dart';
 import 'package:bestie_local_models_use_case/src/panes/download_pane.dart';
 import 'package:bestie_local_models_use_case/src/panes/installed_pane.dart';
-import 'package:bestie_local_models_use_case/src/support/latest_throttle.dart';
 import 'package:bestie_local_models_use_case/src/wording/command_statuses.dart';
-import 'package:bestie_local_models_use_case/src/wording/library_wording.dart';
+import 'package:built_in_server_repository/built_in_server_repository.dart';
 import 'package:clock/clock.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:config_repository/config_repository.dart';
@@ -15,14 +14,14 @@ import 'package:intentions/intentions.dart';
 import 'package:local_models_repository/local_models_repository.dart';
 import 'package:platform_repository/platform_repository.dart';
 import 'package:provider_repository/provider_repository.dart';
-import 'package:rxdart/rxdart.dart';
 
-/// Local models in the palette: the Installed and Download panes, the model
-/// folders, and stopping the local server.
+/// Local models in the palette: the Installed and Download panes and the
+/// model folders.
 @useCase
 class LocalModelsUseCase implements CommandContribution {
   LocalModelsUseCase({
     required LocalModelsRepository library,
+    required BuiltInServerRepository server,
     required ProviderRepository providers,
     required ConfigRepository config,
     required LocalModelsConfigKeys configKeys,
@@ -33,6 +32,7 @@ class LocalModelsUseCase implements CommandContribution {
     Clock clock = const Clock(),
   }) : _operations = LocalModelsOperations(
          library: library,
+         server: server,
          providers: providers,
          config: config,
          configKeys: configKeys,
@@ -66,7 +66,7 @@ class LocalModelsUseCase implements CommandContribution {
         id: 'models.installed',
         title: 'Installed models',
         glyph: '▤',
-        description: 'Downloads, your GGUF folders and the local server',
+        description: 'Downloads, your GGUF folders and the built-in server',
         tier: CommandTier.primary,
         group: group,
         availability: alwaysAvailable(),
@@ -99,34 +99,6 @@ class LocalModelsUseCase implements CommandContribution {
           invoke: _removeFolderInvoke,
         ),
       ),
-      Command(
-        id: 'models.stop_server',
-        title: 'Stop local server',
-        glyph: '⏻',
-        description: 'Unload the model, free its memory and stop the server',
-        group: group,
-        availability: gatedAvailability(
-          () => _operations.inUseId,
-          _operations.inUseIds,
-          (_) => _stopGate(),
-        ),
-        status: latestThrottled(
-          Rx.combineLatest2(
-            _operations.server,
-            _operations.library,
-            (server, library) => serverStatus(
-              server,
-              nameOf: (localId) => modelName(library, localId),
-            ),
-          ),
-          interval: LocalModelsOperations.libraryInterval,
-          clock: clock,
-        ),
-        body: CommandFlow(
-          invoke: _stopInvoke,
-          running: 'Stopping the local model…',
-        ),
-      ),
     ]);
   }
 
@@ -135,8 +107,6 @@ class LocalModelsUseCase implements CommandContribution {
 
   static const _folderKey = ParamKey<String>('folder');
   static const _noFolders = 'no model folders added';
-  static const _notRunning = 'no local model running';
-  static const _turnRunning = 'turn in progress';
 
   final LocalModelsOperations _operations;
   late final DownloadPane _downloadPane;
@@ -201,20 +171,6 @@ class LocalModelsUseCase implements CommandContribution {
       for (final kept in _operations.folders)
         if (kept != folder) kept,
     ]);
-    return const CommandRan();
-  }
-
-  Availability _stopGate() => switch (_operations.inUseId) {
-    null => const Unavailable(_notRunning),
-    _ when !_operations.idle => const Unavailable(_turnRunning),
-    _ => const Available(),
-  };
-
-  Future<CommandResult> _stopInvoke(Answers answers) async {
-    if (_stopGate() case Unavailable(:final reason)) {
-      return CommandRejected(reason);
-    }
-    _operations.stop();
     return const CommandRan();
   }
 }

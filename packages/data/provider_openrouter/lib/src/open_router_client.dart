@@ -13,7 +13,7 @@ import 'package:provider_protocol/provider_protocol.dart';
 /// model APIs behind one API key. Its model list is public, so it lists
 /// models before the user gives a key.
 @dataSource
-final class OpenRouterClient implements ProviderClient, ProviderConnection {
+class OpenRouterClient implements ProviderClient, ProviderConnection {
   OpenRouterClient({
     this.appTitle,
     this.httpReferer,

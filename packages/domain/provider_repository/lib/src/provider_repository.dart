@@ -13,16 +13,16 @@ import 'package:provider_repository/src/state/provider_session/provider_session_
 import 'package:provider_repository/src/state/provider_session/provider_session_output.dart';
 import 'package:rxdart/rxdart.dart';
 
-/// Owns the provider session: a live connection to every provider, which
-/// model the app runs, and whether it is usable right now.
+/// Owns the provider session: which model the app runs, on which of the
+/// providers' clients, and whether it is usable right now.
 @repository
 class ProviderRepository {
   ProviderRepository({
-    required List<Provider> providers,
+    required List<ProviderClient> clients,
     Clock clock = const Clock(),
-  }) : _providers = providers {
+  }) : _clients = clients {
     _logic = ProviderSessionLogic(
-      providers: providers,
+      clients: clients,
       recovery: RecoveryPolicy(clock: clock),
     )..start();
     _statusController = BehaviorSubject<ProviderStatus>.seeded(_project());
@@ -36,18 +36,27 @@ class ProviderRepository {
       ..onOutput<ModelReleased>(
         (released) => unawaited(released.model.release()),
       )
-      ..onOutput<ConnectionRetired>(
-        (retired) => unawaited(retired.connection.close()),
-      )
       ..onOutput<LoadStarted>(_followLoad);
+    _reconfigurations = [
+      for (final client in clients)
+        client.reconfigured.listen(
+          (availability) => _logic.input(
+            ClientReconfigured(
+              providerId: client.id,
+              availability: availability,
+            ),
+          ),
+        ),
+    ];
   }
 
   static const _unconfigured = ProviderRejected('No model is chosen.');
 
-  final List<Provider> _providers;
+  final List<ProviderClient> _clients;
   late final ProviderSessionLogic _logic;
   late final LogicBlockBinding<ProviderSessionState> _binding;
   late final BehaviorSubject<ProviderStatus> _statusController;
+  late final List<StreamSubscription<ProviderAvailability>> _reconfigurations;
   final _reloadsStartingController = StreamController<void>.broadcast(
     sync: true,
   );
@@ -83,17 +92,16 @@ class ProviderRepository {
 
   /// The balance of the account the chosen model runs on.
   Future<CreditsResult> credits() async =>
-      switch (_data.connections[_data.settings?.model?.providerId]) {
-        final connection? => await connection.credits(),
+      switch (_data.clients[_data.settings?.model?.providerId]) {
+        final client? => await client.credits(),
         null => const CreditsFailed(_unconfigured),
       };
 
   /// Every model every provider lists, in provider order. Models of a
-  /// provider that wants credentials the user has not given are listed
-  /// without access.
+  /// provider that is not set up are listed without access.
   Future<ModelList> models() async {
     final listings = await Future.wait([
-      for (final provider in _providers) _modelsOf(provider),
+      for (final client in _clients) _modelsOf(client),
     ]);
     return ModelList(
       models: [for (final listing in listings) ...listing.models],
@@ -101,12 +109,13 @@ class ProviderRepository {
     );
   }
 
-  /// Lets go of the running model and every connection, and closes every
-  /// stream.
+  /// Lets go of the running model and closes every stream.
   Future<void> dispose() async {
     final runtime = _data.runtime;
     final loaded = _data.loaded;
-    final connections = _data.connections.values.toList();
+    for (final reconfiguration in _reconfigurations) {
+      await reconfiguration.cancel();
+    }
     await _loadProgress?.cancel();
     _binding.dispose();
     _logic
@@ -114,38 +123,29 @@ class ProviderRepository {
       ..dispose();
     await runtime?.dispose();
     await loaded?.release();
-    await Future.wait([
-      for (final connection in connections) connection.close(),
-    ]);
     await _statusController.close();
     await _reloadsStartingController.close();
   }
 
-  Future<ModelList> _modelsOf(Provider provider) async {
-    switch (await _data.connections[provider.id]!.models()) {
-      case ProviderModelsFailed(:final failure):
-        return ModelList(models: const [], failures: [failure]);
-      case ProviderModelsListed(:final models):
-        final hasAccess =
-            provider.credentialsKind == ProviderCredentialsKind.none ||
-            (_data.settings?.credentials.containsKey(provider.id) ?? false);
-        return ModelList(
+  Future<ModelList> _modelsOf(ProviderClient client) async =>
+      switch (await client.models()) {
+        ProviderModelsFailed(:final failure) => ModelList(
+          models: const [],
+          failures: [failure],
+        ),
+        ProviderModelsListed(:final models) => ModelList(
           models: [
             for (final model in models)
               ListedModel(
-                ref: ProviderModelRef(
-                  providerId: provider.id,
-                  modelId: model.id,
-                ),
+                ref: ProviderModelRef(providerId: client.id, modelId: model.id),
                 model: model,
-                providerName: provider.displayName,
-                hasAccess: hasAccess,
+                providerName: client.displayName,
+                hasAccess: _data.availability[client.id] is ProviderReady,
               ),
           ],
           failures: const [],
-        );
-    }
-  }
+        ),
+      };
 
   void _followLoad(LoadStarted started) {
     unawaited(_loadProgress?.cancel());

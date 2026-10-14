@@ -8,7 +8,6 @@ import 'package:http/testing.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider_local/provider_local.dart';
-import 'package:provider_local/src/built_in_server_client.dart';
 import 'package:provider_local/src/models/server_results.dart';
 import 'package:provider_local/src/server_spawner.dart';
 

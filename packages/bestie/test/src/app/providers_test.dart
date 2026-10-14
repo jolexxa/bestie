@@ -2,51 +2,45 @@ import 'package:bestie/src/app/providers.dart';
 import 'package:clock/clock.dart';
 import 'package:http/testing.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:provider_openrouter/provider_openrouter.dart';
-import 'package:provider_protocol/provider_protocol.dart';
+import 'package:provider_local/provider_local.dart';
 import 'package:test/test.dart';
 
-class _MockProvider extends Mock implements Provider {}
+final class _MockBuiltInServerClient extends Mock
+    implements BuiltInServerClient {}
 
 void main() {
-  late _MockProvider local;
-  late List<Provider> providers;
+  late _MockBuiltInServerClient builtInServer;
+  late BestieProviderClients clients;
 
   setUp(() {
-    local = _MockProvider();
-    when(() => local.id).thenReturn('local');
-    providers = bestieProviders(
-      local: local,
+    builtInServer = _MockBuiltInServerClient();
+    when(() => builtInServer.id).thenReturn('local');
+    clients = BestieProviderClients(
+      builtInServer: builtInServer,
       httpClient: MockClient((_) async => throw UnimplementedError()),
       clock: const Clock(),
     );
   });
 
   test("lists the user's own models before the hosted ones", () {
-    expect(providers.map((provider) => provider.id), [
+    expect(clients.all.map((client) => client.id), [
       'local',
       'custom',
       'openrouter',
       'fireworks',
     ]);
-    expect(providers.first, same(local));
+    expect(clients.all.first, same(builtInServer));
   });
 
-  test('has no two providers with the same id', () {
-    final ids = providers.map((provider) => provider.id);
+  test('has no two clients with the same id', () {
+    final ids = clients.all.map((client) => client.id);
 
     expect(ids.toSet(), hasLength(ids.length));
   });
 
-  test('has the user point the custom endpoint at an address', () {
-    expect(providers[1].credentialsKind, ProviderCredentialsKind.endpoint);
-  });
-
   test('attributes the app to OpenRouter', () {
-    final openRouter = providers[2] as OpenRouterProvider;
-
-    expect(openRouter.appTitle, openRouterAppTitle);
-    expect(openRouter.httpReferer, openRouterAppSite);
-    expect(openRouter.appCategories, openRouterAppCategories);
+    expect(clients.openRouter.appTitle, openRouterAppTitle);
+    expect(clients.openRouter.httpReferer, openRouterAppSite);
+    expect(clients.openRouter.appCategories, openRouterAppCategories);
   });
 }

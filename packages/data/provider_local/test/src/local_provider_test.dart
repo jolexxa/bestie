@@ -1,5 +1,4 @@
 import 'package:provider_local/provider_local.dart';
-import 'package:provider_local/src/built_in_server_client.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 import 'package:test/test.dart';
 

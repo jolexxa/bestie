@@ -12,7 +12,7 @@ import 'package:provider_protocol/provider_protocol.dart';
 /// from `GET /models` and serves completions from the same base URL. It
 /// lists nothing until it has an address.
 @dataSource
-final class OpenAiEndpointClient implements ProviderClient, ProviderConnection {
+class OpenAiEndpointClient implements ProviderClient, ProviderConnection {
   OpenAiEndpointClient({required http.Client client}) : _client = client;
 
   static const _noUrl = ProviderRejected('Custom endpoint URL is not set.');

@@ -1,9 +1,6 @@
-import 'package:bestie_local_models_use_case/src/models/local_server_status.dart';
 import 'package:bestie_local_models_use_case/src/wording/command_statuses.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:local_models_repository/local_models_repository.dart';
-import 'package:provider_protocol/provider_protocol.dart'
-    show ProviderCancelled, ProviderOccupied, ProviderServerFailed;
 import 'package:test/test.dart';
 
 import '../../helpers/fixtures.dart';
@@ -83,62 +80,6 @@ void main() {
       );
       expect(textOf(two), '⚠ 2 need attention');
       expect(toneOf(two), PaneTone.warning);
-    });
-  });
-
-  group('serverStatus', () {
-    const loadFailed = ProviderServerFailed(
-      'The local model server ran out of memory.',
-    );
-    const stopped = ProviderCancelled('Stopped.');
-
-    CommandStatus? statusOf(LocalServerStatus server) => serverStatus(
-      server,
-      nameOf: (localId) => localId == 'qwen3-8b' ? 'Qwen 3 8B' : localId,
-    );
-
-    test('is null while idle or stopped on purpose', () {
-      expect(statusOf(const ServerIdle()), isNull);
-      expect(statusOf(const ServerFailed(stopped)), isNull);
-    });
-
-    test('names the model it serves', () {
-      final status = statusOf(serving());
-      expect(textOf(status), '● Qwen 3 8B ready');
-      expect(toneOf(status), PaneTone.success);
-    });
-
-    test('follows the model getting ready', () {
-      final starting = statusOf(const ServerStarting());
-      expect(textOf(starting), '◑ starting');
-      expect(toneOf(starting), PaneTone.loading);
-
-      final fitting = statusOf(const ServerLoading(localId: 'qwen3-8b'));
-      expect(textOf(fitting), '◑ fitting Qwen 3 8B');
-      expect(toneOf(fitting), PaneTone.loading);
-
-      final loading = statusOf(
-        const ServerLoading(localId: 'qwen3-8b', progress: .424),
-      );
-      expect(textOf(loading), '◑ loading Qwen 3 8B 42%');
-      expect(toneOf(loading), PaneTone.loading);
-      expect(loading!.progress, isNull);
-    });
-
-    test('says it failed when the app could not run its local model', () {
-      final status = statusOf(const ServerFailed(loadFailed));
-      expect(textOf(status), '✕ failed');
-      expect(toneOf(status), PaneTone.danger);
-    });
-
-    test('warns when another bestie holds the server', () {
-      final status = statusOf(
-        const ServerFailed(
-          ProviderOccupied('Another bestie (pid 12) is using Bestie Server.'),
-        ),
-      );
-      expect(textOf(status), '⚠ in use elsewhere');
-      expect(toneOf(status), PaneTone.warning);
     });
   });
 }

@@ -7,7 +7,6 @@ final class ProviderModelLoadRequest {
     required this.modelId,
     required this.contextWindow,
     required this.maxAgents,
-    this.contextCap,
   });
 
   final String modelId;
@@ -18,19 +17,13 @@ final class ProviderModelLoadRequest {
   /// The most agents that will run on the model at once.
   final int maxAgents;
 
-  /// The most context to run the model with, for providers that load models
-  /// themselves; null for as much as fits.
-  final int? contextCap;
-
   @override
   bool operator ==(Object other) =>
       other is ProviderModelLoadRequest &&
       other.modelId == modelId &&
       other.contextWindow == contextWindow &&
-      other.maxAgents == maxAgents &&
-      other.contextCap == contextCap;
+      other.maxAgents == maxAgents;
 
   @override
-  int get hashCode =>
-      Object.hash(modelId, contextWindow, maxAgents, contextCap);
+  int get hashCode => Object.hash(modelId, contextWindow, maxAgents);
 }

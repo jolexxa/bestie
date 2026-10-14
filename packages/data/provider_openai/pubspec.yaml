@@ -17,6 +17,7 @@ dependencies:
     path: ../../infra/completion_openai
   http: ^1.1.0
   intentions: ^0.1.0
+  meta: ^1.15.0
   provider_protocol:
     path: ../../infra/provider_protocol
 

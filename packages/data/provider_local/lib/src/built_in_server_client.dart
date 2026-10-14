@@ -30,7 +30,7 @@ import 'package:provider_protocol/provider_protocol.dart';
 /// in bestie's index, finds or starts the server, and holds the owner
 /// session that lets this bestie load a model and lease its agents.
 @dataSource
-final class BuiltInServerClient
+class BuiltInServerClient
     implements ProviderClient, ProviderConnection, BuiltInServerLink {
   BuiltInServerClient({
     required http.Client client,

@@ -9,7 +9,7 @@ import 'package:provider_protocol/provider_protocol.dart';
 import 'package:provider_repository/provider_repository.dart';
 
 /// Keeps the provider session in step with configuration and exposes the
-/// provider's account facts to the UI and the palette.
+/// chosen provider's status and credits to the UI and the palette.
 @useCase
 class ProviderUseCase implements CommandContribution {
   ProviderUseCase({
@@ -80,22 +80,10 @@ class ProviderUseCase implements CommandContribution {
   };
 
   /// The session settings as configured right now.
-  ProviderSettings get settings {
-    final contextCap = _resolve(_configKeys.contextCap);
-    return ProviderSettings(
-      credentials: {
-        for (final keys in _configKeys.accounts)
-          keys.provider.id: ?keys.credentials(
-            apiKey: _resolve(keys.apiKey),
-            baseUrl: _resolve(keys.baseUrl),
-            contextWindow: _resolve(keys.contextWindow),
-          ),
-      },
-      model: ProviderModelRef.parse(_resolve(_configKeys.model)),
-      maxAgents: _resolve(_configKeys.maxAgents),
-      contextCap: contextCap > 0 ? contextCap : null,
-    );
-  }
+  ProviderSettings get settings => ProviderSettings(
+    model: ProviderModelRef.parse(_resolve(_configKeys.model)),
+    maxAgents: _resolve(_configKeys.maxAgents),
+  );
 
   ProviderStatus get status => _providers.status;
 

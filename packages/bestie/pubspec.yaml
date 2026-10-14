@@ -21,6 +21,8 @@ dependencies:
     path: ../data/arxiv_client
   arxiv_tools:
     path: ../domain/arxiv_tools
+  bestie_built_in_server_use_case:
+    path: ../use_cases/bestie_built_in_server_use_case
   bestie_chat_use_case:
     path: ../use_cases/bestie_chat_use_case
   bestie_chat_view:
@@ -35,10 +37,16 @@ dependencies:
     path: ../view/config
   bestie_edit:
     path: ../infra/bestie_edit
+  bestie_fireworks_use_case:
+    path: ../use_cases/bestie_fireworks_use_case
   bestie_local_models_use_case:
     path: ../use_cases/bestie_local_models_use_case
   bestie_mascot_use_case:
     path: ../use_cases/bestie_mascot_use_case
+  bestie_openai_endpoint_use_case:
+    path: ../use_cases/bestie_openai_endpoint_use_case
+  bestie_openrouter_use_case:
+    path: ../use_cases/bestie_openrouter_use_case
   bestie_palette_view:
     path: ../view/palette
   bestie_platform_abstractions:
@@ -64,6 +72,8 @@ dependencies:
   bloc: ^8.1.4
   blocterm:
     path: ../infra/blocterm
+  built_in_server_repository:
+    path: ../domain/built_in_server_repository
   calculator_tools:
     path: ../domain/calculator_tools
   clock: ^1.1.1
@@ -84,6 +94,8 @@ dependencies:
   file: ^7.0.1
   files_data_source:
     path: ../data/files_data_source
+  fireworks_repository:
+    path: ../domain/fireworks_repository
   fs_tools:
     path: ../domain/fs_tools
   good_intentions: ^0.8.0
@@ -111,6 +123,10 @@ dependencies:
   model_index_store:
     path: ../data/model_index_store
   nocterm: ^0.6.0
+  openai_endpoint_repository:
+    path: ../domain/openai_endpoint_repository
+  openrouter_repository:
+    path: ../domain/openrouter_repository
   path: ^1.9.1
   platform: ^3.1.5
   platform_repository:

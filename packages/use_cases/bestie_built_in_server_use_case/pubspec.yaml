@@ -1,0 +1,38 @@
+name: bestie_built_in_server_use_case
+description: >-
+  The built-in inference server in the palette: it starts with bestie, loads
+  models the way the user configured, and can be stopped or restarted.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  agent_repository:
+    path: ../../domain/agent_repository
+  built_in_server_repository:
+    path: ../../domain/built_in_server_repository
+  command_protocol:
+    path: ../../infra/command_protocol
+  config_protocol:
+    path: ../../infra/config_protocol
+  config_repository:
+    path: ../../domain/config_repository
+  intentions: ^0.1.0
+  provider_local:
+    path: ../../data/provider_local
+  provider_protocol:
+    path: ../../infra/provider_protocol
+  provider_repository:
+    path: ../../domain/provider_repository
+  rxdart: ^0.28.0
+
+dev_dependencies:
+  coverage: ^1.15.0
+  fake_async: ^1.3.2
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

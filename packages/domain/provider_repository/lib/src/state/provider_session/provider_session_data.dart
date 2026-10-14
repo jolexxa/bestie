@@ -6,8 +6,8 @@ import 'package:clock/clock.dart';
 import 'package:intentions/intentions.dart';
 import 'package:provider_protocol/provider_protocol.dart'
     show
-        ProviderConnection,
-        ProviderCredentials,
+        ProviderAvailability,
+        ProviderClient,
         ProviderFailure,
         ProviderModel,
         ProviderModelLoadProgress;
@@ -25,11 +25,12 @@ final class ProviderSessionData {
   /// ignored when it lands.
   int attempt = 0;
 
-  /// One live connection per provider, keyed by provider id.
-  Map<String, ProviderConnection> connections = {};
+  /// Every provider's client, keyed by provider id.
+  Map<String, ProviderClient> clients = {};
 
-  /// The credentials each connection was made with, keyed by provider id.
-  Map<String, ProviderCredentials> connectedWith = {};
+  /// Whether each provider is usable, keyed by provider id, as last
+  /// reported by its client.
+  Map<String, ProviderAvailability> availability = {};
 
   ResolvedModel? model;
 

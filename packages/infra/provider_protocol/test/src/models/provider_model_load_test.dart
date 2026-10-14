@@ -11,7 +11,6 @@ void main() {
         modelId: 'm',
         contextWindow: 8192,
         maxAgents: 3,
-        contextCap: 4096,
       );
 
       expect(
@@ -20,7 +19,6 @@ void main() {
           modelId: 'm',
           contextWindow: 8192,
           maxAgents: 3,
-          contextCap: 4096,
         ),
       );
       expect(
@@ -29,7 +27,6 @@ void main() {
           modelId: 'm',
           contextWindow: 8192,
           maxAgents: 3,
-          contextCap: 4096,
         ).hashCode,
       );
       expect(
@@ -38,7 +35,7 @@ void main() {
           const ProviderModelLoadRequest(
             modelId: 'm',
             contextWindow: 8192,
-            maxAgents: 3,
+            maxAgents: 2,
           ),
         ),
       );

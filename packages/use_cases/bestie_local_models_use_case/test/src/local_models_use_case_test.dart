@@ -1,16 +1,11 @@
 import 'dart:async';
 
-import 'package:agent_repository/agent_repository.dart';
 import 'package:bestie_local_models_use_case/bestie_local_models_use_case.dart';
-import 'package:bestie_local_models_use_case/src/local_models_operations.dart';
 import 'package:bestie_local_models_use_case/src/panes/download_pane.dart';
 import 'package:bestie_local_models_use_case/src/panes/installed_pane.dart';
 import 'package:command_protocol/command_protocol.dart';
-import 'package:fake_async/fake_async.dart';
 import 'package:local_models_repository/local_models_repository.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:provider_protocol/provider_protocol.dart'
-    show ProviderModelLoading, ProviderOccupied;
 import 'package:test/test.dart';
 
 import '../helpers/fixtures.dart';
@@ -24,6 +19,7 @@ void main() {
     repositories = Repositories();
     useCase = LocalModelsUseCase(
       library: repositories.library,
+      server: repositories.server,
       providers: repositories.providers,
       config: repositories.config,
       configKeys: repositories.configKeys,
@@ -46,7 +42,7 @@ void main() {
 
   test('contributes the Models group', () {
     const installed =
-        '▤ Installed models · Downloads, your GGUF folders and the local '
+        '▤ Installed models · Downloads, your GGUF folders and the built-in '
         'server';
     const addFolder =
         '⊕ Add model folder · Scan a folder of .gguf files, including '
@@ -54,9 +50,6 @@ void main() {
     const removeFolder =
         '⊖ Remove model folder · Stop listing the models in one of your '
         'folders';
-    const stopServer =
-        '⏻ Stop local server · Unload the model, free its memory and stop the '
-        'server';
     expect(
       useCase.commands.map(
         (command) =>
@@ -67,7 +60,6 @@ void main() {
         '↓ Download models · Search Hugging Face for GGUF models',
         addFolder,
         removeFolder,
-        stopServer,
       ],
     );
     expect(
@@ -193,64 +185,6 @@ void main() {
     });
   });
 
-  group('Stop local server', () {
-    test('is unavailable while no local model runs', () async {
-      repositories.report(runningOn('qwen', providerId: 'openrouter'));
-      expect(
-        (await availabilityOf('models.stop_server') as Unavailable).reason,
-        'no local model running',
-      );
-    });
-
-    test('is unavailable while a turn is running', () async {
-      repositories
-        ..report(runningOn('qwen3-8b'))
-        ..phase = ConversationPhase.turnInFlight;
-      expect(
-        (await availabilityOf('models.stop_server') as Unavailable).reason,
-        'turn in progress',
-      );
-    });
-
-    test('follows the model the app runs', () async {
-      final availability = <Availability>[];
-      final subscription = command(
-        'models.stop_server',
-      ).availability.listen(availability.add);
-      await pumpEventQueue();
-      expect(availability.last, isA<Unavailable>());
-
-      repositories.report(connectingTo('qwen3-8b'));
-      await pumpEventQueue();
-      expect(availability.last, isA<Available>());
-
-      repositories.report(runningOn('qwen', providerId: 'openrouter'));
-      await pumpEventQueue();
-      expect(
-        (availability.last as Unavailable).reason,
-        'no local model running',
-      );
-      await subscription.cancel();
-    });
-
-    test('stops the local model the app runs', () async {
-      repositories.report(runningOn('qwen3-8b'));
-      final flow = flowOf('models.stop_server');
-      expect(flow.running, 'Stopping the local model…');
-      expect(flow.next(const Answers.empty()), isNull);
-      expect(await flow.invoke(const Answers.empty()), isA<CommandRan>());
-      verify(() => repositories.providers.stop()).called(1);
-    });
-
-    test('refuses when there is nothing to stop', () async {
-      final result = await flowOf('models.stop_server').invoke(
-        const Answers.empty(),
-      );
-      expect((result as CommandRejected).reason, 'no local model running');
-      verifyNever(() => repositories.providers.stop());
-    });
-  });
-
   group('row statuses', () {
     String? textOf(CommandStatus? status) =>
         status?.spans.map((span) => span.text).join();
@@ -270,64 +204,6 @@ void main() {
       expect(textOf(statuses.last), '↓ 1 · 50%');
       expect(statuses.last!.progress, .5);
       await subscription.cancel();
-    });
-
-    test('Stop local server follows the server at a drawable pace, even '
-        'while it cannot run', () {
-      fakeAsync((async) {
-        final paced = LocalModelsUseCase(
-          library: repositories.library,
-          providers: repositories.providers,
-          config: repositories.config,
-          configKeys: repositories.configKeys,
-          modelKey: modelKey,
-          providerId: localProviderId,
-          agents: repositories.agents,
-          platform: repositories.platform,
-          clock: async.getClock(DateTime(2026)),
-        );
-        final stop = paced.commands.firstWhere(
-          (command) => command.id == 'models.stop_server',
-        );
-        final statuses = <String?>[];
-        final availability = <Availability>[];
-        stop.status.listen((status) => statuses.add(textOf(status)));
-        stop.availability.listen(availability.add);
-        repositories.libraryChanges.add(
-          ModelLibrary(downloaded: [supportedModel()]),
-        );
-        async.flushMicrotasks();
-
-        repositories.report(
-          failedOn(
-            'qwen3-8b',
-            const ProviderOccupied(
-              'Another bestie (pid 4121) is using Bestie Server.',
-            ),
-          ),
-        );
-        async.elapse(LocalModelsOperations.libraryInterval);
-        expect(statuses.last, '⚠ in use elsewhere');
-        expect(availability.last, isA<Unavailable>());
-
-        async.elapse(LocalModelsOperations.libraryInterval);
-        for (final progress in [.1, .2, .3]) {
-          repositories.report(
-            connectingTo(
-              'qwen3-8b',
-              progress: ProviderModelLoading(progress),
-            ),
-          );
-        }
-        async.flushMicrotasks();
-        expect(statuses.last, '◑ loading Qwen 3 8B 10%');
-        async.elapse(LocalModelsOperations.libraryInterval);
-        expect(statuses.last, '◑ loading Qwen 3 8B 30%');
-        expect(statuses, isNot(contains('◑ loading Qwen 3 8B 20%')));
-
-        unawaited(paced.dispose());
-        async.flushMicrotasks();
-      });
     });
   });
 

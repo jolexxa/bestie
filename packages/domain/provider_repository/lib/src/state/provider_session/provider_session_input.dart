@@ -1,6 +1,9 @@
 import 'package:intentions/intentions.dart';
 import 'package:provider_protocol/provider_protocol.dart'
-    show ProviderModelLoadProgress, ProviderModelLoadResult;
+    show
+        ProviderAvailability,
+        ProviderModelLoadProgress,
+        ProviderModelLoadResult;
 import 'package:provider_repository/src/models/provider_settings.dart';
 import 'package:provider_repository/src/state/provider_session/model_resolution.dart';
 
@@ -27,6 +30,19 @@ final class ReconnectProvider extends ProviderSessionInput {
 @model
 final class StopProvider extends ProviderSessionInput {
   const StopProvider();
+}
+
+/// The provider [providerId]'s client was configured anew and now reports
+/// [availability]; a model running on it starts over.
+@model
+final class ClientReconfigured extends ProviderSessionInput {
+  const ClientReconfigured({
+    required this.providerId,
+    required this.availability,
+  });
+
+  final String providerId;
+  final ProviderAvailability availability;
 }
 
 /// Looking up the chosen model, started under [attempt], finished.

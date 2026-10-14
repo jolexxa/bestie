@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:bestie_local_models_use_case/src/local_models_operations.dart';
 import 'package:bestie_local_models_use_case/src/local_models_use_case.dart';
-import 'package:bestie_local_models_use_case/src/models/local_server_status.dart';
 import 'package:bestie_local_models_use_case/src/panes/model_actions.dart';
 import 'package:bestie_local_models_use_case/src/wording/library_wording.dart';
 import 'package:bestie_local_models_use_case/src/wording/units.dart';
+import 'package:built_in_server_repository/built_in_server_repository.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:intentions/intentions.dart';
 import 'package:local_models_repository/local_models_repository.dart';
@@ -68,7 +68,7 @@ class ModelDetailsPane extends Pane {
     },
   );
 
-  PaneStatus? _bandOf(String? running, LocalServerStatus server) =>
+  PaneStatus? _bandOf(String? running, BuiltInServerStatus server) =>
       switch (server) {
         _ when running != localId => null,
         ServerServing(
@@ -86,11 +86,10 @@ class ModelDetailsPane extends Pane {
               const PaneSpan(' · fitted to ', PaneTone.muted),
               PaneSpan('ctx ${groupedLabel(contextSize)}', PaneTone.info),
               PaneSpan(' with $maxAgents agents', PaneTone.muted),
-              if (deviceBytes != null)
-                PaneSpan(
-                  ' · ${bytesLabel(deviceBytes)} on the device',
-                  PaneTone.muted,
-                ),
+              PaneSpan(
+                ' · ${bytesLabel(deviceBytes)} on the device',
+                PaneTone.muted,
+              ),
             ],
           ),
         _ => const PaneStatus(

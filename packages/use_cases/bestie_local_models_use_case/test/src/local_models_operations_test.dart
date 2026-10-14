@@ -1,16 +1,14 @@
 import 'dart:async';
 
 import 'package:agent_repository/agent_repository.dart';
-import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
-    show AgentHandle, AgentKind, ContextPoolSnapshot, PoolLeaseOccupancy;
 import 'package:bestie_local_models_use_case/src/local_models_operations.dart';
-import 'package:bestie_local_models_use_case/src/models/local_server_status.dart';
+import 'package:built_in_server_repository/built_in_server_repository.dart';
 import 'package:clock/clock.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:local_models_repository/local_models_repository.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider_protocol/provider_protocol.dart'
-    show ProviderModelLoading, ProviderModelMeasuring, ProviderServerFailed;
+    show ProviderServerFailed;
 import 'package:test/test.dart';
 
 import '../helpers/fixtures.dart';
@@ -22,6 +20,7 @@ void main() {
   LocalModelsOperations operationsWith({Clock clock = const Clock()}) =>
       LocalModelsOperations(
         library: repositories.library,
+        server: repositories.server,
         providers: repositories.providers,
         config: repositories.config,
         configKeys: repositories.configKeys,
@@ -206,96 +205,17 @@ void main() {
     });
   });
 
-  group('server', () {
-    const failure = ProviderServerFailed('out of memory');
+  test('server follows the built-in server', () async {
+    final operations = operationsWith();
+    final seen = <BuiltInServerStatus>[];
+    final subscription = operations.server.listen(seen.add);
+    await pumpEventQueue();
+    repositories.reportServer(const ServerIdle());
+    await pumpEventQueue();
 
-    Future<List<LocalServerStatus>> serverAfter(
-      void Function() happen,
-    ) async {
-      final operations = operationsWith();
-      final seen = <LocalServerStatus>[];
-      final subscription = operations.server.listen(seen.add);
-      await pumpEventQueue();
-      happen();
-      await pumpEventQueue();
-      await subscription.cancel();
-      await operations.dispose();
-      return seen;
-    }
-
-    test('is idle until the app runs a local model', () async {
-      final seen = await serverAfter(
-        () => repositories
-          ..report(connectingTo('qwen', providerId: 'openrouter'))
-          ..report(runningOn('qwen', providerId: 'openrouter'))
-          ..report(failedOn('qwen', failure, providerId: 'openrouter')),
-      );
-
-      expect(seen, everyElement(isA<ServerIdle>()));
-      expect(seen, hasLength(4));
-    });
-
-    test('starts, measures, loads, then serves the local model', () async {
-      final seen = await serverAfter(
-        () => repositories
-          ..report(connectingTo('qwen3-8b'))
-          ..report(
-            connectingTo('qwen3-8b', progress: const ProviderModelMeasuring()),
-          )
-          ..report(
-            connectingTo(
-              'qwen3-8b',
-              progress: const ProviderModelLoading(0.5),
-            ),
-          )
-          ..report(runningOn('qwen3-8b')),
-      );
-
-      expect(seen[1], isA<ServerStarting>());
-      expect(
-        seen[2],
-        isA<ServerLoading>()
-            .having((status) => status.localId, 'localId', 'qwen3-8b')
-            .having((status) => status.progress, 'progress', isNull),
-      );
-      expect((seen[3] as ServerLoading).progress, 0.5);
-      final serving = seen[4] as ServerServing;
-      expect(serving.localId, 'qwen3-8b');
-      expect(serving.contextSize, 32768);
-      expect(serving.maxAgents, 3);
-      expect(serving.deviceBytes, 5 * gigabyte);
-      expect(serving.leased, isNull);
-    });
-
-    test('counts the agents leased on the served model', () async {
-      final seen = await serverAfter(
-        () => repositories
-          ..report(runningOn('qwen3-8b'))
-          ..poolChanges.add(
-            const ContextPoolSnapshot(
-              contextSize: 32768,
-              reservedClaims: 0,
-              leases: [
-                PoolLeaseOccupancy(
-                  handle: AgentHandle(id: 'primary', kind: AgentKind.primary),
-                  residentTokens: 0,
-                  claimTokens: 0,
-                ),
-              ],
-            ),
-          ),
-      );
-
-      expect((seen.last as ServerServing).leased, 1);
-    });
-
-    test('says why the app could not run its local model', () async {
-      final seen = await serverAfter(
-        () => repositories.report(failedOn('qwen3-8b', failure)),
-      );
-
-      expect((seen.last as ServerFailed).failure, failure);
-    });
+    expect(seen, [isA<ServerOffline>(), isA<ServerIdle>()]);
+    await subscription.cancel();
+    await operations.dispose();
   });
 
   group('use', () {
@@ -342,18 +262,24 @@ void main() {
     await operations.dispose();
   });
 
-  test('stops the local model through the app', () async {
-    final operations = operationsWith()..stop();
+  test('retries the server, loading the chosen local model again', () async {
+    repositories.select('local:qwen3-8b');
+    final operations = operationsWith()..retryServer();
 
-    verify(() => repositories.providers.stop()).called(1);
+    verifyInOrder([
+      () => repositories.server.start(),
+      () => repositories.providers.reconnect(),
+    ]);
+    verifyNever(() => repositories.library.rescan());
     await operations.dispose();
   });
 
-  test('retries the server by reconnecting the chosen model', () async {
+  test('retries the server alone while the app runs elsewhere', () async {
+    repositories.select('openrouter:qwen/qwen3-8b');
     final operations = operationsWith()..retryServer();
 
-    verify(() => repositories.providers.reconnect()).called(1);
-    verifyNever(() => repositories.library.rescan());
+    verify(() => repositories.server.start()).called(1);
+    verifyNever(() => repositories.providers.reconnect());
     await operations.dispose();
   });
 
@@ -369,7 +295,7 @@ void main() {
       when(() => repositories.library.rescan()).thenAnswer((_) async {});
       final operations = operationsWith()..retryServer();
 
-      verify(() => repositories.providers.reconnect()).called(1);
+      verify(() => repositories.server.start()).called(1);
       verify(() => repositories.library.rescan()).called(1);
       await operations.dispose();
     },

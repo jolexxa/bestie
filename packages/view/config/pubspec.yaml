@@ -9,14 +9,22 @@ environment:
   sdk: ^3.11.0
 
 dependencies:
+  bestie_built_in_server_use_case:
+    path: ../../use_cases/bestie_built_in_server_use_case
   bestie_chat_use_case:
     path: ../../use_cases/bestie_chat_use_case
   bestie_config_use_case:
     path: ../../use_cases/bestie_config_use_case
+  bestie_fireworks_use_case:
+    path: ../../use_cases/bestie_fireworks_use_case
   bestie_local_models_use_case:
     path: ../../use_cases/bestie_local_models_use_case
   bestie_mascot_use_case:
     path: ../../use_cases/bestie_mascot_use_case
+  bestie_openai_endpoint_use_case:
+    path: ../../use_cases/bestie_openai_endpoint_use_case
+  bestie_openrouter_use_case:
+    path: ../../use_cases/bestie_openrouter_use_case
   bestie_platform_abstractions:
     path: ../../data/bestie_platform_abstractions
   bestie_provider_use_case:

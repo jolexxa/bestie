@@ -1,5 +1,5 @@
-import 'package:bestie_local_models_use_case/src/models/local_server_status.dart';
 import 'package:bestie_local_models_use_case/src/panes/model_details_pane.dart';
+import 'package:built_in_server_repository/built_in_server_repository.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:local_models_repository/local_models_repository.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
@@ -14,7 +14,7 @@ void main() {
   void showing(
     ModelLibrary library, {
     String? running,
-    LocalServerStatus server = const ServerStarting(),
+    BuiltInServerStatus server = const ServerStarting(),
   }) => stubOperations(
     operations,
     currentLibrary: library,

@@ -14,7 +14,7 @@ import 'package:provider_protocol/provider_protocol.dart';
 /// lists nothing until it has one. Fireworks reports no balance, so
 /// [credits] carries spend alone.
 @dataSource
-final class FireworksClient implements ProviderClient, ProviderConnection {
+class FireworksClient implements ProviderClient, ProviderConnection {
   FireworksClient({
     required http.Client client,
     Uri? managementUrl,
