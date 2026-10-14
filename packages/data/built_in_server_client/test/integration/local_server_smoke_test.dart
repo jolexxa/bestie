@@ -147,15 +147,14 @@ void main() {
       final lockFile = File(serverLockFileFor(bestieDir.path, p.context));
       int serverPid() =>
           ServerLockFileMapper.fromJson(lockFile.readAsStringSync()).pid;
-      final pids = [serverPid()];
+      final served = serverPid();
       for (var round = 0; round < 3; round++) {
         await (freed as ProviderModelLoaded).model.release();
         freed = await third.load(request).result;
         print('re-picked after a release: $freed (pid ${serverPid()})');
         expect(freed, isA<ProviderModelLoaded>());
-        pids.add(serverPid());
+        expect(serverPid(), served, reason: 'a release keeps the server');
       }
-      expect(pids.toSet(), hasLength(pids.length));
 
       await third.close();
       await second.close();
