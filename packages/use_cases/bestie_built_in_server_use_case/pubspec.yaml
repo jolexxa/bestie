@@ -13,6 +13,8 @@ environment:
 dependencies:
   agent_repository:
     path: ../../domain/agent_repository
+  built_in_server_client:
+    path: ../../data/built_in_server_client
   built_in_server_repository:
     path: ../../domain/built_in_server_repository
   command_protocol:
@@ -22,8 +24,6 @@ dependencies:
   config_repository:
     path: ../../domain/config_repository
   intentions: ^0.1.0
-  provider_local:
-    path: ../../data/provider_local
   provider_protocol:
     path: ../../infra/provider_protocol
   provider_repository:

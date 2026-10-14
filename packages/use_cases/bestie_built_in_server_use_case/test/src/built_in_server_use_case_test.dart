@@ -2,12 +2,12 @@ import 'dart:async';
 
 import 'package:agent_repository/agent_repository.dart';
 import 'package:bestie_built_in_server_use_case/bestie_built_in_server_use_case.dart';
+import 'package:built_in_server_client/built_in_server_client.dart';
 import 'package:built_in_server_repository/built_in_server_repository.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:config_repository/testing.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:provider_local/provider_local.dart';
 import 'package:provider_protocol/provider_protocol.dart' show ProviderModelRef;
 import 'package:provider_repository/provider_repository.dart';
 import 'package:test/test.dart';

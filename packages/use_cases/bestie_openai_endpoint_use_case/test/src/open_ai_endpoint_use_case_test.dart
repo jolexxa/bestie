@@ -1,8 +1,8 @@
 import 'package:bestie_openai_endpoint_use_case/bestie_openai_endpoint_use_case.dart';
 import 'package:config_repository/testing.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:openai_endpoint_client/openai_endpoint_client.dart';
 import 'package:openai_endpoint_repository/openai_endpoint_repository.dart';
-import 'package:provider_openai/provider_openai.dart';
 import 'package:test/test.dart';
 
 final class _MockRepository extends Mock implements OpenAiEndpointRepository {}

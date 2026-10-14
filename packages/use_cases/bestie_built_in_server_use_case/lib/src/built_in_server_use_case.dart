@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:agent_repository/agent_repository.dart';
 import 'package:bestie_built_in_server_use_case/src/built_in_server_config_keys.dart';
 import 'package:bestie_built_in_server_use_case/src/wording/server_status.dart';
+import 'package:built_in_server_client/built_in_server_client.dart';
 import 'package:built_in_server_repository/built_in_server_repository.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:config_repository/config_repository.dart';
 import 'package:intentions/intentions.dart';
-import 'package:provider_local/provider_local.dart';
 import 'package:provider_repository/provider_repository.dart';
 import 'package:rxdart/rxdart.dart';
 

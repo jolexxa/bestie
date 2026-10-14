@@ -15,11 +15,11 @@ dependencies:
     path: ../../infra/config_protocol
   config_repository:
     path: ../../domain/config_repository
+  fireworks_client:
+    path: ../../data/fireworks_client
   fireworks_repository:
     path: ../../domain/fireworks_repository
   intentions: ^0.1.0
-  provider_fireworks:
-    path: ../../data/provider_fireworks
 
 dev_dependencies:
   coverage: ^1.15.0

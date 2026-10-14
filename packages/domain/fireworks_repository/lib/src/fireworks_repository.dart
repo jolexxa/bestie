@@ -1,5 +1,5 @@
+import 'package:fireworks_client/fireworks_client.dart';
 import 'package:intentions/intentions.dart';
-import 'package:provider_fireworks/provider_fireworks.dart';
 
 /// Fireworks AI as the user configured it, reached through its client.
 @repository

@@ -1,5 +1,5 @@
 import 'package:intentions/intentions.dart';
-import 'package:provider_openai/provider_openai.dart';
+import 'package:openai_endpoint_client/openai_endpoint_client.dart';
 
 /// The custom OpenAI-compatible endpoint as the user configured it,
 /// reached through its client.

@@ -18,10 +18,10 @@ dependencies:
   config_repository:
     path: ../../domain/config_repository
   intentions: ^0.1.0
+  openai_endpoint_client:
+    path: ../../data/openai_endpoint_client
   openai_endpoint_repository:
     path: ../../domain/openai_endpoint_repository
-  provider_openai:
-    path: ../../data/provider_openai
 
 dev_dependencies:
   coverage: ^1.15.0

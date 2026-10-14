@@ -1,8 +1,8 @@
 import 'package:bestie_fireworks_use_case/bestie_fireworks_use_case.dart';
 import 'package:config_repository/testing.dart';
+import 'package:fireworks_client/fireworks_client.dart';
 import 'package:fireworks_repository/fireworks_repository.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:provider_fireworks/provider_fireworks.dart';
 import 'package:test/test.dart';
 
 final class _MockRepository extends Mock implements FireworksRepository {}

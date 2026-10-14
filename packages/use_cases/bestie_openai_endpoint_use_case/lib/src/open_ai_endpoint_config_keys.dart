@@ -1,6 +1,6 @@
 import 'package:config_protocol/config_protocol.dart';
 import 'package:intentions/intentions.dart';
-import 'package:provider_openai/provider_openai.dart';
+import 'package:openai_endpoint_client/openai_endpoint_client.dart';
 
 /// Where the user pointed bestie and what to assume about the server there,
 /// kept under `provider.custom`.

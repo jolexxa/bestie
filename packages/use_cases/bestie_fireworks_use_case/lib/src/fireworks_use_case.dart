@@ -3,9 +3,9 @@ import 'dart:async';
 import 'package:bestie_fireworks_use_case/src/fireworks_config_keys.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:config_repository/config_repository.dart';
+import 'package:fireworks_client/fireworks_client.dart';
 import 'package:fireworks_repository/fireworks_repository.dart';
 import 'package:intentions/intentions.dart';
-import 'package:provider_fireworks/provider_fireworks.dart';
 
 /// Keeps Fireworks AI configured the way the user set it up.
 @useCase

@@ -1,6 +1,6 @@
 import 'package:mocktail/mocktail.dart';
+import 'package:openai_endpoint_client/openai_endpoint_client.dart';
 import 'package:openai_endpoint_repository/openai_endpoint_repository.dart';
-import 'package:provider_openai/provider_openai.dart';
 import 'package:test/test.dart';
 
 final class _MockOpenAiEndpointClient extends Mock

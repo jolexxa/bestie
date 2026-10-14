@@ -1,6 +1,6 @@
 import 'package:mocktail/mocktail.dart';
+import 'package:openrouter_client/openrouter_client.dart';
 import 'package:openrouter_repository/openrouter_repository.dart';
-import 'package:provider_openrouter/provider_openrouter.dart';
 import 'package:test/test.dart';
 
 final class _MockOpenRouterClient extends Mock implements OpenRouterClient {}

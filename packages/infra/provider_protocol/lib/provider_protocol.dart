@@ -1,18 +1,11 @@
-/// Model providers for bestie: what each one asks for, and the connection
-/// that lists, loads, and bills its models.
+/// Model providers for bestie: the client that lists, loads, and bills each
+/// one's models, and what it says of them.
 library;
 
 export 'src/models/credits_result.dart'
     show CreditsFailed, CreditsFetched, CreditsResult, CreditsUnsupported;
 export 'src/models/provider_availability.dart'
     show ProviderAvailability, ProviderNotSetUp, ProviderReady;
-export 'src/models/provider_credentials.dart'
-    show
-        ApiKeyCredentials,
-        EndpointCredentials,
-        NoCredentials,
-        ProviderCredentials;
-export 'src/models/provider_credentials_kind.dart' show ProviderCredentialsKind;
 export 'src/models/provider_credits.dart' show ProviderCredits, SpendWindow;
 export 'src/models/provider_failure.dart'
     show
@@ -47,7 +40,4 @@ export 'src/models/provider_reasoning.dart'
         ProviderReasoningEfforts,
         ProviderReasoningFixed,
         ProviderReasoningToggle;
-export 'src/provider.dart' show Provider;
 export 'src/provider_client.dart' show ProviderClient;
-export 'src/provider_connection.dart' show ProviderConnection;
-export 'src/unconfigured_connection.dart' show UnconfiguredConnection;

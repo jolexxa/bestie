@@ -1,8 +1,8 @@
 import 'package:bestie/src/app/providers.dart';
+import 'package:built_in_server_client/built_in_server_client.dart';
 import 'package:clock/clock.dart';
 import 'package:http/testing.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:provider_local/provider_local.dart';
 import 'package:test/test.dart';
 
 final class _MockBuiltInServerClient extends Mock

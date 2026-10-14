@@ -72,6 +72,8 @@ dependencies:
   bloc: ^8.1.4
   blocterm:
     path: ../infra/blocterm
+  built_in_server_client:
+    path: ../data/built_in_server_client
   built_in_server_repository:
     path: ../domain/built_in_server_repository
   calculator_tools:
@@ -94,6 +96,8 @@ dependencies:
   file: ^7.0.1
   files_data_source:
     path: ../data/files_data_source
+  fireworks_client:
+    path: ../data/fireworks_client
   fireworks_repository:
     path: ../domain/fireworks_repository
   fs_tools:
@@ -123,8 +127,12 @@ dependencies:
   model_index_store:
     path: ../data/model_index_store
   nocterm: ^0.6.0
+  openai_endpoint_client:
+    path: ../data/openai_endpoint_client
   openai_endpoint_repository:
     path: ../domain/openai_endpoint_repository
+  openrouter_client:
+    path: ../data/openrouter_client
   openrouter_repository:
     path: ../domain/openrouter_repository
   path: ^1.9.1
@@ -141,14 +149,6 @@ dependencies:
     path: ../infra/process_host_windows
   prompt_builder:
     path: ../infra/prompt_builder
-  provider_fireworks:
-    path: ../data/provider_fireworks
-  provider_local:
-    path: ../data/provider_local
-  provider_openai:
-    path: ../data/provider_openai
-  provider_openrouter:
-    path: ../data/provider_openrouter
   provider_protocol:
     path: ../infra/provider_protocol
   provider_repository:

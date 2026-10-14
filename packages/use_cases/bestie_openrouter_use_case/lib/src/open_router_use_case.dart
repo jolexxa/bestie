@@ -4,8 +4,8 @@ import 'package:bestie_openrouter_use_case/src/open_router_config_keys.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:config_repository/config_repository.dart';
 import 'package:intentions/intentions.dart';
+import 'package:openrouter_client/openrouter_client.dart';
 import 'package:openrouter_repository/openrouter_repository.dart';
-import 'package:provider_openrouter/provider_openrouter.dart';
 
 /// Keeps OpenRouter configured the way the user set it up.
 @useCase

@@ -1,10 +1,10 @@
+import 'package:built_in_server_client/built_in_server_client.dart';
 import 'package:clock/clock.dart';
+import 'package:fireworks_client/fireworks_client.dart';
 import 'package:http/http.dart' as http;
 import 'package:intentions/intentions.dart';
-import 'package:provider_fireworks/provider_fireworks.dart';
-import 'package:provider_local/provider_local.dart';
-import 'package:provider_openai/provider_openai.dart';
-import 'package:provider_openrouter/provider_openrouter.dart';
+import 'package:openai_endpoint_client/openai_endpoint_client.dart';
+import 'package:openrouter_client/openrouter_client.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 
 const String openRouterAppTitle = 'Bestie';

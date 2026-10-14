@@ -1,5 +1,5 @@
 import 'package:intentions/intentions.dart';
-import 'package:provider_openrouter/provider_openrouter.dart';
+import 'package:openrouter_client/openrouter_client.dart';
 
 /// OpenRouter as the user configured it, reached through its client.
 @repository

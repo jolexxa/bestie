@@ -9,9 +9,9 @@ environment:
   sdk: ^3.11.0
 
 dependencies:
+  fireworks_client:
+    path: ../../data/fireworks_client
   intentions: ^0.1.0
-  provider_fireworks:
-    path: ../../data/provider_fireworks
 
 dev_dependencies:
   coverage: ^1.15.0

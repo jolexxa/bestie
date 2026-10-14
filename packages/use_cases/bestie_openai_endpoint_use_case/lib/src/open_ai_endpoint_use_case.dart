@@ -4,8 +4,8 @@ import 'package:bestie_openai_endpoint_use_case/src/open_ai_endpoint_config_keys
 import 'package:command_protocol/command_protocol.dart';
 import 'package:config_repository/config_repository.dart';
 import 'package:intentions/intentions.dart';
+import 'package:openai_endpoint_client/openai_endpoint_client.dart';
 import 'package:openai_endpoint_repository/openai_endpoint_repository.dart';
-import 'package:provider_openai/provider_openai.dart';
 
 /// Keeps the custom endpoint configured the way the user set it up.
 @useCase

@@ -1,9 +1,9 @@
 import 'dart:async';
 
+import 'package:built_in_server_client/built_in_server_client.dart';
 import 'package:built_in_server_repository/src/models/built_in_server_status.dart';
 import 'package:intentions/intentions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
-import 'package:provider_local/provider_local.dart';
 import 'package:rxdart/rxdart.dart';
 
 /// Owns this bestie's hold on the built-in inference server: starts and

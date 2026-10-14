@@ -11,11 +11,11 @@ environment:
   sdk: ^3.11.0
 
 dependencies:
+  built_in_server_client:
+    path: ../../data/built_in_server_client
   intentions: ^0.1.0
   local_server_protocol:
     path: ../../infra/local_server_protocol
-  provider_local:
-    path: ../../data/provider_local
   rxdart: ^0.28.0
 
 dev_dependencies:

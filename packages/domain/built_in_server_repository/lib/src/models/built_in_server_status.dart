@@ -1,6 +1,6 @@
+import 'package:built_in_server_client/built_in_server_client.dart';
 import 'package:intentions/intentions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
-import 'package:provider_local/provider_local.dart';
 
 /// What the built-in server is doing, as far as this bestie can tell.
 @model

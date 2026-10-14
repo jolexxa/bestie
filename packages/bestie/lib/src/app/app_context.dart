@@ -36,6 +36,7 @@ import 'package:bestie_sandbox_use_case/bestie_sandbox_use_case.dart';
 import 'package:bestie_shell_use_case/bestie_shell_use_case.dart';
 import 'package:bestie_tools_use_case/bestie_tools_use_case.dart';
 import 'package:bestie_ui/bestie_ui.dart';
+import 'package:built_in_server_client/built_in_server_client.dart';
 import 'package:built_in_server_repository/built_in_server_repository.dart';
 import 'package:clock/clock.dart';
 import 'package:config_repository/config_repository.dart';
@@ -57,7 +58,6 @@ import 'package:path/path.dart' as p;
 import 'package:platform/platform.dart';
 import 'package:platform_repository/platform_repository.dart';
 import 'package:process_host/process_host.dart';
-import 'package:provider_local/provider_local.dart';
 import 'package:provider_repository/provider_repository.dart';
 import 'package:sandbox_grant_store/sandbox_grant_store.dart';
 import 'package:sandbox_linux/sandbox_linux.dart';
@@ -209,7 +209,7 @@ class AppContext {
   /// The mascot in the corner of the app.
   final MascotUseCase mascotUseCase;
 
-  /// The model library, downloads and the local server in the palette.
+  /// The model library and downloads in the palette.
   final LocalModelsUseCase localModelsUseCase;
 
   // Config schema

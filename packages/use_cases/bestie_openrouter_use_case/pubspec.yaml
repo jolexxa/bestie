@@ -16,10 +16,10 @@ dependencies:
   config_repository:
     path: ../../domain/config_repository
   intentions: ^0.1.0
+  openrouter_client:
+    path: ../../data/openrouter_client
   openrouter_repository:
     path: ../../domain/openrouter_repository
-  provider_openrouter:
-    path: ../../data/provider_openrouter
 
 dev_dependencies:
   coverage: ^1.15.0

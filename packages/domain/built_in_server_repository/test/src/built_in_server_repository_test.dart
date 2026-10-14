@@ -1,9 +1,9 @@
 import 'dart:async';
 
+import 'package:built_in_server_client/built_in_server_client.dart';
 import 'package:built_in_server_repository/built_in_server_repository.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:provider_local/provider_local.dart';
 import 'package:test/test.dart';
 
 final class _MockBuiltInServerClient extends Mock

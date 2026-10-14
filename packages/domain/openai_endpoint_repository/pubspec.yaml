@@ -10,8 +10,8 @@ environment:
 
 dependencies:
   intentions: ^0.1.0
-  provider_openai:
-    path: ../../data/provider_openai
+  openai_endpoint_client:
+    path: ../../data/openai_endpoint_client
 
 dev_dependencies:
   coverage: ^1.15.0
