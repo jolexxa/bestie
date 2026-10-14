@@ -2,16 +2,12 @@ import 'dart:async';
 
 import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
     show AgentRuntime, DisposeRuntimeSucceeded;
-import 'package:clock/clock.dart';
-import 'package:fake_async/fake_async.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 import 'package:provider_repository/provider_repository.dart';
 import 'package:test/test.dart';
 
-final class _MockProvider extends Mock implements Provider {}
-
-final class _MockConnection extends Mock implements ProviderConnection {}
+final class _MockClient extends Mock implements ProviderClient {}
 
 final class _MockModel extends Mock implements ProviderModel {}
 
@@ -57,52 +53,64 @@ const _resolvedModel = ResolvedModel(
   reasoning: _reasoning,
 );
 
-const _key = ApiKeyCredentials('sk-test');
-
-const _settings = ProviderSettings(
-  credentials: {'openrouter': _key},
-  model: _modelRef,
-  maxAgents: 3,
+const _fireworksRef = ProviderModelRef(
+  providerId: 'fireworks',
+  modelId: 'accounts/fireworks/models/kimi',
 );
+
+const _fireworksModel = ProviderModelInfo(
+  id: 'accounts/fireworks/models/kimi',
+  name: 'Kimi',
+  contextLength: 131072,
+  supportsTools: true,
+);
+
+const _settings = ProviderSettings(model: _modelRef, maxAgents: 3);
 
 ProviderSettings _settingsFor({
-  Map<String, ProviderCredentials> credentials = const {'openrouter': _key},
   ProviderModelRef? model = _modelRef,
   int maxAgents = 3,
-  int? contextCap,
-}) => ProviderSettings(
-  credentials: credentials,
-  model: model,
-  maxAgents: maxAgents,
-  contextCap: contextCap,
-);
+}) => ProviderSettings(model: model, maxAgents: maxAgents);
 
 const _failure = ProviderAuthFailed('bad key');
 
+const _noKey = ProviderAuthFailed('No Fireworks AI API key configured.');
+
+const _noUrl = ProviderRejected('Custom endpoint URL is not set.');
+
+const _names = {
+  'local': 'Built-in server',
+  'custom': 'Custom endpoint',
+  'openrouter': 'OpenRouter',
+  'fireworks': 'Fireworks AI',
+};
+
 final class _Harness {
-  _Harness({Clock clock = const Clock()}) {
+  _Harness({
+    Map<String, ProviderAvailability> availability = const {
+      'local': ProviderReady(),
+      'custom': ProviderNotSetUp(_noUrl),
+      'openrouter': ProviderReady(),
+      'fireworks': ProviderNotSetUp(_noKey),
+    },
+  }) {
     repository = ProviderRepository(
-      providers: [
-        _provider('local', 'Bestie Server', ProviderCredentialsKind.none),
-        _provider(
-          'custom',
-          'Custom endpoint',
-          ProviderCredentialsKind.endpoint,
-        ),
-        _provider('openrouter', 'OpenRouter', ProviderCredentialsKind.apiKey),
-        _provider('fireworks', 'Fireworks AI', ProviderCredentialsKind.apiKey),
+      clients: [
+        for (final MapEntry(key: id, value: name) in _names.entries)
+          _client(id, name, availability[id]!),
       ],
-      clock: clock,
     );
     repository.statusStream.listen(statuses.add);
     repository.reloadsStarting.listen((_) => reloads++);
   }
 
   late final ProviderRepository repository;
-  final Map<String, List<_MockConnection>> connections = {};
-  final Map<String, List<ProviderCredentials>> connectedWith = {};
+  final Map<String, _MockClient> clients = {};
+  final Map<String, StreamController<ProviderAvailability>> reconfigurations =
+      {};
   final Map<String, ProviderModelsResult> listings = {
     'openrouter': const ProviderModelsListed([_model, _plainModel]),
+    'fireworks': const ProviderModelsListed([_fireworksModel]),
   };
   final List<ProviderModelLoadRequest> requests = [];
   final List<_MockModel> loaded = [];
@@ -113,8 +121,9 @@ final class _Harness {
   /// never lost.
   ProviderModelLoad Function(ProviderModelLoadRequest request)? onLoad;
 
-  _MockConnection connectionOf(String providerId) =>
-      connections[providerId]!.last;
+  /// Has [providerId]'s client report it was configured anew.
+  void reconfigure(String providerId, ProviderAvailability availability) =>
+      reconfigurations[providerId]!.add(availability);
 
   List<Type> get statusTypes =>
       statuses.map((status) => status.runtimeType).toList();
@@ -125,7 +134,7 @@ final class _Harness {
     int contextWindow = 8192,
     int maxAgents = 3,
     int? deviceBytes,
-    Future<void>? lost,
+    Future<ProviderFailure>? lost,
   }) {
     final runtime = _MockAgentRuntime();
     when(
@@ -136,41 +145,31 @@ final class _Harness {
     when(() => model.maxAgents).thenReturn(maxAgents);
     when(() => model.deviceBytes).thenReturn(deviceBytes);
     when(() => model.runtime).thenReturn(runtime);
-    when(() => model.lost).thenAnswer((_) => lost ?? Completer<void>().future);
+    when(
+      () => model.lost,
+    ).thenAnswer((_) => lost ?? Completer<ProviderFailure>().future);
     when(model.release).thenAnswer((_) async {});
     loaded.add(model);
     return model;
   }
 
-  _MockProvider _provider(
+  _MockClient _client(
     String id,
     String displayName,
-    ProviderCredentialsKind kind,
+    ProviderAvailability availability,
   ) {
-    final provider = _MockProvider();
-    when(() => provider.id).thenReturn(id);
-    when(() => provider.displayName).thenReturn(displayName);
-    when(() => provider.credentialsKind).thenReturn(kind);
-    when(() => provider.connect(any())).thenAnswer((invocation) {
-      final credentials =
-          invocation.positionalArguments.single as ProviderCredentials;
-      connectedWith.putIfAbsent(id, () => []).add(credentials);
-      final connection = _connection(id);
-      connections.putIfAbsent(id, () => []).add(connection);
-      return connection;
-    });
-    return provider;
-  }
-
-  _MockConnection _connection(String providerId) {
-    final connection = _MockConnection();
-    when(connection.models).thenAnswer(
-      (_) async => listings[providerId] ?? const ProviderModelsListed([]),
+    final client = clients[id] = _MockClient();
+    final reconfigured = reconfigurations[id] =
+        StreamController<ProviderAvailability>.broadcast();
+    when(() => client.id).thenReturn(id);
+    when(() => client.displayName).thenReturn(displayName);
+    when(() => client.availability).thenReturn(availability);
+    when(() => client.reconfigured).thenAnswer((_) => reconfigured.stream);
+    when(client.models).thenAnswer(
+      (_) async => listings[id] ?? const ProviderModelsListed([]),
     );
-    when(
-      connection.credits,
-    ).thenAnswer((_) async => const CreditsUnsupported());
-    when(() => connection.load(any())).thenAnswer((invocation) {
+    when(client.credits).thenAnswer((_) async => const CreditsUnsupported());
+    when(() => client.load(any())).thenAnswer((invocation) {
       final request =
           invocation.positionalArguments.single as ProviderModelLoadRequest;
       requests.add(request);
@@ -184,14 +183,12 @@ final class _Harness {
             ),
           );
     });
-    when(connection.close).thenAnswer((_) async {});
-    return connection;
+    return client;
   }
 }
 
 void main() {
   setUpAll(() {
-    registerFallbackValue(const NoCredentials());
     registerFallbackValue(
       const ProviderModelLoadRequest(
         modelId: 'fallback',
@@ -212,34 +209,14 @@ void main() {
       expect(_settingsFor(), _settings);
       expect(_settingsFor().hashCode, _settings.hashCode);
       expect(_settingsFor(maxAgents: 2), isNot(_settings));
-      expect(_settingsFor(contextCap: 4096), isNot(_settings));
-      expect(_settingsFor(credentials: const {}), isNot(_settings));
-      expect(
-        _settingsFor(
-          credentials: const {'openrouter': ApiKeyCredentials('sk-other')},
-        ),
-        isNot(_settings),
-      );
-      expect(
-        _settingsFor(credentials: const {'fireworks': _key}),
-        isNot(_settings),
-      );
+      expect(_settingsFor(model: _plainRef), isNot(_settings));
     });
 
-    test('runs the same session whatever the context cap', () {
+    test('names the model', () {
       expect(
-        _settings.runsSameSessionAs(_settingsFor(contextCap: 4096)),
-        isTrue,
+        _settings.toString(),
+        'ProviderSettings(model: openrouter:org/model, maxAgents: 3)',
       );
-      expect(
-        _settings.runsSameSessionAs(_settingsFor(model: _plainRef)),
-        isFalse,
-      );
-    });
-
-    test('never prints a key', () {
-      expect(_settings.toString(), isNot(contains('sk-test')));
-      expect(_settings.toString(), contains('openrouter:org/model'));
     });
   });
 
@@ -337,19 +314,12 @@ void main() {
   );
 
   group('ProviderRepository', () {
-    test('starts unconfigured with every provider connected without '
-        'credentials', () async {
+    test('starts unconfigured', () async {
       final harness = _Harness();
 
       expect(harness.repository.status, isA<ProviderStatusUnconfigured>());
       expect(harness.repository.status.runtime, isNull);
       expect(harness.repository.settings, isNull);
-      expect(harness.connectedWith, {
-        'local': [const NoCredentials()],
-        'custom': [const NoCredentials()],
-        'openrouter': [const NoCredentials()],
-        'fireworks': [const NoCredentials()],
-      });
       final credits = await harness.repository.credits() as CreditsFailed;
       expect(credits.failure.message, 'No model is chosen.');
     });
@@ -380,12 +350,6 @@ void main() {
           maxAgents: 3,
         ),
       ]);
-      expect(harness.connectedWith['openrouter'], [
-        const NoCredentials(),
-        _key,
-      ]);
-      expect(harness.connectedWith['fireworks'], [const NoCredentials()]);
-      verify(harness.connections['openrouter']!.first.close).called(1);
       expect(harness.statusTypes, [
         ProviderStatusUnconfigured,
         ProviderStatusConnecting,
@@ -455,58 +419,104 @@ void main() {
       verify(model.release).called(1);
     });
 
-    group('connections', () {
-      test('are kept while their credentials stay the same', () async {
-        final harness = _Harness()..repository.configure(_settings);
+    group('clients', () {
+      test('fail the session at once while theirs is not set up', () async {
+        final harness = _Harness()
+          ..repository.configure(_settingsFor(model: _fireworksRef));
         await pumpEventQueue();
 
-        harness.repository.configure(_settingsFor(model: _plainRef));
-        await pumpEventQueue();
-
-        expect(harness.connections['openrouter'], hasLength(2));
-        expect(harness.requests.last.modelId, 'org/plain');
+        final failed = harness.repository.status as ProviderStatusFailed;
+        expect(failed.failure, _noKey);
+        expect(failed.model, _fireworksRef);
+        verifyNever(harness.clients['fireworks']!.models);
+        expect(harness.statusTypes, [
+          ProviderStatusUnconfigured,
+          ProviderStatusConnecting,
+          ProviderStatusFailed,
+        ]);
       });
 
-      test('are replaced and closed when their credentials change', () async {
+      test('start the session once theirs is set up', () async {
+        final harness = _Harness()
+          ..repository.configure(_settingsFor(model: _fireworksRef));
+        await pumpEventQueue();
+
+        harness.reconfigure('fireworks', const ProviderReady());
+        await pumpEventQueue();
+
+        final ready = harness.repository.status as ProviderStatusReady;
+        expect(ready.model.ref, _fireworksRef);
+        expect(ready.model.providerName, 'Fireworks AI');
+        expect(harness.requests.single.modelId, _fireworksRef.modelId);
+      });
+
+      test('start the session over when theirs is configured anew', () async {
         final harness = _Harness()..repository.configure(_settings);
         await pumpEventQueue();
-        final keyed = harness.connectionOf('openrouter');
+        final old = harness.loaded.single;
 
-        harness.repository.configure(
-          _settingsFor(
-            credentials: const {
-              'openrouter': ApiKeyCredentials('sk-other'),
-              'fireworks': _key,
-            },
-          ),
-        );
+        harness.reconfigure('openrouter', const ProviderReady());
         await pumpEventQueue();
 
-        verify(keyed.close).called(1);
+        expect(harness.reloads, 1);
+        verify(old.release).called(1);
+        expect(harness.requests, hasLength(2));
         expect(
-          harness.connectedWith['openrouter']!.last,
-          const ApiKeyCredentials('sk-other'),
+          harness.repository.status.runtime,
+          same(harness.loaded.last.runtime),
         );
-        expect(harness.connectedWith['fireworks'], [
-          const NoCredentials(),
-          _key,
-        ]);
-        expect(harness.connectedWith['local'], [const NoCredentials()]);
-        verify(() => harness.connectionOf('openrouter').load(any())).called(1);
       });
 
-      test('go back to no credentials when theirs are cleared', () async {
+      test('fail a running session when theirs is no longer set up', () async {
         final harness = _Harness()..repository.configure(_settings);
         await pumpEventQueue();
 
-        harness.repository.configure(_settingsFor(credentials: const {}));
+        harness.reconfigure('openrouter', const ProviderNotSetUp(_failure));
         await pumpEventQueue();
 
-        expect(harness.connectedWith['openrouter'], [
-          const NoCredentials(),
-          _key,
-          const NoCredentials(),
-        ]);
+        final failed = harness.repository.status as ProviderStatusFailed;
+        expect(failed.failure, _failure);
+        expect(harness.requests, hasLength(1));
+      });
+
+      test('start a lookup over when theirs is configured mid-way', () async {
+        final harness = _Harness();
+        final stale = Completer<ProviderModelsResult>();
+        final listings = [
+          stale.future,
+          Future.value(const ProviderModelsListed([_model])),
+        ];
+        when(
+          harness.clients['openrouter']!.models,
+        ).thenAnswer((_) => listings.removeAt(0));
+        harness.repository.configure(_settings);
+
+        harness.reconfigure('openrouter', const ProviderReady());
+        await pumpEventQueue();
+        stale.complete(const ProviderModelsListed([_model]));
+        await pumpEventQueue();
+
+        expect(harness.requests, hasLength(1));
+        expect(harness.repository.status, isA<ProviderStatusReady>());
+      });
+
+      test('leave a session on another provider be', () async {
+        final harness = _Harness()..repository.configure(_settings);
+        await pumpEventQueue();
+
+        harness.reconfigure('fireworks', const ProviderReady());
+        await pumpEventQueue();
+
+        expect(harness.reloads, 0);
+        expect(harness.requests, hasLength(1));
+      });
+
+      test('leave an unconfigured session be', () async {
+        final harness = _Harness()
+          ..reconfigure('openrouter', const ProviderReady());
+        await pumpEventQueue();
+
+        expect(harness.statusTypes, [ProviderStatusUnconfigured]);
       });
     });
 
@@ -523,25 +533,44 @@ void main() {
             ProviderModelRef(providerId: 'local', modelId: 'org/plain'),
             _modelRef,
             _plainRef,
+            _fireworksRef,
           ]);
-          expect(listed.models.first.providerName, 'Bestie Server');
+          expect(listed.models.first.providerName, 'Built-in server');
           expect(listed.models.first.model, _plainModel);
-          expect(listed.models.map((model) => model.hasAccess), [
-            true,
-            false,
-            false,
-          ]);
           expect(listed.failures, isEmpty);
         },
       );
 
-      test('have access once their provider has credentials', () async {
-        final harness = _Harness()..repository.configure(_settings);
+      test('have access while their provider is set up', () async {
+        final harness = _Harness();
+
+        final listed = await harness.repository.models();
+
+        expect(listed.models.map((model) => model.ref.providerId), [
+          'openrouter',
+          'openrouter',
+          'fireworks',
+        ]);
+        expect(listed.models.map((model) => model.hasAccess), [
+          true,
+          true,
+          false,
+        ]);
+      });
+
+      test('follow access as their provider is configured', () async {
+        final harness = _Harness()
+          ..reconfigure('fireworks', const ProviderReady())
+          ..reconfigure('openrouter', const ProviderNotSetUp(_failure));
         await pumpEventQueue();
 
         final listed = await harness.repository.models();
 
-        expect(listed.models.map((model) => model.hasAccess), [true, true]);
+        expect(listed.models.map((model) => model.hasAccess), [
+          false,
+          false,
+          true,
+        ]);
       });
 
       test('report the providers that could not list theirs', () async {
@@ -558,7 +587,7 @@ void main() {
     test("asks the chosen model's provider for credits", () async {
       final harness = _Harness()..repository.configure(_settings);
       await pumpEventQueue();
-      when(harness.connectionOf('openrouter').credits).thenAnswer(
+      when(harness.clients['openrouter']!.credits).thenAnswer(
         (_) async => const CreditsFailed(_failure),
       );
 
@@ -763,9 +792,9 @@ void main() {
             Future.value(const ProviderModelsListed([_model])),
           ];
           when(
-            harness.connectionOf('openrouter').models,
+            harness.clients['openrouter']!.models,
           ).thenAnswer((_) => listings.removeAt(0));
-          harness.repository.configure(_settingsFor(credentials: const {}));
+          harness.repository.configure(_settings);
 
           harness.repository.reconnect();
           await pumpEventQueue();
@@ -781,7 +810,7 @@ void main() {
       test('starts over when the settings change mid-way', () async {
         final harness = _Harness();
         final listing = Completer<ProviderModelsResult>();
-        when(() => harness.connectionOf('openrouter').models()).thenAnswer(
+        when(harness.clients['openrouter']!.models).thenAnswer(
           (_) => listing.future,
         );
         harness.repository.configure(_settings);
@@ -800,7 +829,7 @@ void main() {
 
       test('drops to unconfigured when the model is cleared mid-way', () async {
         final harness = _Harness();
-        when(() => harness.connectionOf('openrouter').models()).thenAnswer(
+        when(harness.clients['openrouter']!.models).thenAnswer(
           (_) => Completer<ProviderModelsResult>().future,
         );
         harness.repository.configure(_settings);
@@ -818,14 +847,14 @@ void main() {
         await pumpEventQueue();
         final old = harness.loaded.single;
         final oldRuntime = old.runtime;
-        final connection = harness.connectionOf('openrouter');
+        final client = harness.clients['openrouter']!;
 
         harness.repository.configure(_settingsFor(model: _plainRef));
         await pumpEventQueue();
 
         verifyInOrder([
           oldRuntime.dispose,
-          () => connection.load(any()),
+          () => client.load(any()),
           old.release,
         ]);
         expect(harness.reloads, 1);
@@ -856,60 +885,6 @@ void main() {
           expect(harness.repository.status, isA<ProviderStatusFailed>());
         },
       );
-    });
-
-    group('context cap', () {
-      test('is asked for when the model is loaded', () async {
-        final harness = _Harness()
-          ..repository.configure(_settingsFor(contextCap: 4096));
-        await pumpEventQueue();
-
-        expect(harness.requests.single.contextCap, 4096);
-      });
-
-      test('is kept for the next load without a reload', () async {
-        final harness = _Harness()..repository.configure(_settings);
-        await pumpEventQueue();
-
-        harness.repository.configure(_settingsFor(contextCap: 4096));
-        await pumpEventQueue();
-        expect(harness.requests, hasLength(1));
-        expect(harness.repository.settings!.contextCap, 4096);
-
-        harness.repository.reconnect();
-        await pumpEventQueue();
-        expect(harness.requests.last.contextCap, 4096);
-      });
-
-      test('is taken up by a load not yet started', () async {
-        final harness = _Harness();
-        final listing = Completer<ProviderModelsResult>();
-        when(() => harness.connectionOf('openrouter').models()).thenAnswer(
-          (_) => listing.future,
-        );
-        harness.repository.configure(_settings);
-
-        harness.repository.configure(_settingsFor(contextCap: 4096));
-        listing.complete(const ProviderModelsListed([_model]));
-        await pumpEventQueue();
-
-        expect(harness.requests.single.contextCap, 4096);
-      });
-
-      test('gives a failed session another try', () async {
-        final harness = _Harness()
-          ..onLoad = (_) => ProviderModelLoad.settled(
-            const ProviderModelLoadFailed(_failure),
-          );
-        harness.repository.configure(_settings);
-        await pumpEventQueue();
-        harness.onLoad = null;
-
-        harness.repository.configure(_settingsFor(contextCap: 4096));
-        await pumpEventQueue();
-
-        expect(harness.repository.status, isA<ProviderStatusReady>());
-      });
     });
 
     group('stop', () {
@@ -976,7 +951,6 @@ void main() {
         await pumpEventQueue();
 
         expect(harness.repository.status, isA<ProviderStatusReady>());
-        expect(harness.connections['openrouter'], hasLength(2));
       });
 
       test('tears down a ready model before loading again', () async {
@@ -1008,140 +982,56 @@ void main() {
     });
 
     group('when the model is lost', () {
-      test('waits, then loads it again on a fresh agent runtime', () {
-        fakeAsync((async) {
-          final harness = _Harness(clock: async.getClock(DateTime(2026)));
-          final lost = Completer<void>();
-          final models = [
-            harness.stageModel(contextWindow: 4096, lost: lost.future),
-            harness.stageModel(contextWindow: 2048),
-          ];
-          harness.onLoad = (_) => ProviderModelLoad.settled(
-            ProviderModelLoaded(models.removeAt(0)),
-          );
-          harness.repository.configure(_settings);
-          async.flushMicrotasks();
-          final stale = harness.repository.status.runtime;
+      const crashed = ProviderServerFailed('Built-in server crashed.');
 
-          lost.complete();
-          async.flushMicrotasks();
+      test('fails with the reason its provider gives', () async {
+        final harness = _Harness();
+        final lost = Completer<ProviderFailure>();
+        harness.onLoad = (_) => ProviderModelLoad.settled(
+          ProviderModelLoaded(harness.stageModel(lost: lost.future)),
+        );
+        harness.repository.configure(_settings);
+        await pumpEventQueue();
+        final runtime = harness.repository.status.runtime!;
 
-          expect(harness.reloads, 1);
-          expect(harness.repository.status, isA<ProviderStatusConnecting>());
-          verify(harness.loaded.first.release).called(1);
-          expect(harness.requests, hasLength(1));
+        lost.complete(crashed);
+        await pumpEventQueue();
 
-          async.elapse(const Duration(seconds: 1));
-
-          final ready = harness.repository.status as ProviderStatusReady;
-          expect(harness.requests, hasLength(2));
-          expect(ready.runtime, isNot(same(stale)));
-          expect(ready.contextWindow, 2048);
-        });
+        final failed = harness.repository.status as ProviderStatusFailed;
+        expect(failed.failure.message, crashed.message);
+        verify(harness.loaded.single.release).called(1);
+        verify(runtime.dispose).called(1);
+        expect(harness.requests, hasLength(1));
       });
 
-      test('doubles the wait with each loss in a row, then fails', () {
-        fakeAsync((async) {
-          final harness = _Harness(clock: async.getClock(DateTime(2026)));
-          var served = Completer<void>();
-          harness.onLoad = (_) => ProviderModelLoad.settled(
-            ProviderModelLoaded(
-              harness.stageModel(lost: (served = Completer<void>()).future),
-            ),
-          );
-          harness.repository.configure(_settings);
-          async.flushMicrotasks();
+      test('loads it again on a reconnect', () async {
+        final harness = _Harness();
+        final lost = Completer<ProviderFailure>();
+        final models = [
+          harness.stageModel(lost: lost.future),
+          harness.stageModel(contextWindow: 2048),
+        ];
+        harness.onLoad = (_) => ProviderModelLoad.settled(
+          ProviderModelLoaded(models.removeAt(0)),
+        );
+        harness.repository.configure(_settings);
+        await pumpEventQueue();
+        final stale = harness.repository.status.runtime;
+        lost.complete(crashed);
+        await pumpEventQueue();
 
-          for (final wait in const [1, 2, 4]) {
-            served.complete();
-            async
-              ..flushMicrotasks()
-              ..elapse(Duration(milliseconds: wait * 1000 - 1));
-            expect(
-              harness.repository.status,
-              isA<ProviderStatusConnecting>(),
-              reason: 'still waiting out ${wait}s',
-            );
-            async.elapse(const Duration(milliseconds: 1));
-            expect(harness.repository.status, isA<ProviderStatusReady>());
-          }
-          served.complete();
-          async.flushMicrotasks();
+        harness.repository.reconnect();
+        await pumpEventQueue();
 
-          final failed = harness.repository.status as ProviderStatusFailed;
-          expect(failed.failure, isA<ProviderServerFailed>());
-          expect(
-            failed.failure.message,
-            'Model stopped being served 4 times in a row. Reconnect to try '
-            'again.',
-          );
-          expect(harness.requests, hasLength(4));
-          for (final model in harness.loaded) {
-            verify(model.release).called(1);
-          }
-          async.elapse(const Duration(minutes: 1));
-          expect(harness.requests, hasLength(4));
-        });
-      });
-
-      test('counts afresh once the model served for a while', () {
-        fakeAsync((async) {
-          final harness = _Harness(clock: async.getClock(DateTime(2026)));
-          var served = Completer<void>();
-          harness.onLoad = (_) => ProviderModelLoad.settled(
-            ProviderModelLoaded(
-              harness.stageModel(lost: (served = Completer<void>()).future),
-            ),
-          );
-          harness.repository.configure(_settings);
-          async.flushMicrotasks();
-
-          for (final wait in const [1, 2, 4]) {
-            served.complete();
-            async
-              ..flushMicrotasks()
-              ..elapse(Duration(seconds: wait));
-          }
-          async.elapse(const Duration(minutes: 5));
-          served.complete();
-          async
-            ..flushMicrotasks()
-            ..elapse(const Duration(seconds: 1));
-
-          expect(harness.repository.status, isA<ProviderStatusReady>());
-        });
-      });
-
-      test('stops waiting when the settings change', () {
-        fakeAsync((async) {
-          final harness = _Harness(clock: async.getClock(DateTime(2026)));
-          final lost = Completer<void>();
-          final models = [
-            harness.stageModel(lost: lost.future),
-            harness.stageModel(),
-          ];
-          harness.onLoad = (_) => ProviderModelLoad.settled(
-            ProviderModelLoaded(models.removeAt(0)),
-          );
-          harness.repository.configure(_settings);
-          async.flushMicrotasks();
-          lost.complete();
-          async.flushMicrotasks();
-
-          harness.repository.configure(_settingsFor(maxAgents: 2));
-          async.flushMicrotasks();
-          expect(harness.requests, hasLength(2));
-          async.elapse(const Duration(seconds: 1));
-
-          expect(harness.requests, hasLength(2));
-          expect(harness.repository.status, isA<ProviderStatusReady>());
-          expect(async.pendingTimers, isEmpty);
-        });
+        final ready = harness.repository.status as ProviderStatusReady;
+        expect(harness.requests, hasLength(2));
+        expect(ready.runtime, isNot(same(stale)));
+        expect(ready.contextWindow, 2048);
       });
 
       test('is ignored when the loss belongs to an older load', () async {
         final harness = _Harness();
-        final lost = Completer<void>();
+        final lost = Completer<ProviderFailure>();
         final models = [
           harness.stageModel(lost: lost.future),
           harness.stageModel(),
@@ -1154,7 +1044,7 @@ void main() {
         harness.repository.configure(_settingsFor(maxAgents: 2));
         await pumpEventQueue();
 
-        lost.complete();
+        lost.complete(crashed);
         await pumpEventQueue();
 
         expect(harness.repository.status, isA<ProviderStatusReady>());
@@ -1162,22 +1052,19 @@ void main() {
       });
     });
 
-    test('dispose lets go of the model and every connection', () async {
+    test('dispose lets go of the model and stops following clients', () async {
       final harness = _Harness()..repository.configure(_settings);
       await pumpEventQueue();
       final model = harness.loaded.single;
 
       await harness.repository.dispose();
+      harness.reconfigure('openrouter', const ProviderReady());
+      await pumpEventQueue();
 
       final runtime = model.runtime;
       verify(runtime.dispose).called(1);
       verify(model.release).called(1);
-      for (final connection in [
-        for (final id in const ['local', 'custom', 'openrouter', 'fireworks'])
-          harness.connectionOf(id),
-      ]) {
-        verify(connection.close).called(1);
-      }
+      expect(harness.requests, hasLength(1));
     });
 
     test('dispose stops following a load under way', () async {

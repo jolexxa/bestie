@@ -37,6 +37,8 @@ void main() {
         'presence_penalty': 0.75,
         'reasoning_effort': 'high',
         'chat_template_kwargs': {'enable_thinking': true},
+        'return_progress': true,
+        'timings_per_token': true,
         'tools': [
           {
             'type': 'function',
@@ -111,6 +113,8 @@ void main() {
       expect(request.presencePenalty, 0.75);
       expect(request.reasoningEffort, 'high');
       expect(request.enableThinking, isTrue);
+      expect(request.returnProgress, isTrue);
+      expect(request.timingsPerToken, isTrue);
       expect(
         [for (final tool in request.tools) tool.name],
         ['read', 'bare'],
@@ -152,6 +156,8 @@ void main() {
       expect(request.maxTokens, isNull);
       expect(request.stopSequences, isEmpty);
       expect(request.enableThinking, isNull);
+      expect(request.returnProgress, isFalse);
+      expect(request.timingsPerToken, isFalse);
     });
 
     test('falls back to max_tokens', () {

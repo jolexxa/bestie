@@ -10,19 +10,17 @@ ContextPoolSnapshot poolSnapshotOf({
   required AgentPoolReport report,
   required Map<AgentHandle, AgentUsage?> usageByAgent,
 }) {
-  final claims = {
-    for (final entry in report.agents) entry.agent.id: entry.claimedTokens,
-  };
+  final entries = {for (final entry in report.agents) entry.agent.id: entry};
   return ContextPoolSnapshot(
     contextSize: report.contextSize,
     reservedClaims: report.reservedTokens,
     leases: [
       for (final MapEntry(key: handle, value: usage) in usageByAgent.entries)
-        if (claims[handle.id] case final claim?)
+        if (entries[handle.id] case final entry?)
           PoolLeaseOccupancy(
             handle: handle,
-            residentTokens: usage?.total ?? 0,
-            claimTokens: claim,
+            residentTokens: entry.usedTokens ?? usage?.total ?? 0,
+            claimTokens: entry.claimedTokens,
           ),
     ],
   );

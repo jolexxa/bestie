@@ -17,6 +17,37 @@ package "bestie" {
   class AppTerminalEnvironmentUseCase << useCase >>
   class ArxivSearchClient << dataSource >>
   class ArxivTools << repository >>
+  package "BuiltInServerClient" as _BuiltInServerClient {
+    class BuiltInServerClient << dataSource >>
+    class BuiltInAgentSessions << dataSource >>
+    BuiltInServerClient +-- BuiltInAgentSessions
+    class BuiltInServerLink << dataSource >>
+    BuiltInServerClient +-- BuiltInServerLink
+    class BuiltInServerModel << dataSource >>
+    BuiltInServerClient +-- BuiltInServerModel
+    class DisconnectWording << dataSource >>
+    BuiltInServerClient +-- DisconnectWording
+    class ModelIndexFile << dataSource >>
+    BuiltInServerClient +-- ModelIndexFile
+    class ServerApi << dataSource >>
+    BuiltInServerClient +-- ServerApi
+    class ServerAttacher << dataSource >>
+    BuiltInServerClient +-- ServerAttacher
+    class ServerConnectionData << dataSource >>
+    BuiltInServerClient +-- ServerConnectionData
+    class ServerConnectionLogic << dataSource >>
+    BuiltInServerClient +-- ServerConnectionLogic
+    class ServerConnectionState << dataSource >>
+    BuiltInServerClient +-- ServerConnectionState
+    class ServerDiscovery << dataSource >>
+    BuiltInServerClient +-- ServerDiscovery
+    class ServerSpawner << dataSource >>
+    BuiltInServerClient +-- ServerSpawner
+    class SessionLeases << dataSource >>
+    BuiltInServerClient +-- SessionLeases
+  }
+  class BuiltInServerRepository << repository >>
+  class BuiltInServerUseCase << useCase >>
   class Calculator << repository >>
   package "ChatCubit" as _ChatCubit {
     class ChatCubit << viewModel >>
@@ -45,57 +76,13 @@ package "bestie" {
   class EditDataSource << dataSource >>
   class ExecutableLinkDataSource << dataSource >>
   class FilesDataSource << dataSource >>
+  class FireworksClient << dataSource >>
+  class FireworksRepository << repository >>
+  class FireworksUseCase << useCase >>
   class FsTools << repository >>
   class GgufReader << dataSource >>
   class HubClient << dataSource >>
   class InteractiveTerminalView << view >>
-  package "LocalConnection" as _LocalConnection {
-    class LocalConnection << dataSource >>
-    class AttachHeld << dataSource >>
-    LocalConnection +-- AttachHeld
-    class AttachOutcome << dataSource >>
-    LocalConnection +-- AttachOutcome
-    class AttachSettled << dataSource >>
-    LocalConnection +-- AttachSettled
-    class LoadSettled << dataSource >>
-    LocalConnection +-- LoadSettled
-    class LocalAgentSessions << dataSource >>
-    LocalConnection +-- LocalAgentSessions
-    class LocalProviderModel << dataSource >>
-    LocalConnection +-- LocalProviderModel
-    class LocalServerLink << dataSource >>
-    LocalConnection +-- LocalServerLink
-    class ModelIndexFile << dataSource >>
-    LocalConnection +-- ModelIndexFile
-    class ModelStatusReported << dataSource >>
-    LocalConnection +-- ModelStatusReported
-    class OwnerSession << dataSource >>
-    LocalConnection +-- OwnerSession
-    class OwnerSessionOpened << dataSource >>
-    LocalConnection +-- OwnerSessionOpened
-    class ServerApi << dataSource >>
-    LocalConnection +-- ServerApi
-    class ServerAttacher << dataSource >>
-    LocalConnection +-- ServerAttacher
-    class ServerConnectionData << dataSource >>
-    LocalConnection +-- ServerConnectionData
-    class ServerConnectionLogic << dataSource >>
-    LocalConnection +-- ServerConnectionLogic
-    class ServerConnectionState << dataSource >>
-    LocalConnection +-- ServerConnectionState
-    class ServerDiscovery << dataSource >>
-    LocalConnection +-- ServerDiscovery
-    class ServerDiscoveryResult << dataSource >>
-    LocalConnection +-- ServerDiscoveryResult
-    class ServerSpawner << dataSource >>
-    LocalConnection +-- ServerSpawner
-    class SessionEnded << dataSource >>
-    LocalConnection +-- SessionEnded
-    class SessionLeases << dataSource >>
-    LocalConnection +-- SessionLeases
-    class SessionStarted << dataSource >>
-    LocalConnection +-- SessionStarted
-  }
   package "LocalModelsRepository" as _LocalModelsRepository {
     class LocalModelsRepository << repository >>
     class DownloadLogic << repository >>
@@ -138,15 +125,15 @@ package "bestie" {
     ModelDownloader +-- ChunkedFileDownloader
     class FileHasher << dataSource >>
     ModelDownloader +-- FileHasher
-    class FileOutcome << dataSource >>
-    ModelDownloader +-- FileOutcome
-    class FileProgress << dataSource >>
-    ModelDownloader +-- FileProgress
-    class FileTransfer << dataSource >>
-    ModelDownloader +-- FileTransfer
   }
   class ModelIndexStore << dataSource >>
   class OSPlatformRepository << repository >>
+  class OpenAiEndpointClient << dataSource >>
+  class OpenAiEndpointRepository << repository >>
+  class OpenAiEndpointUseCase << useCase >>
+  class OpenRouterClient << dataSource >>
+  class OpenRouterRepository << repository >>
+  class OpenRouterUseCase << useCase >>
   class PaletteCubit << viewModel >>
   class ProviderRepository << repository >>
   class ProviderUseCase << useCase >>
@@ -213,12 +200,6 @@ package "bestie" {
     class UtilityToolsUseCase << useCase >>
     class ToolCommandHandler << useCase >>
     UtilityToolsUseCase +-- ToolCommandHandler
-    class ToolIsolateWorker << useCase >>
-    UtilityToolsUseCase +-- ToolIsolateWorker
-    class ToolWorkReady << useCase >>
-    UtilityToolsUseCase +-- ToolWorkReady
-    class ToolWorkRequest << useCase >>
-    UtilityToolsUseCase +-- ToolWorkRequest
     class ToolWorker << useCase >>
     UtilityToolsUseCase +-- ToolWorker
     class ToolWorkerCreated << useCase >>
@@ -242,8 +223,20 @@ package "bestie" {
   AppTerminalEnvironmentUseCase --> OSPlatformRepository
   ArxivTools --> ArxivSearchClient
   ArxivTools --> FilesDataSource
-  AttachHeld --> OwnerSession
-  AttachSettled --> AttachOutcome
+  BuiltInAgentSessions --> BuiltInServerLink
+  BuiltInServerClient --> DisconnectWording
+  BuiltInServerClient --> ModelIndexFile
+  BuiltInServerClient --> ServerConnectionData
+  BuiltInServerClient --> ServerConnectionLogic
+  BuiltInServerClient --> ServerConnectionState
+  BuiltInServerClient --> ServerSpawner
+  BuiltInServerModel --> BuiltInServerLink
+  BuiltInServerModel --> DisconnectWording
+  BuiltInServerRepository --> BuiltInServerClient
+  BuiltInServerUseCase --> AgentRepository
+  BuiltInServerUseCase --> BuiltInServerRepository
+  BuiltInServerUseCase --> ConfigRepository
+  BuiltInServerUseCase --> ProviderRepository
   ChatCubit --> ChatLogic
   ChatCubit --> ChatUseCase
   ChatLogic --> ChatUseCase
@@ -267,20 +260,15 @@ package "bestie" {
   DownloadQueue --> DownloadLogic
   DownloadQueue --> LedgerWriter
   DownloadQueue --> ModelDownloader
-  FileTransfer --> FileOutcome
-  FileTransfer --> FileProgress
+  FireworksRepository --> FireworksClient
+  FireworksUseCase --> ConfigRepository
+  FireworksUseCase --> FireworksRepository
   FsTools --> EditDataSource
   InstalledPane --> LocalModelsOperations
   InteractiveTerminalView --> ShellPaneCubit
   LedgerWriter --> DownloadLedgerStore
-  LoadSettled --> OwnerSession
-  LocalAgentSessions --> LocalServerLink
-  LocalConnection --> ModelIndexFile
-  LocalConnection --> ServerConnectionData
-  LocalConnection --> ServerConnectionLogic
-  LocalConnection --> ServerConnectionState
-  LocalConnection --> ServerSpawner
   LocalModelsOperations --> AgentRepository
+  LocalModelsOperations --> BuiltInServerRepository
   LocalModelsOperations --> ConfigRepository
   LocalModelsOperations --> LocalModelsRepository
   LocalModelsOperations --> OSPlatformRepository
@@ -295,22 +283,26 @@ package "bestie" {
   LocalModelsRepository --> ScanLogic
   LocalModelsRepository --> ScanState
   LocalModelsUseCase --> AgentRepository
+  LocalModelsUseCase --> BuiltInServerRepository
   LocalModelsUseCase --> ConfigRepository
   LocalModelsUseCase --> DownloadPane
   LocalModelsUseCase --> LocalModelsOperations
   LocalModelsUseCase --> LocalModelsRepository
   LocalModelsUseCase --> OSPlatformRepository
   LocalModelsUseCase --> ProviderRepository
-  LocalProviderModel --> LocalServerLink
   MascotUseCase --> ConfigRepository
   ModelDetailsPane --> LocalModelsOperations
   ModelScanner --> GgufReader
-  ModelStatusReported --> OwnerSession
   OSPlatformRepository --> ClipboardDataSource
   OSPlatformRepository --> DiskSpaceDataSource
   OSPlatformRepository --> SystemInfoDataSource
   OSPlatformRepository --> TerminalEnvironmentDataSource
-  OwnerSessionOpened --> OwnerSession
+  OpenAiEndpointRepository --> OpenAiEndpointClient
+  OpenAiEndpointUseCase --> ConfigRepository
+  OpenAiEndpointUseCase --> OpenAiEndpointRepository
+  OpenRouterRepository --> OpenRouterClient
+  OpenRouterUseCase --> ConfigRepository
+  OpenRouterUseCase --> OpenRouterRepository
   PaletteCubit --> CommandsUseCase
   PendingToolCalls --> ConversationStore
   ProviderUseCase --> AgentRepository
@@ -329,8 +321,6 @@ package "bestie" {
   ScanLogic --> ModelScanner
   ScanState --> ModelScanner
   ServerAttacher --> ServerDiscovery
-  ServerConnectionData --> AttachHeld
-  ServerConnectionData --> AttachOutcome
   ServerConnectionData --> SessionLeases
   ServerConnectionLogic --> ServerApi
   ServerConnectionLogic --> ServerAttacher
@@ -338,11 +328,8 @@ package "bestie" {
   ServerConnectionState --> ServerAttacher
   ServerConnectionState --> ServerConnectionData
   ServerDiscovery --> ServerApi
-  ServerDiscovery --> ServerDiscoveryResult
   ServerDiscovery --> ServerSpawner
-  SessionEnded --> OwnerSession
   SessionLeases --> ServerApi
-  SessionStarted --> OwnerSession
   Settlement --> JobReporter
   ShellCallIndex --> ShellRepository
   ShellPaneCubit --> ShellPaneLogic
@@ -363,11 +350,9 @@ package "bestie" {
   StatusBarLogic --> ProviderUseCase
   StatusBarLogic --> SandboxUseCase
   ToolCommandHandler --> Toolbox
-  ToolIsolateWorker --> ToolWorkRequest
   ToolRouter --> JobManager
   ToolRouter --> JobReporter
   ToolRouter --> Settlement
-  ToolWorkReady --> ToolWorkRequest
   ToolWorkerCreated --> ToolWorker
   ToolWorkerPool --> ToolWorker
   Toolbox --> ArxivTools

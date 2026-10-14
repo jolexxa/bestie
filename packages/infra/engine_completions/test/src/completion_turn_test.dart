@@ -7,6 +7,7 @@ import 'package:engine_completions/src/stop_matcher.dart';
 import 'package:engine_protocol/engine_protocol.dart';
 import 'package:engine_scheduler/engine_scheduler.dart';
 import 'package:engine_templates/engine_templates.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 import 'package:tool_protocol/tool_protocol.dart';
@@ -130,7 +131,7 @@ void main() {
     await pumpEventQueue();
 
     expect(
-      (events.single as EngineCompletionFinished).usage,
+      (events.last as EngineCompletionFinished).usage,
       isA<EngineCompletionUsage>()
           .having((usage) => usage.promptTokens, 'prompt', 4)
           .having((usage) => usage.completionTokens, 'completion', 1)
@@ -159,20 +160,18 @@ void main() {
     await pumpEventQueue();
 
     expect(events, [
-      isA<EngineCompletionReasoningDelta>().having(
-        (delta) => delta.text,
-        't',
-        'think',
-      ),
-      isA<EngineCompletionTextDelta>().having(
-        (delta) => delta.text,
-        'text',
-        'say',
-      ),
+      isA<EngineCompletionPrefillProgressed>(),
+      isA<EngineCompletionReasoningDelta>()
+          .having((delta) => delta.text, 't', 'think')
+          .having((delta) => delta.tokens, 'tokens', 1),
+      isA<EngineCompletionTextDelta>()
+          .having((delta) => delta.text, 'text', 'say')
+          .having((delta) => delta.tokens, 'tokens', 0),
       isA<EngineCompletionToolCalled>()
           .having((call) => call.id, 'id', startsWith('call_'))
           .having((call) => call.name, 'name', 'read')
-          .having((call) => call.argumentsJson, 'args', '{"path":"a"}'),
+          .having((call) => call.argumentsJson, 'args', '{"path":"a"}')
+          .having((call) => call.tokens, 'tokens', 0),
       isA<EngineCompletionToolCalled>()
           .having((call) => call.name, 'name', 'write')
           .having((call) => call.argumentsJson, 'args', '{broken'),
@@ -194,8 +193,93 @@ void main() {
       ..acceptSample(_stopped);
     await pumpEventQueue();
 
-    expect(events.first, isA<EngineCompletionTextDelta>());
+    expect(events[1], isA<EngineCompletionTextDelta>());
     expect(events.last, isA<EngineCompletionFinished>());
+  });
+
+  test('reports prefill progress until the prompt is held', () {
+    fakeAsync((async) {
+      turn = buildTurn();
+      async.elapse(const Duration(milliseconds: 100));
+      turn.acceptMaterialize(
+        SequenceMaterializeAdvanced(
+          sequenceId: 3,
+          positionMin: 0,
+          positionMax: 2,
+          materialization: SequenceMaterialization(
+            tokens: Int64List(4),
+            materializedTokenCount: 3,
+            positionMax: 2,
+            strategy: MaterializationStrategy.prefixReuse,
+            reusedTokenCount: 2,
+          ),
+        ),
+      );
+      async.elapse(const Duration(milliseconds: 50));
+      turn.acceptMaterialize(_materialized);
+      async.elapse(const Duration(milliseconds: 30));
+      turn
+        ..acceptSample(_token(0x61))
+        ..acceptSample(_stopped);
+      async.flushMicrotasks();
+
+      expect(events.whereType<EngineCompletionPrefillProgressed>(), [
+        isA<EngineCompletionPrefillProgressed>()
+            .having((progress) => progress.total, 'total', 4)
+            .having((progress) => progress.cached, 'cached', 2)
+            .having((progress) => progress.processed, 'processed', 3)
+            .having(
+              (progress) => progress.elapsed,
+              'elapsed',
+              const Duration(milliseconds: 100),
+            ),
+        isA<EngineCompletionPrefillProgressed>()
+            .having((progress) => progress.processed, 'processed', 4)
+            .having(
+              (progress) => progress.elapsed,
+              'elapsed',
+              const Duration(milliseconds: 150),
+            ),
+      ]);
+      expect(
+        (events.last as EngineCompletionFinished).usage,
+        isA<EngineCompletionUsage>()
+            .having(
+              (usage) => usage.promptTime,
+              'prompt time',
+              const Duration(milliseconds: 150),
+            )
+            .having(
+              (usage) => usage.generationTime,
+              'generation time',
+              const Duration(milliseconds: 30),
+            ),
+      );
+    });
+  });
+
+  test('credits each event with the tokens generated since the last', () async {
+    turn.acceptMaterialize(_materialized);
+    parses(const []);
+    turn.acceptSample(_token(0x61));
+    parses(const [ModelTextDelta('ab')]);
+    turn.acceptSample(_token(0x62));
+    parses(const [ModelReasoningDelta('x'), ModelTextDelta('y')]);
+    turn.acceptSample(_token(0x63));
+    parses(const []);
+    turn.acceptSample(_stopped);
+    await pumpEventQueue();
+
+    expect(
+      events.whereType<EngineCompletionTextDelta>().map(
+        (delta) => delta.tokens,
+      ),
+      [2, 0],
+    );
+    expect(
+      events.whereType<EngineCompletionReasoningDelta>().single.tokens,
+      1,
+    );
   });
 
   test('stops with a length reason at max tokens', () async {
@@ -352,7 +436,7 @@ void main() {
         await pumpEventQueue();
 
         expect(
-          (events.single as EngineCompletionFinished).reason,
+          (events.last as EngineCompletionFinished).reason,
           EngineCompletionStopReason.length,
         );
       });
@@ -368,36 +452,58 @@ void main() {
       expect(turn.phase, EngineCompletionTurnPhase.materializing);
     });
 
-    test('materializes the generated tokens too, keeping its cached count', () {
-      turn
-        ..acceptSample(_token(7))
-        ..acceptSample(
-          const SequenceSampleDeferred(
-            reason: SequenceSchedulerDeferralReason.logitsUnavailable,
-          ),
-        );
-
-      expect(turn.materializeRequest.tokens, [1, 2, 3, 4, 7]);
-
-      turn
-        ..acceptMaterialize(
-          SequenceMaterializeSucceeded(
-            sequenceId: 3,
-            positionMin: 0,
-            positionMax: 4,
-            materialization: SequenceMaterialization(
-              tokens: Int64List.fromList([1, 2, 3, 4, 7]),
-              materializedTokenCount: 5,
-              positionMax: 4,
-              strategy: MaterializationStrategy.divergentReuse,
-              reusedTokenCount: 4,
+    test(
+      'materializes the generated tokens too, keeping its cached count',
+      () async {
+        turn
+          ..acceptSample(_token(7))
+          ..acceptSample(
+            const SequenceSampleDeferred(
+              reason: SequenceSchedulerDeferralReason.logitsUnavailable,
             ),
-          ),
-        )
-        ..acceptSample(_stopped);
+          );
 
-      expect(turn.phase, EngineCompletionTurnPhase.settled);
-    });
+        expect(turn.materializeRequest.tokens, [1, 2, 3, 4, 7]);
+
+        turn
+          ..acceptMaterialize(
+            SequenceMaterializeAdvanced(
+              sequenceId: 3,
+              positionMin: 0,
+              positionMax: 4,
+              materialization: SequenceMaterialization(
+                tokens: Int64List.fromList([1, 2, 3, 4, 7]),
+                materializedTokenCount: 4,
+                positionMax: 3,
+                strategy: MaterializationStrategy.divergentReuse,
+                reusedTokenCount: 4,
+              ),
+            ),
+          )
+          ..acceptMaterialize(
+            SequenceMaterializeSucceeded(
+              sequenceId: 3,
+              positionMin: 0,
+              positionMax: 4,
+              materialization: SequenceMaterialization(
+                tokens: Int64List.fromList([1, 2, 3, 4, 7]),
+                materializedTokenCount: 5,
+                positionMax: 4,
+                strategy: MaterializationStrategy.divergentReuse,
+                reusedTokenCount: 4,
+              ),
+            ),
+          )
+          ..acceptSample(_stopped);
+
+        expect(turn.phase, EngineCompletionTurnPhase.settled);
+        await pumpEventQueue();
+        expect(
+          events.whereType<EngineCompletionPrefillProgressed>(),
+          hasLength(1),
+        );
+      },
+    );
 
     for (final reason in [
       SequenceSchedulerDeferralReason.batchCapacityExhausted,
@@ -422,7 +528,7 @@ void main() {
     await pumpEventQueue();
 
     expect(
-      (events.single as EngineCompletionFailed).failure,
+      (events.last as EngineCompletionFailed).failure,
       EngineCompletionFailure.engineFailed,
     );
   });
@@ -437,7 +543,7 @@ void main() {
     await pumpEventQueue();
 
     expect(
-      events.single,
+      events.last,
       isA<EngineCompletionFailed>().having(
         (failed) => failed.message,
         'message',

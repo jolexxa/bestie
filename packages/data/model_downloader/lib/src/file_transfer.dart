@@ -12,14 +12,14 @@ final class FileTransfer {
   final Future<FileOutcome> outcome;
 }
 
-@PartOf(ModelDownloader)
+@model
 sealed class FileProgress {
   const FileProgress();
 }
 
 /// Bytes of the file received so far, including bytes kept from an earlier
 /// attempt.
-@PartOf(ModelDownloader)
+@model
 final class FileBytesReceived extends FileProgress {
   const FileBytesReceived(this.cumulative, {this.keptBytes = 0});
 
@@ -30,24 +30,24 @@ final class FileBytesReceived extends FileProgress {
 }
 
 /// Every byte is on disk and the sha256 is being checked.
-@PartOf(ModelDownloader)
+@model
 final class FileVerifying extends FileProgress {
   const FileVerifying();
 }
 
-@PartOf(ModelDownloader)
+@model
 sealed class FileOutcome {
   const FileOutcome();
 }
 
-@PartOf(ModelDownloader)
+@model
 final class FileDownloaded extends FileOutcome {
   const FileDownloaded();
 }
 
 /// The bytes did not hash to the expected sha256. The partial file has been
 /// deleted.
-@PartOf(ModelDownloader)
+@model
 final class FileChecksumMismatch extends FileOutcome {
   const FileChecksumMismatch({required this.expected, required this.actual});
 
@@ -56,14 +56,14 @@ final class FileChecksumMismatch extends FileOutcome {
 }
 
 /// Stopped on request. Partial bytes are kept for a later resume.
-@PartOf(ModelDownloader)
+@model
 final class FileCancelled extends FileOutcome {
   const FileCancelled();
 }
 
 /// Stopped by an HTTP, network or disk error. Partial bytes are kept for a
 /// later resume.
-@PartOf(ModelDownloader)
+@model
 final class FileFailed extends FileOutcome {
   const FileFailed(this.reason);
 

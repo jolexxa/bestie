@@ -1,6 +1,10 @@
 import 'package:intentions/intentions.dart';
 import 'package:provider_protocol/provider_protocol.dart'
-    show ProviderModelLoadProgress, ProviderModelLoadResult;
+    show
+        ProviderAvailability,
+        ProviderFailure,
+        ProviderModelLoadProgress,
+        ProviderModelLoadResult;
 import 'package:provider_repository/src/models/provider_settings.dart';
 import 'package:provider_repository/src/state/provider_session/model_resolution.dart';
 
@@ -27,6 +31,19 @@ final class ReconnectProvider extends ProviderSessionInput {
 @model
 final class StopProvider extends ProviderSessionInput {
   const StopProvider();
+}
+
+/// The provider [providerId]'s client was configured anew and now reports
+/// [availability]; a model running on it starts over.
+@model
+final class ClientReconfigured extends ProviderSessionInput {
+  const ClientReconfigured({
+    required this.providerId,
+    required this.availability,
+  });
+
+  final String providerId;
+  final ProviderAvailability availability;
 }
 
 /// Looking up the chosen model, started under [attempt], finished.
@@ -56,19 +73,11 @@ final class LoadCompleted extends ProviderSessionInput {
   final ProviderModelLoadResult result;
 }
 
-/// The model loaded under [attempt] is no longer served.
+/// The model loaded under [attempt] is no longer served, for [failure].
 @model
 final class ModelLost extends ProviderSessionInput {
-  const ModelLost({required this.attempt});
+  const ModelLost({required this.attempt, required this.failure});
 
   final int attempt;
-}
-
-/// The wait before loading a lost model again, started under [attempt], is
-/// over.
-@model
-final class RecoveryDue extends ProviderSessionInput {
-  const RecoveryDue({required this.attempt});
-
-  final int attempt;
+  final ProviderFailure failure;
 }

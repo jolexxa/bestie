@@ -14,6 +14,7 @@ import 'package:local_server/src/model_index_reader.dart';
 import 'package:local_server/src/owner_session.dart';
 import 'package:local_server/src/server_log.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
+import 'package:rxdart/rxdart.dart';
 
 const _modelsPath = '/v1/models';
 const _chatPath = '/v1/chat/completions';
@@ -67,6 +68,11 @@ final class LocalServer {
       unawaited(answer.whenComplete(() => _answering.remove(answer)));
     });
   }
+
+  /// Tells the owner the server stops for [reason], so the session ending
+  /// next is no surprise.
+  void announceClosing(ServerStopReason reason) =>
+      _owners.send(SessionClosing(reason: reason));
 
   /// Ends every open connection, shuts the model host down so a load in
   /// flight is answered as interrupted, waits for every answer under way,
@@ -289,10 +295,15 @@ final class LocalServer {
   void _onModelStatus(ModelStatus status) {
     _owners.send(ModelStatusEvent(status: status));
     unawaited(_poolSubscription?.cancel());
-    _poolSubscription = _host.hosted?.model.runtime.poolChanges.listen(
-      (pool) => _owners.send(_poolEvent(pool)),
-    );
+    _poolSubscription = _host.hosted?.model.runtime.poolChanges
+        .throttleTime(_poolInterval, trailing: true)
+        .listen((pool) => _owners.send(_poolEvent(pool)));
   }
+
+  /// The most often the owner hears how the pool changed while agents
+  /// generate. The trailing snapshot of each interval is always sent, so the
+  /// owner ends up with the settled pool.
+  static const _poolInterval = Duration(milliseconds: 100);
 
   static PoolSnapshotEvent _poolEvent(PoolSnapshot pool) => PoolSnapshotEvent(
     contextSize: pool.contextSize,
@@ -472,6 +483,9 @@ final class LocalServer {
         id: 'chatcmpl-${_mintCompletionId()}',
         model: entry.localId,
         created: _now().millisecondsSinceEpoch ~/ 1000,
+        includeUsage: chat.includeUsage,
+        returnProgress: chat.returnProgress,
+        timingsPerToken: chat.timingsPerToken,
       );
       switch (started) {
         case EngineCompletionRejected(:final reason, :final message):
@@ -481,7 +495,6 @@ final class LocalServer {
             connection,
             _logged(events, agentId),
             response,
-            includeUsage: chat.includeUsage,
           );
         case EngineCompletionStarted(:final events):
           await _wholeCompletion(
@@ -509,7 +522,8 @@ final class LocalServer {
           'Completion for ${agentId ?? 'a borrowed sequence'} failed '
           '(${failure.name}): $message',
         );
-      case EngineCompletionReasoningDelta() ||
+      case EngineCompletionPrefillProgressed() ||
+          EngineCompletionReasoningDelta() ||
           EngineCompletionTextDelta() ||
           EngineCompletionToolCalled():
         break;
@@ -520,18 +534,15 @@ final class LocalServer {
   Future<void> _streamCompletion(
     ClientConnection connection,
     Stream<EngineCompletionEvent> events,
-    ChatResponse response, {
-    required bool includeUsage,
-  }) {
+    ChatResponse response,
+  ) {
     connection
       ..startEvents()
       ..send(response.opening);
     return _relay(
       connection,
       events,
-      onEvent: (event) => response
-          .chunksFor(event, includeUsage: includeUsage)
-          .forEach(connection.send),
+      onEvent: (event) => response.chunksFor(event).forEach(connection.send),
       onDone: connection.finish,
     );
   }

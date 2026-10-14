@@ -81,9 +81,20 @@ BestFitMaxContextResult _fit({
 }) => BestFitMaxContextResult(
   status: status,
   chosenContextSize: chosen,
-  usedBytes: 777,
-  freeBytes: 2000,
-  totalBytes: 3000,
+  devices: const [
+    BestFitDeviceUsage(
+      name: 'MTL0',
+      usedBytes: 700,
+      freeBytes: 900,
+      totalBytes: 1000,
+    ),
+    BestFitDeviceUsage(
+      name: 'CPU',
+      usedBytes: 77,
+      freeBytes: 5000,
+      totalBytes: 8000,
+    ),
+  ],
   nIterations: 3,
   errorMessage: 'not enough',
 );
@@ -194,6 +205,10 @@ void main() {
   String failureOf(List<ModelEngineEvent> events) =>
       (events.last as ModelEngineFailed).reason;
 
+  test('is never lost from inside its own isolate', () {
+    expect(engine.lost, doesNotComplete);
+  });
+
   test('fits, loads, and serves a model', () async {
     final events = await load(contextCap: 20000);
 
@@ -223,7 +238,7 @@ void main() {
     expect(fit.path, '/models/qwen.gguf');
     expect(fit.maxContextSize, 20000);
     expect(fit.minContextSize, 2048);
-    expect(fit.headroomBytesByDevice, [100, 200, 512 * 1024 * 1024]);
+    expect(fit.headroomBytesByDevice, [100, 200, 1200]);
     final options = fit.contextOptions;
     expect(options.contextSize, 20000);
     expect(options.nBatch, 512);
@@ -239,7 +254,13 @@ void main() {
         verify(() => model.createContext(captureAny())).captured.single
             as LlamaCreateContextRequest;
     expect(created.options, options.copyWith(contextSize: 16384));
-    verify(() => log.info(any(that: contains('MTL0 (gpu)')))).called(1);
+    verify(
+      () => log.info(
+        'Fitted qwen at 16384 tokens: '
+        'MTL0 uses 700 of 900 free, 1000 total; '
+        'CPU uses 77 of 5000 free, 8000 total.',
+      ),
+    ).called(1);
   });
 
   test("serves the model's sampling defaults", () async {

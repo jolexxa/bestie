@@ -45,25 +45,3 @@ final class LatestThrottle<Value> {
     emit(_pending as Value);
   }
 }
-
-/// [source] passed through a [LatestThrottle] of its own for each listener.
-Stream<Value> latestThrottled<Value>(
-  Stream<Value> source, {
-  required Duration interval,
-  required Clock clock,
-}) => Stream<Value>.multi((controller) {
-  final throttle = LatestThrottle<Value>(
-    interval: interval,
-    emit: controller.add,
-    clock: clock,
-  );
-  final subscription = source.listen(
-    throttle.add,
-    onError: controller.addError,
-    onDone: controller.close,
-  );
-  controller.onCancel = () {
-    throttle.cancel();
-    return subscription.cancel();
-  };
-});

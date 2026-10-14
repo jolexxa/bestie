@@ -98,7 +98,7 @@ We have a directory that you may clone packages into to take a look, ./external.
 
 ## About
 
-Bestie is a terminal chat app that runs against hosted, OpenAI-compatible inference endpoints — OpenRouter and Fireworks AI are built in, and one custom OpenAI-compatible endpoint (a local llama.cpp server, say) can be configured — with API keys and a `provider:model` id in `~/.bestie/bestie.json`. Model facts the endpoint leaves out come from the models.dev catalog, cached under `~/.bestie/cache`. A built-in `local` provider runs GGUF models from `~/.bestie/models` (and any `models.paths`) through `bestie_server`, a llama.cpp sidecar that ships beside the app and that bestie starts on demand. Bestie supports tool calls, reasoning models, parallel subagents, and conversation compaction.
+Bestie is a terminal chat app that runs against hosted, OpenAI-compatible inference endpoints — OpenRouter and Fireworks AI are built in, and one custom OpenAI-compatible endpoint (a local llama.cpp server, say) can be configured — with API keys and a `provider:model` id in `~/.bestie/bestie.json`. Model facts the endpoint leaves out come from the models.dev catalog, cached under `~/.bestie/cache`. A built-in `local` provider runs GGUF models from `~/.bestie/models` (and any `models.paths`) through `bestie_server`, a llama.cpp sidecar that ships beside the app; bestie starts it at launch and keeps it running, empty until a local model is chosen, for as long as bestie is open. Bestie supports tool calls, reasoning models, parallel subagents, and conversation compaction.
 
 ## Agents
 

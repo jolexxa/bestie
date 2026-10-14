@@ -4,7 +4,11 @@ import 'package:meta/meta.dart';
 /// One open session's share of an endpoint's context.
 @immutable
 final class AgentPoolEntry {
-  const AgentPoolEntry({required this.agent, required this.claimedTokens});
+  const AgentPoolEntry({
+    required this.agent,
+    required this.claimedTokens,
+    this.usedTokens,
+  });
 
   final AgentIdentity agent;
 
@@ -18,17 +22,23 @@ final class AgentPoolEntry {
   /// draws on whatever the subagents leave.
   final int claimedTokens;
 
+  /// Context tokens this agent's conversation holds right now; null when the
+  /// endpoint cannot see what it holds, as with a hosted window.
+  final int? usedTokens;
+
   @override
   bool operator ==(Object other) =>
       other is AgentPoolEntry &&
       other.agent == agent &&
-      other.claimedTokens == claimedTokens;
+      other.claimedTokens == claimedTokens &&
+      other.usedTokens == usedTokens;
 
   @override
-  int get hashCode => Object.hash(agent, claimedTokens);
+  int get hashCode => Object.hash(agent, claimedTokens, usedTokens);
 
   @override
-  String toString() => 'AgentPoolEntry(${agent.id}, $claimedTokens)';
+  String toString() =>
+      'AgentPoolEntry(${agent.id}, $claimedTokens, used: $usedTokens)';
 }
 
 /// How an endpoint has divided its context among the open sessions.

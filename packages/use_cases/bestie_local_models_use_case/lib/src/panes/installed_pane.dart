@@ -10,7 +10,7 @@ import 'package:local_models_repository/local_models_repository.dart';
 import 'package:rxdart/rxdart.dart';
 
 /// Downloads on their way, everything in the models folder and the user's
-/// folders, and the local server's band.
+/// folders, and the built-in server's band.
 @PartOf(LocalModelsUseCase)
 class InstalledPane extends Pane {
   InstalledPane({
@@ -41,6 +41,7 @@ class InstalledPane extends Pane {
       server,
       nameOf: (localId) => modelName(library, localId),
       freeBytes: _operations.freeMemoryBytes,
+      logFile: _operations.serverLogFile,
       retry: _retryServer,
     ),
   );

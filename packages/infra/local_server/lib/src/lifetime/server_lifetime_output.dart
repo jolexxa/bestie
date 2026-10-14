@@ -1,4 +1,4 @@
-import 'package:local_server/src/lifetime/server_stop_reason.dart';
+import 'package:local_server_protocol/local_server_protocol.dart';
 
 /// What the server's lifetime decides.
 sealed class ServerLifetimeOutput {

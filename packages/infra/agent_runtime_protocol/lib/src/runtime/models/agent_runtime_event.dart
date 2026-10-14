@@ -324,7 +324,7 @@ final class AgentCompactionCompleted extends AgentRuntimeEvent {
 ///
 /// Providers that prefill locally report this as their prompt lands; hosted
 /// providers never emit it.
-class AgentPrefillProgress extends AgentRuntimeEvent {
+final class AgentPrefillProgress extends AgentRuntimeEvent {
   const AgentPrefillProgress({
     required super.timestamp,
     required this.agent,

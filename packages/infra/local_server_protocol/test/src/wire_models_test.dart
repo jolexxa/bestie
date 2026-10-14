@@ -107,6 +107,7 @@ void main() {
           reason: 'out of memory',
         ),
       ),
+      SessionClosing(reason: ServerStopReason.engineLost),
     ];
 
     test('round-trips every event through its base type', () {
@@ -126,6 +127,7 @@ void main() {
           'model_status',
           'model_status',
           'model_status',
+          'session_closing',
         ],
       );
       expect(_wire(events[1].toJson())['borrowed_tokens'], 8192);
@@ -172,6 +174,37 @@ void main() {
         'progress': 0.25,
       });
       expect(ModelStatusMapper.fromJson(status.toJson()), status);
+    });
+  });
+
+  group('ServerStopReason', () {
+    test('is spelled in snake case on the wire', () {
+      expect(ServerStopReason.engineLost.toValue(), 'engine_lost');
+      expect(
+        ServerStopReasonMapper.fromValue('engine_lost'),
+        ServerStopReason.engineLost,
+      );
+    });
+  });
+
+  group('ServerExitCode', () {
+    test('names every code the server ends with', () {
+      expect(
+        {for (final exit in ServerExitCode.values) exit.code: exit},
+        {
+          0: ServerExitCode.stopped,
+          69: ServerExitCode.bindFailed,
+          70: ServerExitCode.engineFailed,
+          72: ServerExitCode.librariesMissing,
+          73: ServerExitCode.lockFailed,
+          75: ServerExitCode.alreadyRunning,
+        },
+      );
+    });
+
+    test('finds an exit by its code', () {
+      expect(ServerExitCode.of(72), ServerExitCode.librariesMissing);
+      expect(ServerExitCode.of(1), isNull);
     });
   });
 

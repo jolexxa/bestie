@@ -1,0 +1,20 @@
+name: openrouter_repository
+description: OpenRouter as the user configured it.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  intentions: ^0.1.0
+  openrouter_client:
+    path: ../../data/openrouter_client
+
+dev_dependencies:
+  coverage: ^1.15.0
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

@@ -2,7 +2,7 @@ import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
     show AgentRuntime;
 import 'package:intentions/intentions.dart';
 import 'package:provider_protocol/provider_protocol.dart'
-    show ProviderConnection, ProviderModel, ProviderModelLoadProgress;
+    show ProviderModel, ProviderModelLoadProgress;
 
 @model
 sealed class ProviderSessionOutput {
@@ -41,12 +41,4 @@ final class ModelReleased extends ProviderSessionOutput {
   const ModelReleased(this.model);
 
   final ProviderModel model;
-}
-
-/// [connection] was replaced and should be closed.
-@model
-final class ConnectionRetired extends ProviderSessionOutput {
-  const ConnectionRetired(this.connection);
-
-  final ProviderConnection connection;
 }

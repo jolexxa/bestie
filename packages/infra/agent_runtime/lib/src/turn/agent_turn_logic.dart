@@ -136,6 +136,18 @@ sealed class ReceivingState extends ActiveState {
 
   Transition onStreamEnded();
 
+  Transition reportPrefill(CompletionPrefillProgressed event) {
+    output(
+      AgentPrefillProgress(
+        timestamp: stamp,
+        agent: data.handle,
+        completed: event.processed,
+        total: event.total,
+      ),
+    );
+    return toSelf();
+  }
+
   Transition onStreamErrored(Object error);
 
   Transition recordUsage(CompletionUsageReported event) {
@@ -190,10 +202,22 @@ final class StreamingState extends ReceivingState {
 
   @override
   Transition onEvent(CompletionEvent event) => switch (event) {
-    CompletionTextDelta(:final text) => _appendText(text, reasoning: false),
-    CompletionReasoningDelta(:final text) => _appendText(text, reasoning: true),
+    CompletionPrefillProgressed() => reportPrefill(event),
+    CompletionTextDelta(:final text, :final tokens) => _appendText(
+      text,
+      reasoning: false,
+      tokens: tokens,
+    ),
+    CompletionReasoningDelta(:final text, :final tokens) => _appendText(
+      text,
+      reasoning: true,
+      tokens: tokens,
+    ),
     CompletionToolCallStarted(:final name) => _startToolCall(name),
-    CompletionToolCallEmitted(:final call) => _addToolCall(call),
+    CompletionToolCallEmitted(:final call, :final tokens) => _addToolCall(
+      call,
+      tokens: tokens,
+    ),
     CompletionUsageReported() => _recordStepUsage(event),
     CompletionFinished(:final reason) => _recordStop(reason),
     CompletionFailed(:final failure) => fail(
@@ -209,10 +233,19 @@ final class StreamingState extends ReceivingState {
     return toSelf();
   }
 
-  Transition _appendText(String text, {required bool reasoning}) {
+  Transition _appendText(
+    String text, {
+    required bool reasoning,
+    required int? tokens,
+  }) {
     if (text.isEmpty) return toSelf();
     final at = stamp;
-    final blockId = step.appendText(text, reasoning: reasoning, at: at);
+    final blockId = step.appendText(
+      text,
+      reasoning: reasoning,
+      at: at,
+      tokens: tokens,
+    );
     output(
       reasoning
           ? AgentReasoningDelta(
@@ -233,10 +266,10 @@ final class StreamingState extends ReceivingState {
     return toSelf();
   }
 
-  Transition _addToolCall(CompletionToolCall call) {
+  Transition _addToolCall(CompletionToolCall call, {required int? tokens}) {
     final at = stamp;
     final toolCall = toToolCall(call, mint: data.callIdMinter.mint);
-    final blockId = step.addToolCall(toolCall, at: at);
+    final blockId = step.addToolCall(toolCall, at: at, tokens: tokens);
     output(
       AgentToolCallEmitted(
         timestamp: at,
@@ -359,6 +392,7 @@ final class SummarizingState extends ReceivingState {
 
   @override
   Transition onEvent(CompletionEvent event) => switch (event) {
+    CompletionPrefillProgressed() => reportPrefill(event),
     CompletionTextDelta(:final text) => _summaryDelta(text),
     CompletionReasoningDelta(:final text) => _summaryReasoningDelta(text),
     CompletionToolCallStarted() || CompletionToolCallEmitted() => toSelf(),

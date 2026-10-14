@@ -4,6 +4,7 @@ import 'package:agent_repository/agent_repository.dart';
 import 'package:agent_runtime_protocol/agent_runtime_protocol.dart';
 import 'package:bestie_local_models_use_case/bestie_local_models_use_case.dart';
 import 'package:bestie_platform_abstractions/bestie_platform_abstractions.dart';
+import 'package:built_in_server_repository/built_in_server_repository.dart';
 import 'package:config_protocol/config_protocol.dart';
 import 'package:config_repository/testing.dart';
 import 'package:local_models_repository/local_models_repository.dart';
@@ -21,6 +22,9 @@ final class MockLocalModelsRepository extends Mock
 final class MockAgentRepository extends Mock implements AgentRepository {}
 
 final class MockProviderRepository extends Mock implements ProviderRepository {}
+
+final class MockBuiltInServerRepository extends Mock
+    implements BuiltInServerRepository {}
 
 final class MockAgentSession extends Mock implements AgentSession {}
 
@@ -47,7 +51,11 @@ final class Repositories {
     when(() => library.current).thenReturn(readyLibrary);
     when(() => library.setFolders(any())).thenAnswer((_) async {});
     when(library.start).thenAnswer((_) async => const LedgerRestored());
-    when(() => agents.poolStream).thenAnswer((_) => poolChanges.stream);
+    when(() => server.status).thenAnswer((_) => serverStatus);
+    when(
+      () => server.statusStream,
+    ).thenAnswer((_) => serverChanges.stream.startWith(serverStatus));
+    when(server.start).thenAnswer((_) async {});
     when(() => providers.status).thenAnswer((_) => providerStatus);
     when(
       () => providers.statusStream,
@@ -66,6 +74,7 @@ final class Repositories {
   }
 
   final library = MockLocalModelsRepository();
+  final server = MockBuiltInServerRepository();
   final providers = MockProviderRepository();
   final config = FakeConfigRepository();
   final configKeys = LocalModelsConfigKeys.defaults();
@@ -73,8 +82,9 @@ final class Repositories {
   final primary = MockAgentSession();
   final platform = MockOSPlatformRepository();
   final libraryChanges = StreamController<ModelLibrary>.broadcast();
-  final poolChanges = StreamController<ContextPoolSnapshot>.broadcast();
+  final serverChanges = StreamController<BuiltInServerStatus>.broadcast();
   final providerChanges = StreamController<ProviderStatus>.broadcast();
+  BuiltInServerStatus serverStatus = const ServerOffline();
   ProviderStatus providerStatus = const ProviderStatusUnconfigured();
   ConversationPhase phase = ConversationPhase.idle;
 
@@ -87,6 +97,12 @@ final class Repositories {
   void report(ProviderStatus status) {
     providerStatus = status;
     providerChanges.add(status);
+  }
+
+  /// Has the built-in server report [status].
+  void reportServer(BuiltInServerStatus status) {
+    serverStatus = status;
+    serverChanges.add(status);
   }
 }
 

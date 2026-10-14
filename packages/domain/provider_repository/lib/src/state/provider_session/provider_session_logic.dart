@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:intentions/intentions.dart';
 import 'package:logic_blocks/logic_blocks.dart';
 import 'package:provider_protocol/provider_protocol.dart';
@@ -17,27 +15,45 @@ sealed class ProviderSessionState extends StateLogic<ProviderSessionState> {
     on<ConfigureProvider>(onConfigure);
     on<ReconnectProvider>(onReconnect);
     on<StopProvider>(onStop);
+    on<ClientReconfigured>(onClientReconfigured);
     on<LoadCompleted>(onLoadCompleted);
   }
 
   ProviderSessionData get data => get<ProviderSessionData>();
-  List<Provider> get providers => get<List<Provider>>();
+
+  /// The settings the session can run under, once complete ones are given.
+  ProviderSettings? get runnable => switch (data.settings) {
+    final settings? when settings.isComplete => settings,
+    _ => null,
+  };
 
   Transition onConfigure(ConfigureProvider input) {
+    if (input.settings.isComplete) return startOver(input.settings);
     apply(input.settings);
-    return input.settings.isComplete
-        ? to<StartingState>()
-        : to<UnconfiguredState>();
+    return to<UnconfiguredState>();
   }
 
-  Transition onReconnect(ReconnectProvider input) {
-    final settings = data.settings;
-    if (settings == null || !settings.isComplete) return toSelf();
+  Transition onReconnect(ReconnectProvider input) => switch (runnable) {
+    final settings? => startOver(settings),
+    null => toSelf(),
+  };
+
+  Transition onStop(StopProvider input) => toSelf();
+
+  /// Notes what the client now reports; a session set to run on it starts
+  /// over.
+  Transition onClientReconfigured(ClientReconfigured input) {
+    data.availability[input.providerId] = input.availability;
+    final settings = runnable;
+    if (settings?.model?.providerId != input.providerId) return toSelf();
+    return startOver(settings!);
+  }
+
+  /// Adopts the complete [settings] and starts the session over.
+  Transition startOver(ProviderSettings settings) {
     apply(settings);
     return to<StartingState>();
   }
-
-  Transition onStop(StopProvider input) => toSelf();
 
   /// A load that ended after the session moved on is released at once.
   Transition onLoadCompleted(LoadCompleted input) {
@@ -47,28 +63,15 @@ sealed class ProviderSessionState extends StateLogic<ProviderSessionState> {
     return toSelf();
   }
 
-  /// Adopts [settings] and starts the session over. Each provider keeps its
-  /// connection while its credentials stay the same; the rest are replaced.
+  /// Adopts [settings], letting go of whatever ran under the last ones.
   void apply(ProviderSettings settings) {
     releaseRuntime();
-    for (final provider in providers) {
-      final credentials =
-          settings.credentials[provider.id] ?? const NoCredentials();
-      if (data.connectedWith[provider.id] == credentials) continue;
-      if (data.connections[provider.id] case final retired?) {
-        output(ConnectionRetired(retired));
-      }
-      data
-        ..connections[provider.id] = provider.connect(credentials)
-        ..connectedWith[provider.id] = credentials;
-    }
     data
       ..settings = settings
       ..attempt += 1
       ..model = null
       ..loading = null
-      ..failure = null
-      ..losses = 0;
+      ..failure = null;
   }
 
   /// Hands the agent runtime, if one runs, to whoever tears it down.
@@ -96,26 +99,19 @@ final class UnconfiguredState extends ProviderSessionState {
 @model
 sealed class RunningState extends ProviderSessionState {
   @override
-  Transition onConfigure(ConfigureProvider input) =>
-      adopt(input.settings) ? toSelf() : super.onConfigure(input);
+  Transition onStop(StopProvider input) => fail(
+    const ProviderCancelled(
+      'Stopped. Reconnect or pick a model to start again.',
+    ),
+  );
 
-  /// Keeps [settings] for the next load when they run the session already
-  /// under way, leaving what runs be. False when they do not.
-  bool adopt(ProviderSettings settings) {
-    if (!data.settings!.runsSameSessionAs(settings)) return false;
-    data.settings = settings;
-    return true;
-  }
-
-  /// Leaves the session failed until the settings change or a reconnect.
-  @override
-  Transition onStop(StopProvider input) {
+  /// Leaves the session failed with [failure] until the settings change or
+  /// a reconnect; whatever was under way lands unheeded.
+  Transition fail(ProviderFailure failure) {
     data
       ..attempt += 1
       ..loading = null
-      ..failure = const ProviderCancelled(
-        'Stopped. Reconnect or pick a model to start again.',
-      );
+      ..failure = failure;
     return to<FailedState>();
   }
 }
@@ -149,19 +145,11 @@ final class StartingState extends RunningState {
     });
   }
 
+  /// Starts over under [settings] without leaving, so a lookup under way
+  /// is left to land unheeded.
   @override
-  Transition onConfigure(ConfigureProvider input) {
-    if (adopt(input.settings)) return toSelf();
-    apply(input.settings);
-    if (!input.settings.isComplete) return to<UnconfiguredState>();
-    start();
-    output(const ProviderSessionChanged());
-    return toSelf();
-  }
-
-  @override
-  Transition onReconnect(ReconnectProvider input) {
-    apply(data.settings!);
+  Transition startOver(ProviderSettings settings) {
+    apply(settings);
     start();
     output(const ProviderSessionChanged());
     return toSelf();
@@ -183,20 +171,22 @@ final class StartingState extends RunningState {
   void start() {
     final attempt = data.attempt;
     final ref = data.settings!.model!;
-    final provider = providers
-        .where((provider) => provider.id == ref.providerId)
-        .firstOrNull;
-    final resolving = provider == null
-        ? Future<ModelResolution>.value(
-            ModelUnresolved(
-              ProviderRejected('No provider is called "${ref.providerId}".'),
-            ),
-          )
-        : ModelResolution.of(
-            ref,
-            connection: data.connections[provider.id]!,
-            providerName: provider.displayName,
-          );
+    final client = data.clients[ref.providerId];
+    final resolving = switch ((client, data.availability[ref.providerId])) {
+      (null, _) => Future<ModelResolution>.value(
+        ModelUnresolved(
+          ProviderRejected('No provider is called "${ref.providerId}".'),
+        ),
+      ),
+      (_, ProviderNotSetUp(:final failure)) => Future<ModelResolution>.value(
+        ModelUnresolved(failure),
+      ),
+      (final client?, _) => ModelResolution.of(
+        ref,
+        client: client,
+        providerName: client.displayName,
+      ),
+    };
     async(resolving).input(
       (resolution) => ModelResolved(attempt: attempt, resolution: resolution),
     );
@@ -205,13 +195,11 @@ final class StartingState extends RunningState {
   void load() {
     final attempt = data.attempt;
     final model = data.model!;
-    final settings = data.settings!;
-    final loading = data.connections[model.ref.providerId]!.load(
+    final loading = data.clients[model.ref.providerId]!.load(
       ProviderModelLoadRequest(
         modelId: model.id,
         contextWindow: model.contextWindow,
-        maxAgents: settings.maxAgents,
-        contextCap: settings.contextCap,
+        maxAgents: data.settings!.maxAgents,
       ),
     );
     releaseLoaded();
@@ -228,59 +216,26 @@ final class StartingState extends RunningState {
     data
       ..model = model
       ..loaded = loaded
-      ..servingSince = get<RecoveryPolicy>().clock.now()
       ..runtime = loaded.runtime;
-    async(loaded.lost).input((_) => ModelLost(attempt: attempt));
-  }
-}
-
-/// The chosen model serves completions until its provider loses it, when
-/// it is loaded again after a wait, up to the recovery policy's limit.
-@model
-final class ReadyState extends RunningState {
-  ReadyState() {
-    on<ModelLost>((input) {
-      if (input.attempt != data.attempt) return toSelf();
-      final policy = get<RecoveryPolicy>();
-      final served = policy.clock.now().difference(data.servingSince);
-      data
-        ..losses = served >= policy.stableAfter ? 1 : data.losses + 1
-        ..attempt += 1
-        ..loading = null;
-      if (data.losses <= policy.maxLosses) return to<RecoveringState>();
-      data.failure = ProviderServerFailed(
-        '${data.model!.name} stopped being served ${data.losses} times '
-        'in a row. Reconnect to try again.',
-      );
-      return to<FailedState>();
-    });
-  }
-}
-
-/// The chosen model was lost; it is loaded again once the wait the
-/// recovery policy sets for this loss is over.
-@model
-final class RecoveringState extends RunningState {
-  RecoveringState() {
-    onEnter(() {
-      releaseLoaded();
-      final attempt = data.attempt;
-      final policy = get<RecoveryPolicy>();
-      final due = Completer<void>();
-      data.recovery = Timer(policy.delayBefore(data.losses), due.complete);
-      async(due.future).input((_) => RecoveryDue(attempt: attempt));
-    });
-
-    onExit(() => data.recovery?.cancel());
-
-    on<RecoveryDue>(
-      (input) => input.attempt == data.attempt ? to<StartingState>() : toSelf(),
+    async(loaded.lost).input(
+      (failure) => ModelLost(attempt: attempt, failure: failure),
     );
   }
 }
 
-/// The model could not be found or loaded, kept being lost, or was
-/// stopped.
+/// The chosen model serves completions until its provider loses it, which
+/// fails the session with the provider's reason.
+@model
+final class ReadyState extends RunningState {
+  ReadyState() {
+    on<ModelLost>(
+      (input) => input.attempt == data.attempt ? fail(input.failure) : toSelf(),
+    );
+  }
+}
+
+/// The model could not be found or loaded, was lost, or was stopped. A
+/// provider configured anew or a reconnect gets its model another try.
 @model
 final class FailedState extends ProviderSessionState {
   FailedState() {
@@ -290,27 +245,17 @@ final class FailedState extends ProviderSessionState {
 
 @model
 final class ProviderSessionLogic extends LogicBlock<ProviderSessionState> {
-  ProviderSessionLogic({
-    required List<Provider> providers,
-    required RecoveryPolicy recovery,
-  }) {
+  ProviderSessionLogic({required List<ProviderClient> clients}) {
     set(
       ProviderSessionData()
-        ..connections = {
-          for (final provider in providers)
-            provider.id: provider.connect(const NoCredentials()),
-        }
-        ..connectedWith = {
-          for (final provider in providers) provider.id: const NoCredentials(),
+        ..clients = {for (final client in clients) client.id: client}
+        ..availability = {
+          for (final client in clients) client.id: client.availability,
         },
     );
-    set<List<Provider>>(providers);
-    set(recovery);
-
     set(UnconfiguredState());
     set(StartingState());
     set(ReadyState());
-    set(RecoveringState());
     set(FailedState());
   }
 

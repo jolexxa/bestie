@@ -29,6 +29,11 @@ final class IsolatedModelEngine implements ModelEngine {
   final _turns = <int, _IsolatedTurn>{};
   var _nextId = 0;
   String? _lostBecause;
+  var _closing = false;
+  final _lost = Completer<String>();
+
+  @override
+  Future<String> get lost => _lost.future;
 
   @override
   Stream<ModelEngineEvent> load(ModelEngineRequest request) {
@@ -53,6 +58,7 @@ final class IsolatedModelEngine implements ModelEngine {
   /// stops it for good.
   @override
   Future<void> close() async {
+    _closing = true;
     await _call<void>(
       (callId) => CloseEngineCall(callId: callId),
       failed: (_) {},
@@ -65,6 +71,7 @@ final class IsolatedModelEngine implements ModelEngine {
   /// Fails everything waiting on the engine, which is gone for [reason].
   void lose(String reason) {
     _lostBecause ??= reason;
+    if (!_closing && !_lost.isCompleted) _lost.complete(reason);
     for (final call in [..._calls.values]) {
       call.fail(reason);
     }
@@ -274,7 +281,8 @@ final class _IsolatedRuntime implements EngineCompletionRuntime {
 }
 
 /// A completion's events as they arrive from the engine, pulled one batch
-/// at a time while someone is listening and not paused.
+/// at a time while someone is listening and not paused. The engine sends
+/// the first batch on its own.
 final class _IsolatedTurn {
   _IsolatedTurn(this._turnId, this._engine) {
     _events = StreamController(
@@ -291,7 +299,7 @@ final class _IsolatedTurn {
   final int _turnId;
   final IsolatedModelEngine _engine;
   late final StreamController<EngineCompletionEvent> _events;
-  var _pulled = false;
+  var _pulled = true;
 
   Stream<EngineCompletionEvent> get events => _events.stream;
 

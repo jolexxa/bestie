@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:clock/clock.dart';
 import 'package:engine_completions/src/agent_sequence_session.dart';
 import 'package:engine_completions/src/models/completion_models.dart';
 import 'package:engine_completions/src/stop_matcher.dart';
@@ -42,7 +43,10 @@ final class EngineCompletionTurn {
   final _events = StreamController<EngineCompletionEvent>();
   final _utf8 = Utf8StreamDecoder();
   final _generated = <TokenId>[];
+  final Stopwatch _stopwatch = clock.stopwatch()..start();
   var _cachedTokens = 0;
+  Duration _promptTime = Duration.zero;
+  var _unreportedTokens = 0;
   var _calledTools = false;
 
   EngineCompletionTurnPhase phase = EngineCompletionTurnPhase.materializing;
@@ -65,18 +69,31 @@ final class EngineCompletionTurn {
   void acceptMaterialize(SequenceMaterializeResult result) {
     switch (result) {
       case SequenceMaterializeSucceeded(:final materialization):
-        if (_generated.isEmpty) {
-          _cachedTokens = materialization.reusedTokenCount;
-        }
+        if (_generated.isEmpty) _prefilled(materialization);
         phase = EngineCompletionTurnPhase.decoding;
-      case SequenceMaterializeAdvanced():
-        break;
+      case SequenceMaterializeAdvanced(:final materialization):
+        if (_generated.isEmpty) _reportPrefill(materialization);
       case SequenceMaterializeDeferred(:final reason):
         _deferMaterialize(reason);
       case SequenceMaterializeFailed(:final reason):
         fail(EngineCompletionFailure.engineFailed, reason.name);
     }
   }
+
+  void _prefilled(SequenceMaterialization materialization) {
+    _cachedTokens = materialization.reusedTokenCount;
+    _promptTime = _stopwatch.elapsed;
+    _reportPrefill(materialization);
+  }
+
+  void _reportPrefill(SequenceMaterialization materialization) => _events.add(
+    EngineCompletionPrefillProgressed(
+      total: materialization.tokens.length,
+      cached: materialization.reusedTokenCount,
+      processed: materialization.materializedTokenCount,
+      elapsed: _stopwatch.elapsed,
+    ),
+  );
 
   void _deferMaterialize(SequenceSchedulerDeferralReason reason) {
     switch (reason) {
@@ -118,6 +135,7 @@ final class EngineCompletionTurn {
 
   void _acceptToken(TokenId token) {
     _generated.add(token);
+    _unreportedTokens++;
     switch (_detokenizer.detokenize(DetokenizeRequest(token: token))) {
       case DetokenizeSucceeded(:final bytes):
         _scan(_utf8.add(bytes));
@@ -152,6 +170,8 @@ final class EngineCompletionTurn {
           promptTokens: prompt.length,
           completionTokens: _generated.length,
           cachedTokens: _cachedTokens,
+          promptTime: _promptTime,
+          generationTime: _stopwatch.elapsed - _promptTime,
         ),
       ),
     );
@@ -177,9 +197,11 @@ final class EngineCompletionTurn {
     for (final output in outputs) {
       switch (output) {
         case ModelTextDelta(:final text) when text.isNotEmpty:
-          _events.add(EngineCompletionTextDelta(text));
+          _events.add(EngineCompletionTextDelta(text, tokens: _takeTokens()));
         case ModelReasoningDelta(:final text) when text.isNotEmpty:
-          _events.add(EngineCompletionReasoningDelta(text));
+          _events.add(
+            EngineCompletionReasoningDelta(text, tokens: _takeTokens()),
+          );
         case ModelToolCallOutput(:final call):
           _callTool(call.name, jsonEncode(call.arguments));
         case ModelToolCallUnparsed(:final name, :final rawText):
@@ -200,7 +222,15 @@ final class EngineCompletionTurn {
         id: 'call_${_callIdMinter.mint()}',
         name: name,
         argumentsJson: argumentsJson,
+        tokens: _takeTokens(),
       ),
     );
+  }
+
+  /// The tokens generated since the last event that carried any.
+  int _takeTokens() {
+    final tokens = _unreportedTokens;
+    _unreportedTokens = 0;
+    return tokens;
   }
 }

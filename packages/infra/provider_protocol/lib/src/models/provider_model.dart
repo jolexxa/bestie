@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:agent_runtime_protocol/agent_runtime_protocol.dart';
+import 'package:provider_protocol/src/models/provider_failure.dart';
 
 /// A model a provider serves completions on, from the moment it is loaded
 /// until it is released.
@@ -17,9 +18,9 @@ abstract interface class ProviderModel {
   /// Runs agents on the model.
   AgentRuntime get runtime;
 
-  /// Completes once the model stops being served and must be loaded again.
-  /// Never completes with an error.
-  Future<void> get lost;
+  /// Completes with why once the model stops being served and must be
+  /// loaded again. Never completes with an error.
+  Future<ProviderFailure> get lost;
 
   /// Lets go of whatever loading the model held, its runtime included.
   Future<void> release();
@@ -47,7 +48,7 @@ final class HostedProviderModel implements ProviderModel {
   int? get deviceBytes => null;
 
   @override
-  Future<void> get lost => Completer<void>().future;
+  Future<ProviderFailure> get lost => Completer<ProviderFailure>().future;
 
   @override
   Future<void> release() async {

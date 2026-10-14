@@ -466,34 +466,56 @@ void main() {
       );
     });
 
-    test('the pool lists every leased agent and its resident tokens', () async {
-      final stack = _Stack(
-        replies: {
-          1: ['hey'],
-        },
-      );
-      final snapshots = <PoolSnapshot>[];
-      stack.runtime.poolChanges.listen(snapshots.add);
-      await stack.runtime.openPrimary('primary:1');
-      await stack.runtime.openSubagent('sub:a');
-      await stack.start([
-        const PromptUserMessage('hi'),
-      ], agentId: 'primary:1').toList();
-      await Future<void>.delayed(Duration.zero);
+    test(
+      'the pool lists every leased agent and its resident tokens as they grow',
+      () async {
+        final stack = _Stack(
+          replies: {
+            1: ['hey'],
+          },
+        );
+        final snapshots = <PoolSnapshot>[];
+        stack.runtime.poolChanges.listen(snapshots.add);
+        await stack.runtime.openPrimary('primary:1');
+        await stack.runtime.openSubagent('sub:a');
+        await stack.start([
+          const PromptUserMessage('hi'),
+        ], agentId: 'primary:1').toList();
+        await Future<void>.delayed(Duration.zero);
 
-      final pool = stack.runtime.pool;
-      expect(pool.contextSize, 2048);
-      expect(pool.maxAgents, 4);
-      expect(
-        [for (final agent in pool.agents) '${agent.id}=${agent.claimedTokens}'],
-        ['primary:1=0', 'sub:a=512'],
-      );
-      expect(pool.agents.first, isA<PrimaryPoolLease>());
-      expect(pool.agents.last, isA<SubagentPoolLease>());
-      expect(pool.agents.first.usedTokens, stack.backend.residentTokens(1));
-      expect(pool.agents.first.usedTokens, greaterThan(0));
-      expect(snapshots, hasLength(3));
-    });
+        final pool = stack.runtime.pool;
+        expect(pool.contextSize, 2048);
+        expect(pool.maxAgents, 4);
+        expect(
+          [
+            for (final agent in pool.agents)
+              '${agent.id}=${agent.claimedTokens}',
+          ],
+          ['primary:1=0', 'sub:a=512'],
+        );
+        expect(pool.agents.first, isA<PrimaryPoolLease>());
+        expect(pool.agents.last, isA<SubagentPoolLease>());
+        expect(pool.agents.first.usedTokens, stack.backend.residentTokens(1));
+        expect(pool.agents.first.usedTokens, greaterThan(0));
+        expect(
+          [
+            for (final snapshot in snapshots)
+              [for (final agent in snapshot.agents) agent.usedTokens],
+          ],
+          [
+            [0],
+            [0, 0],
+            [64, 0],
+            [71, 0],
+            [72, 0],
+            [73, 0],
+            [74, 0],
+            [74, 0],
+          ],
+          reason: 'every step that changes what a sequence holds is published',
+        );
+      },
+    );
 
     test('a request naming an agent without a lease is rejected', () async {
       final stack = _Stack(replies: {});

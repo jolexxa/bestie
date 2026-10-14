@@ -38,7 +38,8 @@ abstract interface class EngineCompletionRuntime {
   /// change it reported.
   PoolSnapshot get pool;
 
-  /// A snapshot whenever a lease opens or closes, or a completion settles.
+  /// A snapshot whenever a lease opens or closes, a completion settles, or a
+  /// step changes how many tokens an agent's sequence holds.
   Stream<PoolSnapshot> get poolChanges;
 
   /// Cancels every completion and releases every lease. The runtime refuses
@@ -74,6 +75,7 @@ final class ScheduledEngineCompletionRuntime
   final _turns = <EngineCompletionTurn>[];
   final _borrowed = <AgentSequenceSession>{};
   final _poolChanges = StreamController<PoolSnapshot>.broadcast();
+  Map<String, int> _publishedUsage = const {};
   Future<void>? _driving;
   var _disposed = false;
 
@@ -323,6 +325,7 @@ final class ScheduledEngineCompletionRuntime
       }
     }
     _sweepSettled();
+    _publishUsageChanges();
   }
 
   void _step() {
@@ -361,9 +364,22 @@ final class ScheduledEngineCompletionRuntime
     if (_borrowed.remove(session)) _scheduler.release(session.lease);
   }
 
+  Map<String, int> _usageNow() => {
+    for (final session in _sessions.values)
+      session.id: _scheduler.cachedTokenCountFor(session.lease) ?? 0,
+  };
+
   void _publishPool() {
     if (_poolChanges.isClosed) return;
+    _publishedUsage = _usageNow();
     _poolChanges.add(pool);
+  }
+
+  void _publishUsageChanges() {
+    final changed = _usageNow().entries.any(
+      (entry) => _publishedUsage[entry.key] != entry.value,
+    );
+    if (changed) _publishPool();
   }
 
   @override

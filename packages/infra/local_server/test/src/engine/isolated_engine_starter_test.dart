@@ -50,6 +50,9 @@ final class _FakeEngine implements ModelEngine {
   }
 
   @override
+  Future<String> get lost => Completer<String>().future;
+
+  @override
   Future<void> close() async {}
 }
 

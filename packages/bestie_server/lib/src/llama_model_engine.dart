@@ -23,8 +23,9 @@ abstract final class LlamaServerDefaults {
   /// Memory left free on each GPU, as a share of its total.
   static const double gpuHeadroomShare = 0.10;
 
-  /// Memory left free on the host.
-  static const int hostHeadroomBytes = 512 * 1024 * 1024;
+  /// Memory left free on the host, as a share of its RAM. GPUs that share
+  /// host memory draw from the same budget.
+  static const double hostHeadroomShare = 0.15;
 }
 
 /// Loads models with llama.cpp and serves them through the completion
@@ -46,6 +47,11 @@ final class LlamaModelEngine implements ModelEngine {
   final ServerLog _log;
   final Future<void> Function() _closeNative;
   final _loads = <Future<void>>{};
+
+  /// Runs in the engine's own isolate, so losing it takes the isolate down
+  /// instead of ever completing this.
+  @override
+  Future<String> get lost => Completer<String>().future;
 
   /// Loads once listened to. A listener that leaves stops the load at the
   /// next stage, freeing whatever it already holds.
@@ -135,8 +141,7 @@ final class LlamaModelEngine implements ModelEngine {
     }
     _log.info(
       'Fitted ${entry.localId} at ${fit.chosenContextSize} tokens: '
-      '${fit.usedBytes} bytes used of ${fit.freeBytes} free, '
-      '${fit.totalBytes} total; devices: ${devices.map(_describe).join(', ')}.',
+      '${fit.devices.map(_describe).join('; ')}.',
     );
     emit(ModelEngineFitted(contextSize: fit.chosenContextSize));
     if (!wanted()) return;
@@ -213,8 +218,9 @@ final class LlamaModelEngine implements ModelEngine {
     await loaded.unload();
   }
 
-  static String _describe(LlamaDeviceInfo device) =>
-      '${device.name} (${device.type.name})';
+  static String _describe(BestFitDeviceUsage device) =>
+      '${device.name} uses ${device.usedBytes} of ${device.freeBytes} free, '
+      '${device.totalBytes} total';
 
   /// One headroom per GPU, in device order, then the host's.
   static List<int> _headroomFor(List<LlamaDeviceInfo> devices) => [
@@ -222,8 +228,13 @@ final class LlamaModelEngine implements ModelEngine {
       if (device.type == LlamaDeviceType.gpu ||
           device.type == LlamaDeviceType.integratedGpu)
         (device.totalMemory * LlamaServerDefaults.gpuHeadroomShare).round(),
-    LlamaServerDefaults.hostHeadroomBytes,
+    (_hostMemoryOf(devices) * LlamaServerDefaults.hostHeadroomShare).round(),
   ];
+
+  static int _hostMemoryOf(List<LlamaDeviceInfo> devices) => devices
+      .where((device) => device.type == LlamaDeviceType.cpu)
+      .map((device) => device.totalMemory)
+      .fold(0, math.max);
 }
 
 @dataSource

@@ -14,8 +14,11 @@ export 'src/bestie_routes.dart'
         bestieOwnerHeader,
         bestieOwnerPidHeader,
         bestieProtocolVersion,
-        bestieSessionPath;
-export 'src/bestie_server.dart' show bestieServerBusyMessage, bestieServerName;
+        bestieReturnProgressField,
+        bestieSessionPath,
+        bestieTimingsPerTokenField;
+export 'src/bestie_server.dart'
+    show bestieServerBusyMessage, bestieServerExitMessage, bestieServerName;
 export 'src/models/agent_lease.dart'
     show
         AgentInsufficientClaim,
@@ -63,13 +66,20 @@ export 'src/models/model_status.dart'
         ModelUnloaded;
 export 'src/models/server_error.dart'
     show ServerBusy, ServerError, ServerErrorMapper;
+export 'src/models/server_exit_code.dart' show ServerExitCode;
 export 'src/models/server_lock_file.dart'
     show ServerLockFile, ServerLockFileMapper;
+export 'src/models/server_stop_reason.dart'
+    show
+        ServerStopReason,
+        ServerStopReasonMapper,
+        ServerStopReasonMapperExtension;
 export 'src/models/session_event.dart'
     show
         ModelStatusEvent,
         PoolAgent,
         PoolSnapshotEvent,
+        SessionClosing,
         SessionEvent,
         SessionEventMapper,
         SessionOpened;

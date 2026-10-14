@@ -73,7 +73,11 @@ void main() {
 
   group('AgentPoolReport', () {
     test('carries the context split', () {
-      const entry = AgentPoolEntry(agent: _helper, claimedTokens: 256);
+      const entry = AgentPoolEntry(
+        agent: _helper,
+        claimedTokens: 256,
+        usedTokens: 40,
+      );
       const report = AgentPoolReport(
         contextSize: 1024,
         reservedTokens: 256,
@@ -83,17 +87,35 @@ void main() {
       expect(report.contextSize, 1024);
       expect(report.reservedTokens, 256);
       expect(report.agents, [
-        const AgentPoolEntry(agent: _helper, claimedTokens: 256),
+        const AgentPoolEntry(
+          agent: _helper,
+          claimedTokens: 256,
+          usedTokens: 40,
+        ),
       ]);
       expect(
         entry,
-        isNot(const AgentPoolEntry(agent: _helper, claimedTokens: 255)),
+        isNot(
+          const AgentPoolEntry(
+            agent: _helper,
+            claimedTokens: 255,
+            usedTokens: 40,
+          ),
+        ),
+      );
+      expect(
+        entry,
+        isNot(const AgentPoolEntry(agent: _helper, claimedTokens: 256)),
       );
       expect(
         entry.hashCode,
-        const AgentPoolEntry(agent: _helper, claimedTokens: 256).hashCode,
+        const AgentPoolEntry(
+          agent: _helper,
+          claimedTokens: 256,
+          usedTokens: 40,
+        ).hashCode,
       );
-      expect(entry.toString(), 'AgentPoolEntry(subagent:2, 256)');
+      expect(entry.toString(), 'AgentPoolEntry(subagent:2, 256, used: 40)');
     });
   });
 

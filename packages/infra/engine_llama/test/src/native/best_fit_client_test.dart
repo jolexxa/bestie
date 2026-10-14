@@ -127,8 +127,8 @@ void main() {
           prediction: _prediction(
             nDevices: 1,
             devices: [
-              _device(free: 2000, total: 4000, used: 1200),
-              _device(free: 3000, total: 6000, used: 700),
+              _device(name: 'MTL0', free: 2000, total: 4000, used: 1200),
+              _device(name: 'CPU', free: 3000, total: 6000, used: 700),
             ],
           ),
         );
@@ -156,8 +156,20 @@ void main() {
       expect(result.fits, isTrue);
       expect(result.chosenContextSize, 16384);
       expect(result.usedBytes, 1900);
-      expect(result.freeBytes, 5000);
-      expect(result.totalBytes, 10000);
+      expect(
+        result.devices.map(
+          (device) => [
+            device.name,
+            device.usedBytes,
+            device.freeBytes,
+            device.totalBytes,
+          ],
+        ),
+        [
+          ['MTL0', 1200, 2000, 4000],
+          ['CPU', 700, 3000, 6000],
+        ],
+      );
       expect(result.nIterations, 4);
       expect(common.lastMinContextSize, 2048);
       expect(common.lastMaxContextSize, 32768);
@@ -226,7 +238,8 @@ final class _FakeBestFitBindings extends FakeLlamaCppBindingsStubs {
     lastMinContextSize = minContextSize;
     lastMaxContextSize = maxContextSize;
     lastHeadroom = [
-      for (var i = 0; i <= BEST_FIT_MAX_DEVICES; i += 1) headroomPerDevice[i],
+      for (var index = 0; index <= BEST_FIT_MAX_DEVICES; index += 1)
+        headroomPerDevice[index],
     ];
     return maxContextResult ?? _maxContextResult();
   }
@@ -254,6 +267,7 @@ best_fit_prediction _prediction({
     ..n_devices = nDevices;
   for (var index = 0; index < devices.length; index += 1) {
     final device = devices[index];
+    _writeCharArray(ptr.ref.devices[index].name, device.name);
     ptr.ref.devices[index]
       ..free_bytes = device.free
       ..total_bytes = device.total
@@ -284,15 +298,18 @@ _DeviceMemory _device({
   required int free,
   required int total,
   required int used,
-}) => _DeviceMemory(free: free, total: total, used: used);
+  String name = '',
+}) => _DeviceMemory(name: name, free: free, total: total, used: used);
 
 final class _DeviceMemory {
   const _DeviceMemory({
+    required this.name,
     required this.free,
     required this.total,
     required this.used,
   });
 
+  final String name;
   final int free;
   final int total;
   final int used;
@@ -301,8 +318,8 @@ final class _DeviceMemory {
 void _writeCharArray(Array<Char> target, String value) {
   final bytes = utf8.encode(value);
   final count = bytes.length < 255 ? bytes.length : 255;
-  for (var i = 0; i < count; i += 1) {
-    target[i] = bytes[i];
+  for (var index = 0; index < count; index += 1) {
+    target[index] = bytes[index];
   }
   target[count] = 0;
 }

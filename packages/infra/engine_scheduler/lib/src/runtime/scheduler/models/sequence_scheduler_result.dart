@@ -127,6 +127,11 @@ final class SequenceMaterializeAdvanced extends SequenceMaterializeResult {
   final int positionMin;
   final int positionMax;
   final SequenceMaterialization materialization;
+
+  /// Whether this step decoded nothing and only announced where the
+  /// materialization starts, so the caller learns how much of the prompt is
+  /// already resident before the first slice runs.
+  bool get isAnnouncement => positionMax < positionMin;
 }
 
 final class SequenceMaterializeDeferred extends SequenceMaterializeResult {

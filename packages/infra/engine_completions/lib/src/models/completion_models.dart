@@ -84,16 +84,45 @@ sealed class EngineCompletionEvent {
   const EngineCompletionEvent();
 }
 
+/// How much of the prompt the sequence holds so far, reported while it is
+/// prefilled and once more when it is ready to generate.
+final class EngineCompletionPrefillProgressed extends EngineCompletionEvent {
+  const EngineCompletionPrefillProgressed({
+    required this.total,
+    required this.cached,
+    required this.processed,
+    required this.elapsed,
+  });
+
+  /// Prompt tokens the sequence must hold before generating.
+  final int total;
+
+  /// Prompt tokens already resident before this completion began.
+  final int cached;
+
+  /// Prompt tokens held so far, [cached] ones included.
+  final int processed;
+
+  /// Time since the completion started.
+  final Duration elapsed;
+}
+
 final class EngineCompletionReasoningDelta extends EngineCompletionEvent {
-  const EngineCompletionReasoningDelta(this.text);
+  const EngineCompletionReasoningDelta(this.text, {required this.tokens});
 
   final String text;
+
+  /// Tokens generated since the previous event that [text] completes.
+  final int tokens;
 }
 
 final class EngineCompletionTextDelta extends EngineCompletionEvent {
-  const EngineCompletionTextDelta(this.text);
+  const EngineCompletionTextDelta(this.text, {required this.tokens});
 
   final String text;
+
+  /// Tokens generated since the previous event that [text] completes.
+  final int tokens;
 }
 
 /// A tool call the model made. A call the parser could not read keeps the
@@ -104,6 +133,7 @@ final class EngineCompletionToolCalled extends EngineCompletionEvent {
     required this.id,
     required this.name,
     required this.argumentsJson,
+    required this.tokens,
   });
 
   final String id;
@@ -111,6 +141,9 @@ final class EngineCompletionToolCalled extends EngineCompletionEvent {
   final String name;
 
   final String argumentsJson;
+
+  /// Tokens generated since the previous event that this call completes.
+  final int tokens;
 }
 
 /// The completion ended normally. Always the last event.
@@ -149,6 +182,8 @@ final class EngineCompletionUsage {
     required this.promptTokens,
     required this.completionTokens,
     required this.cachedTokens,
+    required this.promptTime,
+    required this.generationTime,
   });
 
   final int promptTokens;
@@ -158,4 +193,10 @@ final class EngineCompletionUsage {
   /// Prompt tokens already resident in the sequence, which were not
   /// prefilled again.
   final int cachedTokens;
+
+  /// Time from the completion starting until its prompt was held.
+  final Duration promptTime;
+
+  /// Time from the prompt being held until the completion ended.
+  final Duration generationTime;
 }

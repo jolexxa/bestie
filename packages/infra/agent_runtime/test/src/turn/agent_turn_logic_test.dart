@@ -220,6 +220,61 @@ void main() {
       expect(tokens, [10, 7, 3]);
     });
 
+    test('reports how far the provider has read the prompt', () {
+      final harness = _Harness()
+        ..logic.input(const StepRequested())
+        ..drain()
+        ..event(const CompletionPrefillProgressed(total: 40, processed: 25));
+
+      expect(harness.drain(), [
+        isA<AgentPrefillProgress>()
+            .having((event) => event.agent, 'agent', primaryHandle)
+            .having((event) => event.completed, 'completed', 25)
+            .having((event) => event.total, 'total', 40),
+      ]);
+    });
+
+    test('gives every block the tokens the provider counted for it', () {
+      final harness = _Harness()
+        ..logic.input(const StepRequested())
+        ..event(const CompletionReasoningDelta('Let me think', tokens: 4))
+        ..event(const CompletionTextDelta('Echoing', tokens: 2))
+        ..event(const CompletionTextDelta(' it now', tokens: 3))
+        ..event(
+          const CompletionToolCallEmitted(
+            CompletionToolCall(
+              id: 'call_a',
+              name: 'echo',
+              arguments: {},
+              rawArguments: '{}',
+            ),
+            tokens: 6,
+          ),
+        )
+        ..event(
+          const CompletionUsageReported(
+            promptTokens: 40,
+            completionTokens: 20,
+            reasoningTokens: 9,
+          ),
+        )
+        ..event(
+          const CompletionFinished(CompletionStopReason.toolCalls),
+        )
+        ..drain()
+        ..streamEnded();
+
+      final entry = harness
+          .drain()
+          .whereType<AgentNeedsToolResults>()
+          .single
+          .entry;
+      expect(
+        [for (final block in entry.blocks) block.stat!.tokenCount],
+        [4, 5, 6],
+      );
+    });
+
     group('when the provider counts reasoning tokens', () {
       List<int?> sharedTokens({
         required int reasoningTokens,
@@ -724,6 +779,9 @@ void main() {
           expect(harness.logic.value, isA<SummarizingState>());
 
           harness
+            ..event(
+              const CompletionPrefillProgressed(total: 30, processed: 18),
+            )
             ..event(const CompletionTextDelta(' user said hi'))
             ..event(const CompletionTextDelta(''))
             ..event(const CompletionReasoningDelta('thinking'))
@@ -748,9 +806,15 @@ void main() {
               const CompletionFinished(CompletionStopReason.stop),
             );
           final streamed = harness.drain();
-          expect(streamed, hasLength(2));
+          expect(streamed, hasLength(3));
           expect(
             streamed[0],
+            isA<AgentPrefillProgress>()
+                .having((event) => event.completed, 'completed', 18)
+                .having((event) => event.total, 'total', 30),
+          );
+          expect(
+            streamed[1],
             isA<AgentSummaryDelta>().having(
               (event) => event.text,
               'text',
@@ -758,7 +822,7 @@ void main() {
             ),
           );
           expect(
-            streamed[1],
+            streamed[2],
             isA<AgentSummaryReasoningDelta>().having(
               (event) => event.text,
               'text',

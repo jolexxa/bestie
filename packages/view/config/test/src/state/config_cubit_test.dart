@@ -11,33 +11,9 @@ import 'package:bestie_config_view/src/state/config_cubit.dart';
 import 'package:bestie_config_view/src/state/config_logic.dart';
 import 'package:bestie_config_view/src/state/info_layout.dart';
 import 'package:config_repository/config_repository.dart';
-import 'package:mocktail/mocktail.dart';
-import 'package:provider_protocol/provider_protocol.dart';
 import 'package:test/test.dart';
 
 const _defaultPrompt = 'test prompt';
-
-class _MockProvider extends Mock implements Provider {}
-
-Provider _provider(
-  String id,
-  String displayName,
-  ProviderCredentialsKind kind,
-) {
-  final provider = _MockProvider();
-  when(() => provider.id).thenReturn(id);
-  when(() => provider.displayName).thenReturn(displayName);
-  when(() => provider.credentialsKind).thenReturn(kind);
-  return provider;
-}
-
-List<Provider> _providers() => [
-  _provider('local', 'Bestie Server', ProviderCredentialsKind.none),
-  _provider('custom', 'Custom endpoint', ProviderCredentialsKind.endpoint),
-  _provider('openrouter', 'OpenRouter', ProviderCredentialsKind.apiKey),
-  _provider('fireworks', 'Fireworks AI', ProviderCredentialsKind.apiKey),
-  _provider('bare', 'Bare', ProviderCredentialsKind.none),
-];
 
 ConfigCubit _buildCubit({
   required ConfigUseCase useCase,
@@ -65,7 +41,6 @@ void main() {
       defaultSystemPrompt: _defaultPrompt,
       defaultTheme: 'Jelly Bean',
       availableThemes: const ['Jelly Bean', 'Neo'],
-      providers: _providers(),
     );
     keys = schema.keys;
     layout = schema.layout;
@@ -239,7 +214,7 @@ void main() {
     expect(
       _hasUserValue(
         repo,
-        keys.provider.contextCap.global,
+        keys.builtInServer.contextCap.global,
       ),
       true,
     );
@@ -250,6 +225,7 @@ void main() {
 
     expect(page.sections.map((section) => section.heading), [
       'Local models',
+      'Built-in server',
       'Custom endpoint',
       'OpenRouter',
       'Fireworks AI',

@@ -1,12 +1,10 @@
 import 'dart:async';
 
-import 'package:bestie_local_models_use_case/src/models/local_server_status.dart';
 import 'package:bestie_local_models_use_case/src/panes/installed_pane.dart';
+import 'package:built_in_server_repository/built_in_server_repository.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:local_models_repository/local_models_repository.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:provider_protocol/provider_protocol.dart'
-    show ProviderServerFailed;
 import 'package:test/test.dart';
 
 import '../../helpers/fixtures.dart';
@@ -76,13 +74,7 @@ void main() {
   test('retries the server from its band once it failed', () async {
     stubOperations(
       operations,
-      server: Stream.value(
-        const ServerFailed(
-          ProviderServerFailed(
-            'Could not start the local model server: no binary',
-          ),
-        ),
-      ),
+      server: Stream.value(const ServerFailed(reason: 'no binary')),
     );
     when(() => operations.retryServer()).thenReturn(null);
 
@@ -96,7 +88,7 @@ void main() {
   test('bands a model the library no longer has by its id', () async {
     stubOperations(
       operations,
-      server: Stream.value(const ServerLoading(localId: 'mystery')),
+      server: Stream.value(const ServerFitting(localId: 'mystery')),
     );
     expect(
       spansText((await pane().status.first)!.spans),

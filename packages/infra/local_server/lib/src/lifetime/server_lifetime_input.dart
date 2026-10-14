@@ -1,3 +1,5 @@
+import 'package:local_server_protocol/local_server_protocol.dart';
+
 /// What the server's lifetime hears about.
 sealed class ServerLifetimeInput {
   const ServerLifetimeInput();
@@ -19,7 +21,9 @@ final class GraceExpired extends ServerLifetimeInput {
   const GraceExpired();
 }
 
-/// The process was asked to stop.
+/// The server must stop for [reason], whatever is still open.
 final class ShutdownRequested extends ServerLifetimeInput {
-  const ShutdownRequested();
+  const ShutdownRequested(this.reason);
+
+  final ServerStopReason reason;
 }

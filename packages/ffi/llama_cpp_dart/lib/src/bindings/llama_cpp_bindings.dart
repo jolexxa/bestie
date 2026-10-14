@@ -13892,6 +13892,38 @@ class LlamaCppBindings {
             )
           >();
 
+  void ggml_backend_sched_set_copy_callback(
+    ggml_backend_sched_t sched,
+    ggml_backend_sched_copy_callback callback,
+    ffi.Pointer<ffi.Void> user_data,
+  ) {
+    return _ggml_backend_sched_set_copy_callback(
+      sched,
+      callback,
+      user_data,
+    );
+  }
+
+  late final _ggml_backend_sched_set_copy_callbackPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ggml_backend_sched_t,
+            ggml_backend_sched_copy_callback,
+            ffi.Pointer<ffi.Void>,
+          )
+        >
+      >('ggml_backend_sched_set_copy_callback');
+  late final _ggml_backend_sched_set_copy_callback =
+      _ggml_backend_sched_set_copy_callbackPtr
+          .asFunction<
+            void Function(
+              ggml_backend_sched_t,
+              ggml_backend_sched_copy_callback,
+              ffi.Pointer<ffi.Void>,
+            )
+          >();
+
   ffi.Pointer<ffi.Char> ggml_backend_meta_split_axis_name(
     ggml_backend_meta_split_axis split_axis,
   ) {
@@ -24096,6 +24128,24 @@ typedef Dartggml_backend_sched_eval_callbackFunction =
     );
 typedef ggml_backend_sched_eval_callback =
     ffi.Pointer<ffi.NativeFunction<ggml_backend_sched_eval_callbackFunction>>;
+typedef ggml_backend_sched_copy_callbackFunction =
+    ffi.Bool Function(
+      ggml_backend_t backend,
+      ffi.Pointer<ggml_tensor> src,
+      ffi.Pointer<ggml_tensor> dst,
+      ffi.Pointer<ggml_cgraph> graph,
+      ffi.Pointer<ffi.Void> user_data,
+    );
+typedef Dartggml_backend_sched_copy_callbackFunction =
+    bool Function(
+      ggml_backend_t backend,
+      ffi.Pointer<ggml_tensor> src,
+      ffi.Pointer<ggml_tensor> dst,
+      ffi.Pointer<ggml_cgraph> graph,
+      ffi.Pointer<ffi.Void> user_data,
+    );
+typedef ggml_backend_sched_copy_callback =
+    ffi.Pointer<ffi.NativeFunction<ggml_backend_sched_copy_callbackFunction>>;
 
 enum ggml_backend_meta_split_axis {
   GGML_BACKEND_SPLIT_AXIS_0(0),
@@ -24644,7 +24694,8 @@ enum llama_vocab_type {
   LLAMA_VOCAB_TYPE_UGM(4),
   LLAMA_VOCAB_TYPE_RWKV(5),
   LLAMA_VOCAB_TYPE_PLAMO2(6),
-  LLAMA_VOCAB_TYPE_TEST(7);
+  LLAMA_VOCAB_TYPE_TEST(7),
+  LLAMA_VOCAB_TYPE_PLAMO3(8);
 
   final int value;
   const llama_vocab_type(this.value);
@@ -24658,6 +24709,7 @@ enum llama_vocab_type {
     5 => LLAMA_VOCAB_TYPE_RWKV,
     6 => LLAMA_VOCAB_TYPE_PLAMO2,
     7 => LLAMA_VOCAB_TYPE_TEST,
+    8 => LLAMA_VOCAB_TYPE_PLAMO3,
     _ => throw ArgumentError('Unknown value for llama_vocab_type: $value'),
   };
 }
@@ -25286,6 +25338,9 @@ final class llama_context_params extends ffi.Struct {
 
   ggml_type get type_v => ggml_type.fromValue(type_vAsInt);
 
+  @ffi.Size()
+  external int moe_cache_size;
+
   external ggml_abort_callback abort_callback;
 
   external ffi.Pointer<ffi.Void> abort_callback_data;
@@ -25638,11 +25693,11 @@ const int LLAMA_FILE_MAGIC_GGSQ = 1734833009;
 
 const int LLAMA_SESSION_MAGIC = 1734833006;
 
-const int LLAMA_SESSION_VERSION = 10;
+const int LLAMA_SESSION_VERSION = 11;
 
 const int LLAMA_STATE_SEQ_MAGIC = 1734833009;
 
-const int LLAMA_STATE_SEQ_VERSION = 3;
+const int LLAMA_STATE_SEQ_VERSION = 4;
 
 const int LLAMA_STATE_SEQ_FLAGS_NONE = 0;
 

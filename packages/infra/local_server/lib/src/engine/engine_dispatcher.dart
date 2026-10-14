@@ -139,8 +139,13 @@ final class _ForwardedModel {
 }
 
 /// Holds a completion's events until the server pulls them, merging
-/// adjacent deltas so a slow server receives fewer, larger batches. The
+/// adjacent deltas and keeping only the newest of adjacent prefill progress
+/// so a slow server receives fewer, larger batches. The
 /// completion itself never waits on the server.
+///
+/// The first batch goes out unasked: the server's first pull cannot beat a
+/// completion's opening events, and a prefill announcement held until then
+/// would be replaced by the progress of the slice it announces.
 final class _TurnRelay {
   _TurnRelay({
     required this.turnId,
@@ -169,7 +174,7 @@ final class _TurnRelay {
   final void Function() _onEnded;
   late final StreamSubscription<EngineCompletionEvent> _subscription;
   final _held = <EngineCompletionEvent>[];
-  var _pulls = 0;
+  var _pulls = 1;
   var _ended = false;
 
   void pull() {
@@ -182,12 +187,21 @@ final class _TurnRelay {
   void _hold(EngineCompletionEvent event) {
     final last = _held.lastOrNull;
     final merged = switch (event) {
-      EngineCompletionTextDelta(:final text)
+      EngineCompletionTextDelta(:final text, :final tokens)
           when last is EngineCompletionTextDelta =>
-        EngineCompletionTextDelta('${last.text}$text'),
-      EngineCompletionReasoningDelta(:final text)
+        EngineCompletionTextDelta(
+          '${last.text}$text',
+          tokens: last.tokens + tokens,
+        ),
+      EngineCompletionReasoningDelta(:final text, :final tokens)
           when last is EngineCompletionReasoningDelta =>
-        EngineCompletionReasoningDelta('${last.text}$text'),
+        EngineCompletionReasoningDelta(
+          '${last.text}$text',
+          tokens: last.tokens + tokens,
+        ),
+      EngineCompletionPrefillProgressed()
+          when last is EngineCompletionPrefillProgressed =>
+        event,
       _ => null,
     };
     if (merged == null) {

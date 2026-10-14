@@ -90,7 +90,7 @@ Bestie finds models in two places:
 
 Bestie runs Qwen, gpt-oss, Gemma 4, and GLM-4 models. Anything else shows up with the reason it can't run. Multimodal models aren't supported yet.
 
-Models run using `bestie_server`, a small llama.cpp server that ships beside `bestie`. Bestie automatically manages its lifecycle and keeps the model you've selected loaded while Bestie is running. Only one instance of Bestie can use it at once.
+Models run using `bestie_server`, a small llama.cpp server that ships beside `bestie`. Bestie starts it when it launches, keeps the model you've selected loaded, and shuts it down when you quit. Only one instance of Bestie can use it at once.
 
 ## ⚙️ Configuration
 

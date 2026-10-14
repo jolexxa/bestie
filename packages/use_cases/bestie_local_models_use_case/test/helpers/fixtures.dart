@@ -1,6 +1,6 @@
 import 'package:bestie_local_models_use_case/src/local_models_operations.dart';
-import 'package:bestie_local_models_use_case/src/models/local_server_status.dart';
 import 'package:bestie_platform_abstractions/bestie_platform_abstractions.dart';
+import 'package:built_in_server_repository/built_in_server_repository.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:local_models_repository/local_models_repository.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
@@ -154,7 +154,7 @@ void stubOperations(
   MockLocalModelsOperations operations, {
   Stream<ModelLibrary>? library,
   ModelLibrary currentLibrary = readyLibrary,
-  Stream<LocalServerStatus>? server,
+  Stream<BuiltInServerStatus>? server,
   Stream<String?>? inUseIds,
   String? inUseId,
   int memoryBytes = 24 * gigabyte,
@@ -178,4 +178,7 @@ void stubOperations(
   );
   when(() => operations.memoryBytes).thenReturn(memoryBytes);
   when(() => operations.freeMemoryBytes).thenReturn(freeMemoryBytes);
+  when(
+    () => operations.serverLogFile,
+  ).thenReturn('~/.bestie/logs/server.log');
 }

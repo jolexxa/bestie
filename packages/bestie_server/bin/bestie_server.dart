@@ -42,10 +42,14 @@ Future<void> main(List<String> arguments) async {
 
 Future<int> _run(ServerArguments arguments) async {
   final logPath = arguments.logPath;
-  final sink = logPath == null
-      ? stderr
-      : File(logPath).openWrite(mode: FileMode.append);
-  final log = SinkServerLog(sink);
+  final logFile = logPath == null
+      ? null
+      : File(logPath).openSync(mode: FileMode.append);
+  final log = LineServerLog(
+    logFile == null
+        ? stderr.writeln
+        : (line) => logFile.writeStringSync('$line\n'),
+  );
 
   final stopped = await ServerLaunch(
     bestieDir: arguments.bestieDir,
@@ -61,8 +65,7 @@ Future<int> _run(ServerArguments arguments) async {
     pid: pid,
     shutdownRequests: _shutdownSignals(),
   ).run();
-  await sink.flush();
-  if (logPath != null) await sink.close();
+  logFile?.closeSync();
   return stopped.exitCode;
 }
 

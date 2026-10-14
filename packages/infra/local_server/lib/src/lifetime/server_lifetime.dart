@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:local_server/src/lifetime/server_lifetime_input.dart';
 import 'package:local_server/src/lifetime/server_lifetime_logic.dart';
 import 'package:local_server/src/lifetime/server_lifetime_output.dart';
-import 'package:local_server/src/lifetime/server_stop_reason.dart';
+import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:logic_blocks/logic_blocks.dart';
 
 /// Decides when the server stops: once its last connection closes, or when
@@ -45,8 +45,14 @@ class ServerLifetime {
   /// Stops counting a request [opened] counted.
   void closed() => _logic.input(const ConnectionClosed());
 
-  /// Commits shutdown whatever is still open.
-  void requestShutdown() => _logic.input(const ShutdownRequested());
+  /// Commits shutdown for [reason] whatever is still open; once it has
+  /// ended, nothing changes it.
+  void requestShutdown({
+    ServerStopReason reason = ServerStopReason.requested,
+  }) {
+    if (_ended.isCompleted) return;
+    _logic.input(ShutdownRequested(reason));
+  }
 
   /// Cancels the grace for good, so no timer outlives the server.
   void dispose() {

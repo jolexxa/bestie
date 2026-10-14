@@ -1,6 +1,6 @@
 import 'package:markdown_highlighted/src/internal/backdrop.dart';
+import 'package:markdown_highlighted/src/internal/incremental_markdown_parser.dart';
 import 'package:markdown_highlighted/src/internal/markdown_block.dart';
-import 'package:markdown_highlighted/src/internal/markdown_document.dart';
 import 'package:markdown_highlighted/src/markdown_builders.dart';
 import 'package:markdown_highlighted/src/markdown_visitor.dart';
 import 'package:markdown_highlighted/src/theme/highlight_theme.dart';
@@ -18,6 +18,9 @@ import 'package:nocterm/nocterm.dart';
 /// math, tables. Each block is its own selectable with locally-indexed
 /// selection, so a pane resize can reflow layout without shifting the
 /// selectable text of any block: width never appears in a block's text.
+///
+/// As [data] grows, only its unsettled tail is parsed and visited again; the
+/// blocks of every settled top-level node are kept.
 ///
 /// Code blocks and inline code spans are routed through [builders] — pass
 /// [MarkdownBuilders.defaults] (the default) to get syntax highlighting and
@@ -62,9 +65,13 @@ class MarkdownView extends StatefulComponent {
 }
 
 class _MarkdownViewState extends State<MarkdownView> {
-  late List<MarkdownBlock> _blocks;
+  final _parser = IncrementalMarkdownParser();
+  MarkdownParse _parse = const MarkdownParse(nodes: [], stableCount: 0);
+  List<List<MarkdownBlock>> _blocksByNode = const [];
+  List<MarkdownBlock> _blocks = const [];
+  late MarkdownVisitor _visitor;
   late MarkdownTheme _effectiveTheme;
-  late MarkdownBuilders _effectiveBuilders;
+  var _bound = false;
 
   String? _lastData;
   MarkdownTheme? _lastTheme;
@@ -83,30 +90,23 @@ class _MarkdownViewState extends State<MarkdownView> {
             ? constraints.maxWidth.toInt()
             : null;
 
-        if (component.data != _lastData ||
+        final settingsChanged =
+            !_bound ||
             component.theme != _lastTheme ||
             component.builders != _lastBuilders ||
             component.highlightTheme != _lastHighlightTheme ||
             mathTheme != _lastMathTheme ||
             component.streaming != _lastStreaming ||
-            maxWidth != _lastMaxWidth) {
+            maxWidth != _lastMaxWidth;
+        final dataChanged = component.data != _lastData;
+
+        if (settingsChanged) _bindVisitor(mathTheme, maxWidth);
+        if (dataChanged) {
           _lastData = component.data;
-          _lastTheme = component.theme;
-          _lastBuilders = component.builders;
-          _lastHighlightTheme = component.highlightTheme;
-          _lastMathTheme = mathTheme;
-          _lastMaxWidth = maxWidth;
-          _lastStreaming = component.streaming;
-
-          final themeDefaults = MarkdownTheme.terminal();
-          _effectiveTheme = component.theme == null
-              ? themeDefaults
-              : themeDefaults.merge(component.theme!);
-          _effectiveBuilders =
-              component.builders ??
-              MarkdownBuilders.defaults(theme: component.highlightTheme);
-
-          _blocks = _parse(maxWidth, mathTheme);
+          _parse = _parser.update(component.data);
+        }
+        if (settingsChanged || dataChanged) {
+          _layOut(keeping: settingsChanged ? 0 : _parse.stableCount);
         }
 
         return Column(
@@ -121,6 +121,42 @@ class _MarkdownViewState extends State<MarkdownView> {
         );
       },
     );
+  }
+
+  /// The visitor's settings decide every block's spans, so a change to any
+  /// of them re-visits the whole document while the parse is kept.
+  void _bindVisitor(MathTheme mathTheme, int? maxWidth) {
+    _bound = true;
+    _lastTheme = component.theme;
+    _lastBuilders = component.builders;
+    _lastHighlightTheme = component.highlightTheme;
+    _lastMathTheme = mathTheme;
+    _lastMaxWidth = maxWidth;
+    _lastStreaming = component.streaming;
+
+    final themeDefaults = MarkdownTheme.terminal();
+    _effectiveTheme = component.theme == null
+        ? themeDefaults
+        : themeDefaults.merge(component.theme!);
+    _visitor = MarkdownVisitor(
+      theme: _effectiveTheme,
+      builders:
+          component.builders ??
+          MarkdownBuilders.defaults(theme: component.highlightTheme),
+      mathTheme: mathTheme,
+      maxWidth: maxWidth,
+      codeBlockBackground: component.highlightTheme.background,
+      streaming: component.streaming,
+    );
+  }
+
+  /// Keeps the blocks of the first [keeping] nodes and visits the rest.
+  void _layOut({required int keeping}) {
+    _blocksByNode = [
+      ..._blocksByNode.take(keeping),
+      for (final node in _parse.nodes.skip(keeping)) _visitor.blocksFor(node),
+    ];
+    _blocks = [for (final blocks in _blocksByNode) ...blocks];
   }
 
   /// One row of text over the effective paragraph style — the cascade every
@@ -144,18 +180,5 @@ class _MarkdownViewState extends State<MarkdownView> {
           child: ClipRect(child: _richText(span, softWrap: false)),
         );
     }
-  }
-
-  List<MarkdownBlock> _parse(int? maxWidth, MathTheme mathTheme) {
-    final nodes = buildMarkdownDocument().parse(component.data);
-    final visitor = MarkdownVisitor(
-      theme: _effectiveTheme,
-      builders: _effectiveBuilders,
-      mathTheme: mathTheme,
-      maxWidth: maxWidth,
-      codeBlockBackground: component.highlightTheme.background,
-      streaming: component.streaming,
-    );
-    return visitor.visit(nodes);
   }
 }

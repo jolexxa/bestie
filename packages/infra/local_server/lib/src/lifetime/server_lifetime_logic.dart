@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:local_server/src/lifetime/server_lifetime_data.dart';
 import 'package:local_server/src/lifetime/server_lifetime_input.dart';
 import 'package:local_server/src/lifetime/server_lifetime_output.dart';
-import 'package:local_server/src/lifetime/server_stop_reason.dart';
+import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:logic_blocks/logic_blocks.dart';
 
 /// Keeps the server up exactly as long as it has a connection. A fresh
@@ -46,8 +46,8 @@ sealed class ServerLifetimeState extends StateLogic<ServerLifetimeState> {
     return to<DrainingState>();
   }
 
-  Transition onShutdownRequested(ShutdownRequested _) =>
-      drain(ServerStopReason.requested);
+  Transition onShutdownRequested(ShutdownRequested input) =>
+      drain(input.reason);
 }
 
 /// Freshly started: nothing has connected yet, and the grace is running.
