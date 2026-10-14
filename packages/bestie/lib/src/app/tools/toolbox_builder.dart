@@ -40,6 +40,7 @@ UtilityToolsUseCase buildUtilityTools({
     caCertPath: platform.caCertPath,
     editorPath: editorPath,
     processHost: processHost,
+    paths: platform.paths,
     toolCacheChars: config.resolve(configKeys.toolCacheChars.global),
   );
 

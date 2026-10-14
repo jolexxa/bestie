@@ -33,6 +33,14 @@ const _baseDirAsset = AppAsset(
   missingMessage: 'Curl library set not found.',
 );
 
+const _programAsset = AppAsset(
+  path: 'bestie_server',
+  packageOwner: 'packages/bestie_server',
+  bundleSubdir: 'bin',
+  sourceScript: 'packages/bestie_server/bin/bestie_server.dart',
+  missingMessage: 'Server not found.',
+);
+
 AppAssetResolver _resolver(MemoryFileSystem fs, {required bool bundled}) =>
     AppAssetResolver(
       bundled: bundled,
@@ -140,6 +148,38 @@ void main() {
               contains('/app/lib/libtest.dylib'),
             ),
           ),
+        ),
+      );
+    });
+  });
+
+  group('commandFor', () {
+    test('runs the bundled executable without requiring it to exist', () {
+      final fs = MemoryFileSystem.test();
+
+      expect(
+        _resolver(
+          fs,
+          bundled: true,
+        ).commandFor(_programAsset, dartExecutable: '/sdk/dart'),
+        const ProgramCommand(executable: '/app/bin/bestie_server'),
+      );
+    });
+
+    test('has the Dart VM run the source script in a checkout', () {
+      final fs = MemoryFileSystem.test();
+
+      expect(
+        _resolver(
+          fs,
+          bundled: false,
+        ).commandFor(_programAsset, dartExecutable: '/sdk/dart'),
+        const ProgramCommand(
+          executable: '/sdk/dart',
+          arguments: [
+            'run',
+            '/repo/packages/bestie_server/bin/bestie_server.dart',
+          ],
         ),
       );
     });

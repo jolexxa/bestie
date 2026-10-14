@@ -21,18 +21,28 @@ class _FakeSandbox implements Sandbox {}
 
 const _keyId = 'tools.concurrent';
 
+const _field = NumericField<int>(
+  label: 'n',
+  description: 'd',
+  min: 0,
+  max: 1 << 20,
+  step: 1,
+);
+
 ToolsConfigKeys _configKeys() => ToolsConfigKeys(
   concurrentTools: ConfigKey<int>(
     id: _keyId,
     path: const [_keyId],
     codec: ConfigCodecs.integers,
     defaultValue: () => defaultConcurrentTools,
+    field: _field,
   ),
   toolCacheChars: ConfigKey<int>(
     id: 'tools.cache_characters',
     path: const ['tools.cache_characters'],
     codec: ConfigCodecs.integers,
     defaultValue: () => defaultToolCacheChars,
+    field: _field,
   ),
 );
 

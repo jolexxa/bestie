@@ -2,25 +2,14 @@ import 'package:bestie_config_view/src/schema/bestie_config_keys.dart';
 import 'package:bestie_config_view/src/state/info_layout.dart';
 import 'package:config_protocol/config_protocol.dart';
 
-/// Arranges the flat entries contributed by each feature into the config
-/// overlay's cross-feature page layout.
-ConfigLayout buildConfigLayout(
-  List<ConfigContribution> contributions,
-  BestieConfigKeys keys,
-) {
-  final byId = <String, ConfigEntry>{
-    for (final contribution in contributions)
-      for (final entry in contribution.entries) entry.key.id: entry,
-  };
-
-  ConfigEntry at(ConfigKeyBase key) => byId[key.id]!;
-
-  final provider = keys.provider;
-  final sampling = provider.sampling;
+/// Arranges each feature's settings into the config overlay's cross-feature
+/// page layout.
+ConfigLayout buildConfigLayout(BestieConfigKeys keys) {
+  final endpoint = keys.openAiEndpoint;
+  final sampling = keys.chat.sampling;
 
   return ConfigLayout(
     initialPageId: 'app',
-    orphanEntries: [at(provider.model)],
     pages: [
       ConfigParamPage(
         id: 'app',
@@ -28,11 +17,11 @@ ConfigLayout buildConfigLayout(
         sections: [
           ConfigSection(
             heading: 'App',
-            entries: [
-              at(keys.app.themeName),
-              at(keys.app.themeEffects),
-              at(keys.app.mathColors),
-              at(keys.mascot.mascot),
+            addresses: [
+              keys.app.themeName.global,
+              keys.app.themeEffects.global,
+              keys.app.mathColors.global,
+              keys.mascot.mascot.global,
             ],
           ),
         ],
@@ -43,17 +32,17 @@ ConfigLayout buildConfigLayout(
         sections: [
           ConfigSection(
             heading: 'Prompt',
-            entries: [at(keys.chat.systemPrompt)],
+            addresses: [keys.chat.systemPrompt.global],
           ),
           ConfigSection(
             heading: 'Memory',
-            entries: [at(keys.chat.memoryCompactionRatio)],
+            addresses: [keys.chat.memoryCompactionRatio.global],
           ),
           ConfigSection(
             heading: 'Tools',
-            entries: [
-              at(keys.chat.maxToolCallCharacters),
-              at(keys.tools.concurrentTools),
+            addresses: [
+              keys.chat.maxToolCallCharacters.global,
+              keys.tools.concurrentTools.global,
             ],
           ),
         ],
@@ -63,33 +52,41 @@ ConfigLayout buildConfigLayout(
         label: 'Provider',
         sections: [
           ConfigSection(
-            heading: 'OpenRouter',
-            entries: [at(provider.openRouterApiKey)],
+            heading: 'Local models',
+            addresses: [keys.localModels.paths.global],
           ),
           ConfigSection(
-            heading: 'Fireworks AI',
-            entries: [at(provider.fireworksApiKey)],
+            heading: 'Built-in server',
+            addresses: [keys.builtInServer.contextCap.global],
           ),
           ConfigSection(
             heading: 'Custom endpoint',
-            entries: [
-              at(provider.customBaseUrl),
-              at(provider.customApiKey),
-              at(provider.customContextWindow),
+            addresses: [
+              endpoint.baseUrl.global,
+              endpoint.apiKey.global,
+              endpoint.contextWindow.global,
             ],
           ),
           ConfigSection(
+            heading: 'OpenRouter',
+            addresses: [keys.openRouter.apiKey.global],
+          ),
+          ConfigSection(
+            heading: 'Fireworks AI',
+            addresses: [keys.fireworks.apiKey.global],
+          ),
+          ConfigSection(
             heading: 'Agents',
-            entries: [at(provider.maxAgents)],
+            addresses: [keys.provider.maxAgents.global],
           ),
           ConfigSection(
             heading: 'Sampling',
-            entries: [
-              at(sampling.temperature),
-              at(sampling.topP),
-              at(sampling.frequencyPenalty),
-              at(sampling.presencePenalty),
-              at(sampling.seed),
+            addresses: [
+              sampling.temperature.global,
+              sampling.topP.global,
+              sampling.frequencyPenalty.global,
+              sampling.presencePenalty.global,
+              sampling.seed.global,
             ],
           ),
         ],
@@ -100,14 +97,14 @@ ConfigLayout buildConfigLayout(
         sections: [
           ConfigSection(
             heading: 'Agent Shell',
-            entries: [
-              at(keys.sandbox.sandboxAgentShell),
-              at(keys.sandbox.sandboxFailClosed),
+            addresses: [
+              keys.sandbox.sandboxAgentShell.global,
+              keys.sandbox.sandboxFailClosed.global,
             ],
           ),
           ConfigSection(
             heading: 'Network',
-            entries: [at(keys.sandbox.sandboxNetworkTier)],
+            addresses: [keys.sandbox.sandboxNetworkTier.global],
           ),
         ],
       ),

@@ -1,7 +1,12 @@
+import 'dart:math';
+
 import 'package:bestie_palette_view/src/models/indexed_option.dart';
 import 'package:bestie_palette_view/src/models/palette_row.dart';
+import 'package:bestie_palette_view/src/models/pane_frame.dart';
 import 'package:bestie_palette_view/src/state/palette_cubit.dart';
 import 'package:bestie_palette_view/src/state/palette_logic.dart';
+import 'package:bestie_palette_view/src/view/palette_list_parts.dart';
+import 'package:bestie_palette_view/src/view/pane_parts.dart';
 import 'package:bestie_ui/bestie_ui.dart';
 import 'package:blocterm/blocterm.dart';
 import 'package:command_protocol/command_protocol.dart';
@@ -22,7 +27,18 @@ class _PalettePageViewState extends State<PalettePageView> {
   final ScrollController _listController = ScrollController();
   final TextEditingController _queryController = TextEditingController();
   final TextEditingController _valueController = TextEditingController();
+  final TextEditingController _paneQueryController = TextEditingController();
   Param? _lastParam;
+  PaneFrame? _lastFrame;
+
+  /// The card's width while a pane shows, when the terminal has room.
+  static const int paneWidth = 80;
+
+  /// The card's width for the command list, and for panes on narrow
+  /// terminals.
+  static const int commandWidth = 64;
+
+  static const int cardHeight = 29;
 
   @override
   void initState() {
@@ -37,16 +53,20 @@ class _PalettePageViewState extends State<PalettePageView> {
     _listController.dispose();
     _queryController.dispose();
     _valueController.dispose();
+    _paneQueryController.dispose();
     super.dispose();
   }
 
   /// Scrolls the moved-to row into view.
   void _onCursorMoved(int index) {
-    final state = _cubit.state;
-    final offset = state is BrowsingState
-        ? _headersBefore(state.rows, index)
-        : 0;
-    _listController.ensureIndexVisible(index: index + offset);
+    final entry = switch (_cubit.state) {
+      final BrowsingState state => index + _headersBefore(state.rows, index),
+      final ViewingPaneState state => _paneEntries(
+        state.visibleSections,
+      ).indexWhere((entry) => entry is _PaneRowEntry && entry.index == index),
+      _ => index,
+    };
+    _listController.ensureIndexVisible(index: entry);
   }
 
   int _headersBefore(List<PaletteRow> rows, int index) {
@@ -67,8 +87,29 @@ class _PalettePageViewState extends State<PalettePageView> {
     return entries;
   }
 
+  /// The pane list as drawn: each section's header, notes and column titles,
+  /// then its rows, numbered across sections.
+  List<_PaneEntry> _paneEntries(List<PaneSection> sections) {
+    final entries = <_PaneEntry>[];
+    var index = 0;
+    for (final section in sections) {
+      if (section.title case final String title) {
+        entries.add(_PaneHeaderEntry(title, section.count));
+      }
+      entries.addAll(section.notes.map(_PaneNoteEntry.new));
+      if (section.columns.any((column) => column.title.isNotEmpty)) {
+        entries.add(_PaneColumnsEntry(section));
+      }
+      for (final row in section.rows) {
+        entries.add(_PaneRowEntry(section, row, index++));
+      }
+    }
+    return entries;
+  }
+
   /// Clears stale text when the palette closes or the collected param
-  /// changes, so each step starts from an empty field.
+  /// changes, so each step starts from an empty field, and shows each pane's
+  /// own query as it comes into view.
   void _onStateChanged(BuildContext _, PaletteState state) {
     if (state is ClosedState && _queryController.text.isNotEmpty) {
       _queryController.clear();
@@ -77,6 +118,11 @@ class _PalettePageViewState extends State<PalettePageView> {
     if (!identical(param, _lastParam)) {
       _lastParam = param;
       _valueController.clear();
+    }
+    final frame = state is ViewingPaneState ? state.frame : null;
+    if (!identical(frame, _lastFrame)) {
+      _lastFrame = frame;
+      _paneQueryController.text = frame?.query ?? '';
     }
   }
 
@@ -94,9 +140,13 @@ class _PalettePageViewState extends State<PalettePageView> {
           final theme = AppTheme.of(context);
           return switch (state) {
             ClosedState() => const SizedBox(),
-            final BrowsingState s => _buildBrowsing(s, theme),
-            final CollectingState s => _buildCollecting(s, theme),
-            final InvokingState s => _buildInvoking(s, theme),
+            final BrowsingState browsing => _buildBrowsing(browsing, theme),
+            final CollectingState collecting => _buildCollecting(
+              collecting,
+              theme,
+            ),
+            final InvokingState invoking => _buildInvoking(invoking, theme),
+            final ViewingPaneState viewing => _buildPane(viewing, theme),
           };
         },
       ),
@@ -167,8 +217,10 @@ class _PalettePageViewState extends State<PalettePageView> {
                   : ScrollableListShell(
                       controller: _listController,
                       itemCount: entries.length,
-                      itemBuilder: (_, i) => switch (entries[i]) {
-                        _GroupHeaderEntry(:final group) => _GroupHeader(group),
+                      itemBuilder: (_, index) => switch (entries[index]) {
+                        _GroupHeaderEntry(:final group) => PaletteGroupHeader(
+                          group,
+                        ),
                         _CommandEntry(:final index) => Hoverable(
                           onTap: () => _selectRow(index, state.selectedIndex),
                           onActivate: () {
@@ -243,17 +295,12 @@ class _PalettePageViewState extends State<PalettePageView> {
           focused: true,
           onKeyEvent: (event) => InputActions.dispatch(ctx, event),
           child: _card(
+            wide: state.hasPanes,
             children: [
               _header(
                 theme,
                 children: [
-                  SizedBox(
-                    height: 1,
-                    child: Text(
-                      '$title › ${param.label}',
-                      style: TextStyle(color: theme.secondary),
-                    ),
-                  ),
+                  PaletteBreadcrumb([...state.paneTrail, title, param.label]),
                   ...switch (param) {
                     TextParam(:final hint) => [
                       TextField(
@@ -348,10 +395,10 @@ class _PalettePageViewState extends State<PalettePageView> {
     return ScrollableListShell(
       controller: _listController,
       itemCount: options.length,
-      itemBuilder: (_, i) => Hoverable(
-        onTap: () => _selectRow(i, state.selectedIndex),
+      itemBuilder: (_, index) => Hoverable(
+        onTap: () => _selectRow(index, state.selectedIndex),
         onActivate: () {
-          _selectRow(i, state.selectedIndex);
+          _selectRow(index, state.selectedIndex);
           if (multi) {
             _cubit.toggleOption();
           } else {
@@ -359,19 +406,174 @@ class _PalettePageViewState extends State<PalettePageView> {
           }
         },
         builder: (context, {required hovered}) => _OptionRow(
-          entry: options[i],
-          selected: i == state.selectedIndex,
+          entry: options[index],
+          selected: index == state.selectedIndex,
           hovered: hovered,
-          toggled: multi && state.toggled.contains(options[i].index),
+          toggled: multi && state.toggled.contains(options[index].index),
           multi: multi,
         ),
       ),
     );
   }
 
+  // ── Pane ────────────────────────────────────────────────
+
+  Component _buildPane(ViewingPaneState state, AppThemeData theme) {
+    return InputActions(
+      actions: [
+        KeyAction(
+          label: 'Move',
+          key: LogicalKey.arrowUp,
+          visible: false,
+          onActivate: () => _cubit.moveSelection(-1),
+        ),
+        KeyAction(
+          label: 'Move',
+          key: LogicalKey.arrowDown,
+          visible: false,
+          onActivate: () => _cubit.moveSelection(1),
+        ),
+        KeyAction(
+          label: 'Run',
+          key: LogicalKey.enter,
+          visible: false,
+          onActivate: _cubit.activate,
+        ),
+        KeyAction(
+          label: 'Back',
+          key: LogicalKey.escape,
+          visible: false,
+          onActivate: _cubit.back,
+        ),
+      ],
+      child: Builder(
+        builder: (ctx) {
+          bool onKey(KeyboardEvent event) =>
+              InputActions.dispatch(ctx, event) || _claimPaneKey(state, event);
+          return Focusable(
+            focused: true,
+            onKeyEvent: onKey,
+            child: _card(
+              wide: true,
+              footer: PaneHints(_paneHints(state)),
+              children: [
+                _paneHeader(state, theme, onKey),
+                Expanded(child: _paneBody(state, theme)),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Runs a printable key the pane claims, so it never reaches the query.
+  bool _claimPaneKey(ViewingPaneState state, KeyboardEvent event) {
+    final char = event.character;
+    final plain = !event.isControlPressed && !event.isAltPressed;
+    if (char == null || !plain || !state.claimsKey(char)) return false;
+    _cubit.pressPaneKey(char);
+    return true;
+  }
+
+  /// The surface band: breadcrumb, query field, status line and error.
+  Component _paneHeader(
+    ViewingPaneState state,
+    AppThemeData theme,
+    bool Function(KeyboardEvent event) onKey,
+  ) => Container(
+    color: theme.surface,
+    padding: const EdgeInsets.only(left: 1, right: 1, bottom: 1),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        PaletteBreadcrumb(state.paneTrail),
+        if (state.hasQuery)
+          TextField(
+            controller: _paneQueryController,
+            focused: true,
+            placeholder:
+                state.pane.placeholder ??
+                switch (state.pane.filter) {
+                  PaneFilter.search => 'Search…',
+                  PaneFilter.fuzzy || PaneFilter.none => 'Filter…',
+                },
+            onChanged: _cubit.queryChanged,
+            onKeyEvent: onKey,
+          ),
+        if (state.status case final PaneStatus status)
+          PaneStatusBand(status, actions: state.bandActions),
+        if (state.pendingAction case final PaneAction action)
+          PanePendingBand(action),
+        if (state.error case final String error)
+          SizedBox(
+            height: 1,
+            child: Text('⚠ $error', style: TextStyle(color: theme.error)),
+          ),
+      ],
+    ),
+  );
+
+  Component _paneBody(ViewingPaneState state, AppThemeData theme) {
+    final entries = _paneEntries(state.visibleSections);
+    if (state.loading || entries.isEmpty) {
+      return Center(
+        child: Text(
+          state.loading ? 'Loading…' : 'Nothing to show.',
+          style: TextStyle(color: theme.muted),
+        ),
+      );
+    }
+    return ScrollableListShell(
+      controller: _listController,
+      itemCount: entries.length,
+      itemBuilder: (_, index) => switch (entries[index]) {
+        final _PaneHeaderEntry header => PaletteGroupHeader(
+          header.label,
+          gap: 0,
+        ),
+        _PaneNoteEntry(:final note) => PaneNoteLine(note),
+        _PaneColumnsEntry(:final section) => PaneColumnsHeader(section),
+        _PaneRowEntry(:final section, :final row, :final index) => Hoverable(
+          onTap: () => _selectRow(index, state.selectedIndex),
+          onActivate: () {
+            _selectRow(index, state.selectedIndex);
+            _cubit.activate();
+          },
+          builder: (context, {required hovered}) => PaneRowView(
+            row: row,
+            section: section,
+            selected: index == state.selectedIndex,
+            hovered: hovered,
+          ),
+        ),
+      },
+    );
+  }
+
+  /// The selected row's live actions, Enter's first, then moving, filtering
+  /// and going back. Actions drop out while one is still running.
+  List<PaneHint> _paneHints(ViewingPaneState state) {
+    final actions = state.pendingAction == null
+        ? state.liveActions
+        : const <PaneAction>[];
+    return [
+      for (final action in [
+        ...actions.where((action) => action.primary),
+        ...actions.where((action) => !action.primary),
+      ])
+        PaneHint.of(action),
+      const PaneHint('▴/▾', 'Move'),
+      if (state.offersFilterKey)
+        const PaneHint(ViewingPaneState.filterKey, 'Filter'),
+      PaneHint('esc', state.pane.backLabel),
+    ];
+  }
+
   // ── Invoking ────────────────────────────────────────────
 
   Component _buildInvoking(InvokingState state, AppThemeData theme) => _card(
+    wide: state.hasPanes,
     children: [
       Expanded(
         child: Center(
@@ -384,12 +586,23 @@ class _PalettePageViewState extends State<PalettePageView> {
     ],
   );
 
-  Component _card({required List<Component> children}) => OverlayCard(
-    maxWidth: 64,
-    maxHeight: 29,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: children,
+  /// The palette's card: [paneWidth] wide when [wide] and the terminal has
+  /// room, [commandWidth] otherwise.
+  Component _card({
+    required List<Component> children,
+    bool wide = false,
+    Component? footer,
+  }) => LayoutBuilder(
+    builder: (context, constraints) => OverlayCard(
+      maxWidth: wide && constraints.maxWidth >= paneWidth
+          ? paneWidth
+          : commandWidth,
+      maxHeight: cardHeight,
+      footer: footer,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: children,
+      ),
     ),
   );
 
@@ -417,7 +630,6 @@ class _PalettePageViewState extends State<PalettePageView> {
   }
 }
 
-@view
 /// One item of the browse list: a group header or a command row by index.
 sealed class _BrowseEntry {
   const _BrowseEntry();
@@ -433,37 +645,6 @@ final class _CommandEntry extends _BrowseEntry {
   const _CommandEntry(this.index);
 
   final int index;
-}
-
-/// A group label in the cursor gutter's alignment with a faint rule running
-/// from it to the card's edge, set off from the rows above by a blank line.
-@view
-class _GroupHeader extends StatelessComponent {
-  const _GroupHeader(this.group);
-
-  final String group;
-
-  @override
-  Component build(BuildContext context) {
-    final theme = AppTheme.of(context);
-    return Container(
-      padding: const EdgeInsets.only(top: 1),
-      child: SizedBox(
-        height: 1,
-        child: Row(
-          children: [
-            const SizedBox(width: _TwoLineRow.gutter),
-            Text(
-              group,
-              style: TextStyle(color: theme.muted, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(width: 1),
-            Expanded(child: _Rule(color: theme.outline)),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _CommandRow extends StatelessComponent {
@@ -505,8 +686,33 @@ class _CommandRow extends StatelessComponent {
       Available() when primary => theme.primary,
       Available() => theme.secondary,
     };
-    final trailing = [?command.shortcut];
-    return _TwoLineRow(
+    final title = Text(
+      command.title,
+      style: TextStyle(
+        color: titleColor,
+        fontWeight: selected || primary ? FontWeight.bold : FontWeight.normal,
+      ),
+    );
+    final status = row.status;
+    final trailing = [
+      if (status?.progress case final double progress) ...[
+        Text(' ▕', style: TextStyle(color: theme.muted)),
+        SizedBox(
+          width: barWidth,
+          child: BlockProgressBar(
+            fraction: progress.clamp(0, 1).toDouble(),
+            color: theme.loading,
+            track: theme.muted,
+          ),
+        ),
+      ],
+      if (command.shortcut case final String shortcut)
+        Text(
+          status == null ? shortcut : '$statusGap$shortcut',
+          style: TextStyle(color: theme.muted),
+        ),
+    ];
+    return PaletteListRow(
       selected: selected,
       fill: fill,
       leading: SizedBox(
@@ -514,19 +720,57 @@ class _CommandRow extends StatelessComponent {
         child: Text(command.glyph ?? '', style: TextStyle(color: glyphColor)),
       ),
       leadingWidth: glyphWidth,
-      title: Text(
-        command.title,
-        style: TextStyle(
-          color: titleColor,
-          fontWeight: selected || primary ? FontWeight.bold : FontWeight.normal,
+      title: switch (status) {
+        null => title,
+        CommandStatus(:final spans) => _TitleWithStatus(
+          title: title,
+          titleCells: UnicodeWidth.stringWidth(command.title),
+          status: spans,
         ),
-      ),
+      },
       trailing: trailing.isEmpty
           ? null
-          : Text(trailing.join('  '), style: TextStyle(color: theme.muted)),
-      detail: detail,
+          : Row(mainAxisSize: MainAxisSize.min, children: trailing),
+      detail: Text(detail, style: TextStyle(color: theme.muted)),
     );
   }
+
+  /// Cells a status's progress bar spans.
+  static const double barWidth = 5;
+
+  /// The space between a status and the title or shortcut beside it.
+  static const String statusGap = '  ';
+}
+
+/// A command's title with its status hugging the far end of the room left,
+/// ellipsized when that room runs out; the title itself is clipped only when
+/// it alone overflows.
+class _TitleWithStatus extends StatelessComponent {
+  const _TitleWithStatus({
+    required this.title,
+    required this.titleCells,
+    required this.status,
+  });
+
+  final Component title;
+  final int titleCells;
+  final List<PaneSpan> status;
+
+  @override
+  Component build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final cells = constraints.maxWidth.toInt();
+      final shown = min(titleCells, cells);
+      final gap = min(_CommandRow.statusGap.length, cells - shown);
+      return Row(
+        children: [
+          SizedBox(width: shown.toDouble(), child: title),
+          SizedBox(width: gap.toDouble()),
+          Expanded(child: EllipsizedSpanLine(status, align: PaneAlign.end)),
+        ],
+      );
+    },
+  );
 }
 
 @view
@@ -548,12 +792,12 @@ class _OptionRow extends StatelessComponent {
   @override
   Component build(BuildContext context) {
     final theme = AppTheme.of(context);
-    return _TwoLineRow(
+    return PaletteListRow(
       selected: selected,
       fill: selected || hovered ? theme.surfaceAccent : null,
       leading: multi
           ? SizedBox(
-              width: _TwoLineRow.defaultLeadingWidth,
+              width: PaletteListRow.defaultLeadingWidth,
               child: Text(
                 toggled ? '[x]' : '[ ]',
                 style: TextStyle(color: toggled ? theme.info : theme.muted),
@@ -567,99 +811,48 @@ class _OptionRow extends StatelessComponent {
           fontWeight: selected ? FontWeight.bold : FontWeight.normal,
         ),
       ),
-      detail: entry.option.detail,
+      detail: switch (entry.option.detail) {
+        null => null,
+        final String detail => Text(
+          detail,
+          style: TextStyle(color: theme.muted),
+        ),
+      },
     );
   }
 }
 
-/// A list row with a cursor gutter, a title line, and an optional muted
-/// detail line underneath.
-@view
-class _TwoLineRow extends StatelessComponent {
-  const _TwoLineRow({
-    required this.selected,
-    required this.fill,
-    required this.title,
-    this.leading,
-    this.leadingWidth = defaultLeadingWidth,
-    this.trailing,
-    this.detail,
-  });
-
-  final bool selected;
-
-  /// Background behind the text lines.
-  final Color? fill;
-
-  final Component title;
-  final Component? leading;
-
-  /// Cells [leading] spans, so the detail line indents past it.
-  final double leadingWidth;
-  final Component? trailing;
-  final String? detail;
-
-  /// Cells reserved for the selection cursor at the left of every row.
-  static const double gutter = 2;
-  static const double defaultLeadingWidth = 4;
-
-  @override
-  Component build(BuildContext context) {
-    final theme = AppTheme.of(context);
-    final detail = this.detail;
-    return Container(
-      color: fill,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(
-            height: 1,
-            child: Row(
-              children: [
-                SizedBox(
-                  width: gutter,
-                  child: Text(
-                    selected ? '▸' : '',
-                    style: TextStyle(color: theme.info),
-                  ),
-                ),
-                if (leading case final Component leading) leading,
-                Expanded(child: title),
-                if (trailing case final Component trailing) trailing,
-              ],
-            ),
-          ),
-          if (detail != null)
-            SizedBox(
-              height: 1,
-              child: Padding(
-                padding: EdgeInsets.only(
-                  left: gutter + (leading == null ? 0 : leadingWidth),
-                ),
-                child: Text(detail, style: TextStyle(color: theme.muted)),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
+/// One item of a pane list: a group header, a note, a table's column titles,
+/// or a row numbered across sections.
+sealed class _PaneEntry {
+  const _PaneEntry();
 }
 
-/// A one-row horizontal rule that stretches to its parent's width.
-@view
-class _Rule extends StatelessComponent {
-  const _Rule({required this.color});
+final class _PaneHeaderEntry extends _PaneEntry {
+  const _PaneHeaderEntry(this.title, this.count);
 
-  final Color color;
+  final String title;
+  final int? count;
 
-  @override
-  Component build(BuildContext context) => SizedBox(
-    height: 1,
-    child: LayoutBuilder(
-      builder: (context, constraints) => Text(
-        '─' * constraints.maxWidth.toInt(),
-        style: TextStyle(color: color),
-      ),
-    ),
-  );
+  String get label => [title, ?count].join(' ');
+}
+
+final class _PaneNoteEntry extends _PaneEntry {
+  const _PaneNoteEntry(this.note);
+
+  final PaneNote note;
+}
+
+final class _PaneColumnsEntry extends _PaneEntry {
+  const _PaneColumnsEntry(this.section);
+
+  final PaneSection section;
+}
+
+final class _PaneRowEntry extends _PaneEntry {
+  const _PaneRowEntry(this.section, this.row, this.index);
+
+  final PaneSection section;
+  final PaneRow row;
+  final int index;
 }

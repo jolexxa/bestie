@@ -1,15 +1,24 @@
 // Renames a workspace package: its directory, pubspec `name:` field,
-// internal barrel/test files named after the package, and every
-// whole-word reference to the old name across the repo. Re-sorts any
+// barrel files named after the package (`lib/<name>.dart`,
+// `lib/<name>_mappers.dart`, `test/<name>_test.dart`) along with their
+// `package:` URIs, and every whole-word reference to the old name across
+// the repo, except file names: a `src/<name>.dart` is named after what it
+// holds, so it and the paths to it are left alone. Re-sorts any
 // pubspec dependency lists and Dart import/export directives the rename
 // knocked out of alphabetical order.
 //
 // Usage:
-//   dart tool/rename_package.dart <old_name> <new_name> [--execute]
+//   dart tool/rename_package.dart <old_name> <new_name>
+//       [--references-only] [--execute]
 //
 // Defaults to a dry run that prints the plan without touching anything.
 // Pass --execute to actually perform the renames via `git mv` and rewrite
 // file contents in place.
+//
+// Pass --references-only for a package whose name is an ordinary word
+// (`provider`, `inference`): only `package:<old>/` URIs and pubspec
+// `name:`, dependency keys, and `path:` segments are rewritten, leaving
+// prose, config keys, and identifiers alone.
 
 import 'dart:io';
 
@@ -28,10 +37,12 @@ const _skippedFileNames = {'pubspec.lock'};
 Future<void> main(List<String> args) async {
   final positional = args.where((a) => !a.startsWith('--')).toList();
   final execute = args.contains('--execute');
+  final referencesOnly = args.contains('--references-only');
 
   if (positional.length != 2) {
     stderr.writeln(
-      'Usage: dart tool/rename_package.dart <old_name> <new_name> [--execute]',
+      'Usage: dart tool/rename_package.dart <old_name> <new_name> '
+      '[--references-only] [--execute]',
     );
     exitCode = 64;
     return;
@@ -39,7 +50,14 @@ Future<void> main(List<String> args) async {
 
   final oldName = positional[0];
   final newName = positional[1];
-  final wordBoundary = RegExp('\\b${RegExp.escape(oldName)}\\b');
+  final escaped = RegExp.escape(oldName);
+  final wordBoundary = RegExp('\\b$escaped\\b(?!\\.dart)');
+  final packageUri = RegExp('(?<=package:)$escaped(?=/)');
+  final barrelUri = RegExp('package:$escaped/$escaped(_mappers)?\\.dart');
+  final pubspecReference = RegExp(
+    '(?<=^name: )$escaped\$|(?<=^ +)$escaped(?=:)|(?<=^ +path: \\S*/)$escaped\$',
+    multiLine: true,
+  );
 
   final repoRoot = Directory.current;
   final packageDir = await _findPackageDir(repoRoot, oldName);
@@ -52,13 +70,8 @@ Future<void> main(List<String> args) async {
   print('${execute ? 'Executing' : 'Dry run'}: $oldName -> $newName');
   print('Package directory: ${_relative(repoRoot, packageDir)}');
 
-  // Internal files whose stem is exactly the package name (barrel file)
-  // or "<name>_test" (main test file) get renamed in place first.
-  final internalRenames = await _findInternalRenames(
-    packageDir,
-    oldName,
-    newName,
-  );
+  // Barrel files named after the package get renamed in place first.
+  final internalRenames = _findInternalRenames(packageDir, oldName, newName);
   for (final rename in internalRenames) {
     print(
       '  rename file: ${_relative(repoRoot, rename.from)} -> '
@@ -69,12 +82,24 @@ Future<void> main(List<String> args) async {
     }
   }
 
-  // Whole-word content substitution across every text file in the repo,
-  // including the package's own pubspec.yaml, README, etc.
+  // Content substitution across every text file in the repo, including
+  // the package's own pubspec.yaml, README, etc.
   final changedFiles = await _substituteAcrossRepo(
     repoRoot: repoRoot,
-    pattern: wordBoundary,
-    replacement: newName,
+    substitutionsFor: (fileName) => [
+      _Substitution(
+        barrelUri,
+        (match) => 'package:$newName/$newName${match[1] ?? ''}.dart',
+      ),
+      _Substitution(
+        !referencesOnly
+            ? wordBoundary
+            : fileName == 'pubspec.yaml'
+            ? pubspecReference
+            : packageUri,
+        (_) => newName,
+      ),
+    ],
     execute: execute,
   );
   for (final entry in changedFiles.entries) {
@@ -151,40 +176,31 @@ class _Rename {
   final File to;
 }
 
-Future<List<_Rename>> _findInternalRenames(
+List<_Rename> _findInternalRenames(
   Directory packageDir,
   String oldName,
   String newName,
-) async {
-  final renames = <_Rename>[];
-  await for (final entity in packageDir.list(recursive: true)) {
-    if (entity is! File) continue;
-    if (_isExcluded(entity.path)) continue;
-
-    final fileName = entity.path.split(Platform.pathSeparator).last;
-    if (!fileName.endsWith('.dart')) continue;
-    final stem = fileName.substring(0, fileName.length - '.dart'.length);
-
-    String? newStem;
-    if (stem == oldName) {
-      newStem = newName;
-    } else if (stem == '${oldName}_test') {
-      newStem = '${newName}_test';
-    }
-    if (newStem == null) continue;
-
-    final dir = entity.parent.path;
-    renames.add(
-      _Rename(entity, File('$dir${Platform.pathSeparator}$newStem.dart')),
-    );
-  }
-  return renames;
+) {
+  final separator = Platform.pathSeparator;
+  final barrels = {
+    'lib$separator$oldName.dart': 'lib$separator$newName.dart',
+    'lib$separator${oldName}_mappers.dart':
+        'lib$separator${newName}_mappers.dart',
+    'test$separator${oldName}_test.dart': 'test$separator${newName}_test.dart',
+  };
+  return [
+    for (final MapEntry(key: from, value: to) in barrels.entries)
+      if (File('${packageDir.path}$separator$from').existsSync())
+        _Rename(
+          File('${packageDir.path}$separator$from'),
+          File('${packageDir.path}$separator$to'),
+        ),
+  ];
 }
 
 Future<Map<File, int>> _substituteAcrossRepo({
   required Directory repoRoot,
-  required RegExp pattern,
-  required String replacement,
+  required List<_Substitution> Function(String fileName) substitutionsFor,
   required bool execute,
 }) async {
   final changed = <File, int>{};
@@ -194,11 +210,8 @@ Future<Map<File, int>> _substituteAcrossRepo({
   )) {
     if (entity is! File) continue;
     if (_isExcluded(entity.path)) continue;
-    if (_skippedFileNames.contains(
-      entity.path.split(Platform.pathSeparator).last,
-    )) {
-      continue;
-    }
+    final fileName = entity.path.split(Platform.pathSeparator).last;
+    if (_skippedFileNames.contains(fileName)) continue;
 
     String content;
     try {
@@ -209,16 +222,28 @@ Future<Map<File, int>> _substituteAcrossRepo({
       continue; // unreadable/binary file
     }
 
-    final matchCount = pattern.allMatches(content).length;
+    var updated = content;
+    var matchCount = 0;
+    for (final substitution in substitutionsFor(fileName)) {
+      matchCount += substitution.pattern.allMatches(updated).length;
+      updated = updated.replaceAllMapped(
+        substitution.pattern,
+        substitution.replace,
+      );
+    }
     if (matchCount == 0) continue;
 
     changed[entity] = matchCount;
-    if (execute) {
-      final updated = content.replaceAll(pattern, replacement);
-      await entity.writeAsString(updated);
-    }
+    if (execute) await entity.writeAsString(updated);
   }
   return changed;
+}
+
+/// Replaces every [pattern] match with what [replace] builds from it.
+class _Substitution {
+  _Substitution(this.pattern, this.replace);
+  final RegExp pattern;
+  final String Function(Match match) replace;
 }
 
 const _sortedPubspecSections = {'dependencies:', 'dev_dependencies:'};

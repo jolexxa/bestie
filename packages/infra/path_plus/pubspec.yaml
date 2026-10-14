@@ -1,0 +1,18 @@
+name: path_plus
+description: "Paths beyond package:path: symlink resolution and the user's home."
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  file: ^7.0.1
+  path: ^1.9.1
+
+dev_dependencies:
+  mocktail: ^1.0.5
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

@@ -13,6 +13,13 @@ final class ShellConfigKeys {
       path: const ['app', 'shellScrollbackMb'],
       codec: ConfigCodecs.integers,
       defaultValue: () => defaultShellScrollbackMb,
+      field: const NumericField(
+        label: 'Shell Scrollback',
+        description: 'Megabytes of terminal history the agent shell keeps.',
+        min: 1,
+        max: 1024,
+        step: 1,
+      ),
     ),
   );
 

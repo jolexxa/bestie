@@ -24,9 +24,8 @@ import 'package:nocterm/nocterm.dart';
 @view
 class ConfigRow extends StatelessComponent {
   const ConfigRow({
-    required this.entry,
+    required this.address,
     required this.resolver,
-    required this.targetScope,
     required this.isSelected,
     required this.isEditing,
     this.hovered = false,
@@ -36,9 +35,8 @@ class ConfigRow extends StatelessComponent {
     super.key,
   });
 
-  final ConfigEntry entry;
+  final ConfigAddressBase address;
   final ConfigView resolver;
-  final ConfigScope? targetScope;
   final bool isSelected;
   final bool isEditing;
   final bool hovered;
@@ -52,7 +50,7 @@ class ConfigRow extends StatelessComponent {
 
     final display = _display(theme);
     final value = display.value;
-    final displayValue = _displayValue(value);
+    final displayValue = _displayValue(display);
     final validation = field.validateValue(value);
     final overridden = display.overridden;
     final source = display.source;
@@ -148,27 +146,24 @@ class ConfigRow extends StatelessComponent {
     ),
   );
 
-  ConfigFieldBase get field => entry.field;
+  ConfigFieldBase get field => address.key.field;
 
   static const _mask = '••••••••';
 
   /// Secrets stay masked while browsing; editing shows the real text.
-  String _displayValue(Object? value) {
-    final formatted = field.formatValue(value);
+  String _displayValue(_ConfigRowDisplay display) {
+    final unsetLabel = field.unsetLabel;
+    if (display.isDefault && unsetLabel != null) return unsetLabel;
+    final formatted = field.formatValue(display.value);
     return field.secret && formatted.isNotEmpty ? _mask : formatted;
   }
 
-  /// Resolves this row's own address. If another address wins resolution,
-  /// entry-level source labeling can describe that source.
+  /// Where the shown value comes from: this address, an address it inherits
+  /// from, or the key's default.
   _ConfigRowDisplay _display(AppThemeData theme) {
-    final address = entry.addressFor(targetScope: targetScope);
-    if (address == null) {
-      return const _ConfigRowDisplay.empty();
-    }
-
     final inspected = resolver.inspectBase(address);
     final source = inspected.inheritedInto(address)
-        ? _inheritedLabel(theme, inspected.source)
+        ? OriginLabel(text: 'inherited', color: theme.muted)
         : inspected.isDefault
         ? null
         : OriginLabel(text: 'set', color: theme.info);
@@ -176,23 +171,8 @@ class ConfigRow extends StatelessComponent {
       value: inspected.value,
       source: source,
       overridden: resolver.isExplicitBase(address),
+      isDefault: inspected.isDefault,
     );
-  }
-
-  OriginLabel? _inheritedLabel(
-    AppThemeData theme,
-    ConfigAddressBase? source,
-  ) {
-    final sourceLabel = entry.sourceLabel;
-    if (source != null && sourceLabel != null && _matchesSourceLabel(source)) {
-      return OriginLabel(text: sourceLabel.label, color: theme.muted);
-    }
-    return OriginLabel(text: 'inherited', color: theme.muted);
-  }
-
-  bool _matchesSourceLabel(ConfigAddressBase source) {
-    final sourceLabel = entry.sourceLabel;
-    return sourceLabel != null && source.key.id == sourceLabel.key.id;
   }
 
   /// Compact stand-in for the value column when the field is too big
@@ -237,14 +217,11 @@ final class _ConfigRowDisplay {
     required this.value,
     required this.source,
     required this.overridden,
+    required this.isDefault,
   });
-
-  const _ConfigRowDisplay.empty()
-    : value = null,
-      source = null,
-      overridden = false;
 
   final Object? value;
   final OriginLabel? source;
   final bool overridden;
+  final bool isDefault;
 }

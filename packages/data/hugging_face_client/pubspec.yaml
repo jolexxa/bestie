@@ -1,0 +1,25 @@
+name: hugging_face_client
+description: >-
+  Read-only Hugging Face Hub client for model search, repo files and download
+  URLs.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  dart_mappable: ^4.3.0
+  http: ^1.1.0
+  intentions: ^0.1.0
+  meta: ^1.18.0
+
+dev_dependencies:
+  build_runner: ^2.4.12
+  coverage: ^1.15.0
+  dart_mappable_builder: ^4.3.0
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

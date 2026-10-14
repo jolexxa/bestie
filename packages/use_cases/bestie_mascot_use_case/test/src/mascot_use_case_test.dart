@@ -27,13 +27,11 @@ void main() {
     });
   });
 
-  group('MascotConfigContribution', () {
-    test('contributes one global entry offering every mascot', () {
-      final contribution = MascotConfigContribution();
-      final entry = contribution.entries.single;
-      expect(entry.key.id, contribution.configKeys.mascot.id);
+  group('MascotConfigKeys', () {
+    test('offers every mascot by label', () {
+      final field =
+          MascotConfigKeys.defaults().mascot.field as EnumField<String>;
 
-      final field = entry.field as EnumField<String>;
       expect(field.options(), [for (final mascot in Mascot.values) mascot.id]);
       expect(field.optionLabel(Mascot.dino.id), Mascot.dino.label);
     });

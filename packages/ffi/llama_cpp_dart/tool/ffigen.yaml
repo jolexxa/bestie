@@ -1,0 +1,22 @@
+name: LlamaCppBindings
+description: Bindings for the hobbyfarm-ai llama.cpp fork.
+output: ../lib/src/bindings/llama_cpp_bindings.dart
+headers:
+  entry-points:
+    - ../third_party/include/llama.h
+    - ../third_party/include/ggml.h
+    - ../third_party/include/ggml-backend.h
+    - ../third_party/include/best_fit.h
+  include-directives:
+    - '**/third_party/include/**'
+compiler-opts:
+  - -Ithird_party/include
+silence-enum-warning: true
+preamble: |
+  // ignore_for_file: non_constant_identifier_names
+  // ignore_for_file: camel_case_types
+  // ignore_for_file: public_member_api_docs
+  // ignore_for_file: constant_identifier_names
+  // ignore_for_file: unused_element
+  // ignore_for_file: unused_field
+  // ignore_for_file: unused_import

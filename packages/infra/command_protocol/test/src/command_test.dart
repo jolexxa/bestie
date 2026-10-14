@@ -43,13 +43,17 @@ void main() {
         description: 'Cancel every job',
         group: 'Tools',
         availability: Stream.value(const Available()),
-        invoke: (answers) async {
-          invoked = true;
-          return const CommandRan();
-        },
+        body: CommandFlow(
+          invoke: (answers) async {
+            invoked = true;
+            return const CommandRan();
+          },
+        ),
       );
-      expect(command.next(const Answers.empty()), isNull);
-      expect(await command.invoke(const Answers.empty()), isA<CommandRan>());
+      final flow = command.body as CommandFlow;
+      expect(flow.next(const Answers.empty()), isNull);
+      expect(flow.running, isNull);
+      expect(await flow.invoke(const Answers.empty()), isA<CommandRan>());
       expect(invoked, isTrue);
       expect(await command.availability.first, isA<Available>());
       expect(command.description, 'Cancel every job');
@@ -64,7 +68,7 @@ void main() {
         group: 'Provider',
         tier: CommandTier.primary,
         availability: Stream.value(const Available()),
-        invoke: (_) async => const CommandRan(),
+        body: CommandFlow(invoke: (_) async => const CommandRan()),
       );
       expect(command.tier, CommandTier.primary);
       expect(command.glyph, isNull);
@@ -80,10 +84,43 @@ void main() {
         glyph: '⚙',
         shortcut: 'Ctrl+O',
         availability: Stream.value(const Available()),
-        invoke: (_) async => const CommandRan(),
+        body: CommandFlow(invoke: (_) async => const CommandRan()),
       );
       expect(command.glyph, '⚙');
       expect(command.shortcut, 'Ctrl+O');
+    });
+
+    test('reports no status unless the feature gives one', () async {
+      final command = Command(
+        id: 'a.b',
+        title: 'B',
+        description: '',
+        group: 'A',
+        availability: alwaysAvailable(),
+        body: CommandFlow(invoke: (_) async => const CommandRan()),
+      );
+      expect(await command.status.isEmpty, isTrue);
+    });
+
+    test('carries a live status with spans and a share done', () async {
+      final command = Command(
+        id: 'models.installed',
+        title: 'Installed models',
+        description: '',
+        group: 'Local Models',
+        availability: alwaysAvailable(),
+        status: Stream.value(
+          const CommandStatus([
+            PaneSpan('↓ 2 · 48%', PaneTone.info),
+          ], progress: 0.48),
+        ),
+        body: CommandFlow(invoke: (_) async => const CommandRan()),
+      );
+      final status = (await command.status.first)!;
+      expect(status.spans.single.text, '↓ 2 · 48%');
+      expect(status.spans.single.tone, PaneTone.info);
+      expect(status.progress, 0.48);
+      expect(const CommandStatus([]).progress, isNull);
     });
 
     test('flows collect dependent params until next returns null', () async {
@@ -95,41 +132,46 @@ void main() {
         description: 'Fetch a model',
         group: 'Models',
         availability: Stream.value(const Available()),
-        next: (soFar) {
-          final chosenModel = soFar.maybe(model);
-          if (chosenModel == null) {
-            return ChoiceParam<String>.fixed(
-              key: model,
-              label: 'Model',
-              options: const [Option(value: 'llama', label: 'Llama')],
-            );
-          }
-          if (soFar.maybe(quant) == null) {
-            return ChoiceParam<String>.fixed(
-              key: quant,
-              label: 'Quantization for $chosenModel',
-              options: const [Option(value: 'q4', label: 'Q4_K_M')],
-            );
-          }
-          return null;
-        },
-        invoke: (answers) async =>
-            answers.get(model) == 'llama' && answers.get(quant) == 'q4'
-            ? const CommandRan()
-            : const CommandRejected('unexpected answers'),
+        body: CommandFlow(
+          next: (soFar) {
+            final chosenModel = soFar.maybe(model);
+            if (chosenModel == null) {
+              return ChoiceParam<String>.fixed(
+                key: model,
+                label: 'Model',
+                options: const [Option(value: 'llama', label: 'Llama')],
+              );
+            }
+            if (soFar.maybe(quant) == null) {
+              return ChoiceParam<String>.fixed(
+                key: quant,
+                label: 'Quantization for $chosenModel',
+                options: const [Option(value: 'q4', label: 'Q4_K_M')],
+              );
+            }
+            return null;
+          },
+          invoke: (answers) async =>
+              answers.get(model) == 'llama' && answers.get(quant) == 'q4'
+              ? const CommandRan()
+              : const CommandRejected('unexpected answers'),
+          running: 'Downloading…',
+        ),
       );
+      final flow = command.body as CommandFlow;
+      expect(flow.running, 'Downloading…');
 
       var answers = const Answers.empty();
-      final first = command.next(answers)! as ChoiceParam<String>;
+      final first = flow.next(answers)! as ChoiceParam<String>;
       expect(first.key, model);
       answers = answers.put(model, 'llama');
 
-      final second = command.next(answers)! as ChoiceParam<String>;
+      final second = flow.next(answers)! as ChoiceParam<String>;
       expect(second.label, 'Quantization for llama');
       answers = answers.put(quant, 'q4');
 
-      expect(command.next(answers), isNull);
-      expect(await command.invoke(answers), isA<CommandRan>());
+      expect(flow.next(answers), isNull);
+      expect(await flow.invoke(answers), isA<CommandRan>());
     });
   });
 
@@ -141,7 +183,7 @@ void main() {
         description: '',
         group: 'A',
         availability: Stream.value(const Available()),
-        invoke: (_) async => const CommandRan(),
+        body: CommandFlow(invoke: (_) async => const CommandRan()),
       );
       final contribution = _FakeContribution([command]);
       expect(contribution.commands.single, same(command));

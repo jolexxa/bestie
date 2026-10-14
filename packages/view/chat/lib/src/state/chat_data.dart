@@ -1,5 +1,3 @@
-import 'package:agent_provider_protocol/agent_provider_protocol.dart'
-    show AgentProvider;
 import 'package:bestie_chat_view/src/state/models/write_access_choice.dart';
 import 'package:bestie_chat_view/src/state/selection/selection_position.dart';
 import 'package:bestie_sandbox_use_case/bestie_sandbox_use_case.dart';
@@ -23,10 +21,6 @@ const String reasoningOff = 'off';
 final class ChatData {
   /// Current reasoning mode string (e.g. 'auto', 'off', 'low').
   String reasoningMode = reasoningAuto;
-
-  /// Last primary agent provider observed when entering ready. Used to
-  /// detect "fresh primary vs same primary" across reconnects.
-  AgentProvider? lastPrimaryHandle;
 
   /// Where the sandbox stands, mirrored from the sandbox use case.
   SandboxReadiness sandboxReadiness = const SandboxReady();

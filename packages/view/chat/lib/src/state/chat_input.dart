@@ -184,6 +184,14 @@ final class ActiveJobsChanged extends ChatInput {
   final int count;
 }
 
+/// A fresh model took over, starting the chat in [mode].
+@model
+final class ReasoningReset extends ChatInput {
+  const ReasoningReset(this.mode);
+
+  final String mode;
+}
+
 /// The hosted provider's status changed.
 @model
 final class ProviderStatusChanged extends ChatInput {

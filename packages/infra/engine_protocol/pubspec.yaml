@@ -1,0 +1,23 @@
+name: engine_protocol
+description: >-
+  The local inference engine contract: models, contexts, sequences, and
+  tokenizers.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  dart_mappable: ^4.3.0
+  isolate_worker:
+    path: ../isolate_worker
+
+dev_dependencies:
+  build_runner: ^2.4.12
+  dart_mappable_builder: ^4.3.0
+  mocktail: ^1.0.5
+  test: ^1.31.1
+  very_good_analysis: ^10.2.0

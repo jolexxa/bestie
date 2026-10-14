@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 void main() {
   group('customEditable defaults', () {
     test('NumericField is customEditable', () {
-      final field = NumericField<int>(
+      const field = NumericField<int>(
         label: 'n',
         description: 'd',
         min: 0,
@@ -15,7 +15,7 @@ void main() {
     });
 
     test('BoolField is not customEditable', () {
-      final field = BoolField(label: 'b', description: 'd');
+      const field = BoolField(label: 'b', description: 'd');
       expect(field.customEditable, isFalse);
     });
 
@@ -30,13 +30,13 @@ void main() {
     });
 
     test('OpaqueField defaults to customEditable', () {
-      final field = OpaqueField<String>(label: 'o', description: 'd');
+      const field = OpaqueField<String>(label: 'o', description: 'd');
       expect(field.customEditable, isTrue);
     });
   });
 
   group('NumericField<double>', () {
-    final field = NumericField<double>(
+    const field = NumericField<double>(
       label: 'Temp',
       description: 'sampling',
       min: 0,
@@ -48,6 +48,21 @@ void main() {
       expect(field.adjust(0.5, 1), closeTo(0.6, 1e-9));
       expect(field.adjust(0, -5), 0);
       expect(field.adjust(2, 5), 2);
+    });
+
+    test('shows the default unless given an unset label', () {
+      expect(field.unsetLabel, isNull);
+      expect(
+        const NumericField<double>(
+          label: 'Temp',
+          description: 'sampling',
+          min: 0,
+          max: 2,
+          step: 0.1,
+          unsetLabel: 'model default',
+        ).unsetLabel,
+        'model default',
+      );
     });
 
     test('format uses step precision', () {
@@ -75,7 +90,7 @@ void main() {
   });
 
   group('NumericField<int>', () {
-    final field = NumericField<int>(
+    const field = NumericField<int>(
       label: 'Top-K',
       description: 'top-k',
       min: 0,
@@ -100,7 +115,7 @@ void main() {
   });
 
   group('BoolField', () {
-    final field = BoolField(label: 'Flag', description: 'a flag');
+    const field = BoolField(label: 'Flag', description: 'a flag');
 
     test('adjust toggles', () {
       expect(field.adjust(true, 1), false);
@@ -162,7 +177,7 @@ void main() {
   });
 
   group('OpaqueField<String>', () {
-    final field = OpaqueField<String>(label: 'Name', description: 'opaque');
+    const field = OpaqueField<String>(label: 'Name', description: 'opaque');
 
     test('adjust is a no-op', () {
       expect(field.adjust('hello', 1), 'hello');
@@ -184,7 +199,7 @@ void main() {
     test('is not secret unless asked', () {
       expect(field.secret, isFalse);
       expect(
-        OpaqueField<String>(
+        const OpaqueField<String>(
           label: 'Key',
           description: 'hush',
           secret: true,
@@ -192,7 +207,7 @@ void main() {
         isTrue,
       );
       expect(
-        NumericField<int>(
+        const NumericField<int>(
           label: 'n',
           description: 'd',
           min: 0,
@@ -205,12 +220,58 @@ void main() {
 
     test('maxLines defaults to 1, configurable via ctor', () {
       expect(field.maxLines, 1);
-      final multi = OpaqueField<String>(
+      const multi = OpaqueField<String>(
         label: 'Long',
         description: 'big',
         maxLines: 8,
       );
       expect(multi.maxLines, 8);
+    });
+  });
+
+  group('ListField', () {
+    const field = ListField(label: 'Paths', description: 'one per line');
+
+    test('edits one value per line', () {
+      expect(field.format(['/models', '/more']), '/models\n/more');
+      expect(field.parse(' /models \n\n  \n/more\n'), ['/models', '/more']);
+      expect(field.parse(''), isEmpty);
+    });
+
+    test('is never adjusted and always valid', () {
+      expect(field.adjust(['/models'], 1), ['/models']);
+      expect(field.validate(['/models']), isA<Valid>());
+    });
+
+    test('spans several lines unless told otherwise', () {
+      expect(field.maxLines, 4);
+      expect(field.customEditable, isTrue);
+      expect(
+        const ListField(label: 'Paths', description: 'd', maxLines: 2).maxLines,
+        2,
+      );
+    });
+  });
+
+  group('ConfigFieldBase', () {
+    const ConfigFieldBase field = NumericField<int>(
+      label: 'n',
+      description: 'd',
+      min: 0,
+      max: 10,
+      step: 2,
+    );
+
+    test('adjusts, formats, parses, and validates untyped values', () {
+      expect(field.adjustValue(4, 1), 6);
+      expect(field.formatValue(4), '4');
+      expect(field.parseValue('7'), 7);
+      expect(field.validateValue(11), isA<Invalid>());
+    });
+
+    test('shows nothing for a missing value and lets it pass', () {
+      expect(field.formatValue(null), '');
+      expect(field.validateValue(null), const Valid());
     });
   });
 }

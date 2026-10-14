@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:agent_provider_protocol/agent_provider_protocol.dart'
-    show AgentProvider, ContextPoolSnapshot, SamplingOptions;
 import 'package:agent_repository/agent_repository.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
+    show AgentRuntime, ContextPoolSnapshot, SamplingOptions;
 import 'package:bestie_chat_use_case/src/chat_config_keys.dart';
 import 'package:bestie_chat_use_case/src/chat_strings.dart';
 import 'package:bestie_chat_use_case/src/conversation_picker.dart';
@@ -11,12 +11,12 @@ import 'package:bestie_chat_use_case/src/subagent_tools.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:config_repository/config_repository.dart';
 import 'package:intentions/intentions.dart';
+import 'package:path_plus/path_plus.dart';
+import 'package:provider_protocol/provider_protocol.dart'
+    show ProviderModelLoading, ProviderModelMeasuring;
 import 'package:provider_repository/provider_repository.dart';
 import 'package:tool_protocol/tool_protocol.dart'
     show Job, ToolCallInvocation, ToolDefinitions, ToolResponder;
-
-/// Reads the sampling every turn runs under, as configured right now.
-typedef SamplingResolver = SamplingOptions Function();
 
 /// Feature-aggregate use case for the chat surface.
 @useCase
@@ -26,21 +26,21 @@ class ChatUseCase implements ToolResponder, CommandContribution {
     required AgentRepository agentRepository,
     required ConfigRepository config,
     required ChatConfigKeys configKeys,
-    required SamplingResolver sampling,
     required String dynamicSystemPrompt,
-    required String homeDirectory,
+    required UserPaths paths,
   }) : _providers = providerRepository,
        _agents = agentRepository,
        _config = config,
        _configKeys = configKeys,
-       _sampling = sampling,
        _dynamicSystemPrompt = dynamicSystemPrompt,
-       _homeDirectory = homeDirectory {
+       _paths = paths {
     _reloadsStartingSub = _providers.reloadsStarting.listen(
       _prepareForReload,
     );
     _bindPrimary(_agents.primary);
     _primarySub = _agents.primaryStream.listen(_bindPrimary);
+    _attachIfReady(_providers.status);
+    _providerStatusSub = _providers.statusStream.listen(_onProviderStatus);
     // Pool occupancy moves while the primary sits idle, so tick the render
     // surface on every snapshot.
     _poolSub = _agents.poolStream.listen(
@@ -68,7 +68,7 @@ class ChatUseCase implements ToolResponder, CommandContribution {
         description: 'Cancel the turn in progress',
         group: 'Chat',
         availability: _turnInFlightAvailability(),
-        invoke: _stopInvoke,
+        body: CommandFlow(invoke: _stopInvoke),
       ),
       Command(
         id: 'chat.clear',
@@ -78,8 +78,7 @@ class ChatUseCase implements ToolResponder, CommandContribution {
         description: 'Start a fresh conversation',
         group: 'Chat',
         availability: _modelReadyAvailability(),
-        next: _clearFlow,
-        invoke: _clearInvoke,
+        body: CommandFlow(next: _clearFlow, invoke: _clearInvoke),
       ),
       Command(
         id: 'chat.load',
@@ -88,8 +87,7 @@ class ChatUseCase implements ToolResponder, CommandContribution {
         description: 'Continue a saved conversation',
         group: 'Chat',
         availability: _historySwapAvailability(),
-        next: _loadFlow,
-        invoke: _loadInvoke,
+        body: CommandFlow(next: _loadFlow, invoke: _loadInvoke),
       ),
       Command(
         id: 'chat.rewind',
@@ -99,7 +97,7 @@ class ChatUseCase implements ToolResponder, CommandContribution {
         description: 'Pick an earlier message of yours to edit and resend',
         group: 'Chat',
         availability: _historySwapAvailability(),
-        invoke: _rewindInvoke,
+        body: CommandFlow(invoke: _rewindInvoke),
       ),
       Command(
         id: 'chat.compact',
@@ -108,7 +106,7 @@ class ChatUseCase implements ToolResponder, CommandContribution {
         description: 'Fold the conversation so far into a summary',
         group: 'Chat',
         availability: _compactAvailability(),
-        invoke: _compactInvoke,
+        body: CommandFlow(invoke: _compactInvoke),
       ),
     ]);
   }
@@ -132,15 +130,15 @@ class ChatUseCase implements ToolResponder, CommandContribution {
   final ConfigRepository _config;
 
   final ChatConfigKeys _configKeys;
-  final SamplingResolver _sampling;
 
   /// The date/cwd suffix appended to every resolved system prompt.
   final String _dynamicSystemPrompt;
 
   /// Shown as `~` when listing where conversations started.
-  final String _homeDirectory;
+  final UserPaths _paths;
   late final StreamSubscription<void> _reloadsStartingSub;
   late final StreamSubscription<AgentSession> _primarySub;
+  late final StreamSubscription<ProviderStatus> _providerStatusSub;
   late final StreamSubscription<ContextPoolSnapshot> _poolSub;
   late final StreamSubscription<List<SubagentSummary>> _subagentsSub;
   late final StreamSubscription<double> _compactionSub;
@@ -148,8 +146,8 @@ class ChatUseCase implements ToolResponder, CommandContribution {
   StreamSubscription<ConversationState>? _sessionSub;
   StreamSubscription<ConversationState>? _viewedSub;
 
-  /// The provider whose model card the conversation already carries.
-  AgentProvider? _attachedProvider;
+  /// The runtime whose model card the conversation already carries.
+  AgentRuntime? _attachedRuntime;
 
   /// Single source of truth for which session the UI renders. Commands
   /// (submit/cancel/clear) and turn-lifecycle decisions always target the
@@ -172,6 +170,10 @@ class ChatUseCase implements ToolResponder, CommandContribution {
   /// pick.
   final _rewindRequestController = StreamController<void>.broadcast();
 
+  /// Fires with a model's default reasoning mode whenever a fresh runtime
+  /// takes over.
+  final _reasoningResetController = StreamController<String>.broadcast();
+
   /// The session driving turns and mutations — always the primary.
   AgentSession get _primary => _agents.primary;
 
@@ -185,6 +187,31 @@ class ChatUseCase implements ToolResponder, CommandContribution {
     _sessionSub = primary.stream.listen(_conversationController.add);
     _conversationController.add(primary.state);
   }
+
+  void _onProviderStatus(ProviderStatus status) {
+    _showLoading(status);
+    _attachIfReady(status);
+  }
+
+  /// Shows the model coming up while its provider loads it, and nothing
+  /// once it is up or will not come up.
+  void _showLoading(ProviderStatus status) => _primary.setLiveModelStatus(
+    switch (status) {
+      ProviderStatusConnecting(:final model, loading: final loading?) =>
+        ModelSnapshot(
+          modelId: model.modelId,
+          displayName: loading.name,
+          contextSize: loading.contextWindow,
+          provider: loading.providerName,
+          phase: ModelCardPhase.loading,
+          progress: switch (loading.progress) {
+            ProviderModelMeasuring() => null,
+            ProviderModelLoading(:final fraction) => fraction,
+          },
+        ),
+      _ => null,
+    },
+  );
 
   // ── Viewed session ────────────────────────────────────────
 
@@ -225,6 +252,10 @@ class ChatUseCase implements ToolResponder, CommandContribution {
   /// Fires once per palette request to rewind; the surface takes the pick
   /// from there.
   Stream<void> get rewindRequests => _rewindRequestController.stream;
+
+  /// The reasoning mode the chat starts in each time a fresh model runtime
+  /// takes over.
+  Stream<String> get reasoningResets => _reasoningResetController.stream;
 
   /// The subagent roster for the zone bar. Replays the current roster to the
   /// subscriber before live updates so a late subscriber isn't left empty.
@@ -304,25 +335,25 @@ class ChatUseCase implements ToolResponder, CommandContribution {
     return result;
   }
 
-  /// Hand the primary agent provider to the repository, which spawns the agent
-  /// and swaps in a live session. Coordinated in one call so callers can't
-  /// half-attach. A provider seen for the first time also stamps its model
-  /// card into the conversation.
-  void attachSession({
-    required AgentProvider primary,
-    required int primaryContextSize,
-  }) => unawaited(_attach(primary, primaryContextSize));
+  void _attachIfReady(ProviderStatus status) {
+    if (status case final ProviderStatusReady ready) unawaited(_attach(ready));
+  }
 
-  Future<void> _attach(AgentProvider primary, int primaryContextSize) async {
-    await _agents.bindProvider(
-      primary,
-      contextSize: primaryContextSize,
+  /// Hands the ready runtime to the repository, which spawns the primary and
+  /// swaps in a live session. A runtime seen for the first time also stamps
+  /// its model card into the conversation and resets the reasoning mode.
+  Future<void> _attach(ProviderStatusReady ready) async {
+    final runtime = ready.runtime;
+    await _agents.bindRuntime(
+      runtime,
+      contextSize: ready.contextWindow,
       systemPrompt: _resolveSystemPrompt(),
     );
-    if (identical(_attachedProvider, primary)) return;
-    _attachedProvider = primary;
+    if (identical(_attachedRuntime, runtime)) return;
+    _attachedRuntime = runtime;
     final card = _readyModelCard();
     if (card != null) _primary.recordModelChange(card);
+    _reasoningResetController.add(ready.defaultReasoningMode);
   }
 
   /// The current chat system prompt: the resolved global override plus the
@@ -458,10 +489,28 @@ class ChatUseCase implements ToolResponder, CommandContribution {
     required String reasoningMode,
   }) => TurnOptions(
     systemPrompt: _resolveSystemPrompt(),
-    sampling: _sampling(),
+    sampling: _sampling,
     reasoningMode: reasoningMode,
     compactionReasoningMode: status.compactionReasoningMode,
   );
+
+  /// The sampling every turn runs under, as configured right now. Anything
+  /// left unset is omitted so the model's own defaults apply.
+  SamplingOptions get _sampling {
+    final keys = _configKeys.sampling;
+    return SamplingOptions(
+      seed: _config.resolve(keys.seed.global),
+      temperature: _chosen(keys.temperature),
+      topP: _chosen(keys.topP),
+      penaltyFreq: _chosen(keys.frequencyPenalty),
+      penaltyPresent: _chosen(keys.presencePenalty),
+    );
+  }
+
+  double? _chosen(ConfigKey<double> key) {
+    final resolved = _config.inspect(key.global);
+    return resolved.isDefault ? null : resolved.value;
+  }
 
   void cancel() => _primary.cancel();
 
@@ -560,7 +609,7 @@ class ChatUseCase implements ToolResponder, CommandContribution {
     if (soFar.maybe(_conversationKey) != null) return null;
     final picker = ConversationPicker(
       summaries: conversations(),
-      homeDirectory: _homeDirectory,
+      paths: _paths,
       currentConversationId: _primary.transcript.conversationId,
     );
     return ChoiceParam<String>.searchable(
@@ -601,12 +650,12 @@ class ChatUseCase implements ToolResponder, CommandContribution {
 
   // ── Commands: reload pipeline ────────────────────────────
 
-  /// Detaches the live provider before a reconnect tears its handle down.
-  /// The fresh handle is rebound when the provider reaches ready. Snaps the
+  /// Detaches the live runtime before a reconnect tears it down. The fresh
+  /// runtime is rebound when the provider reaches ready. Snaps the
   /// view back to the primary so a reload never leaves us on a stale subagent.
   void _prepareForReload(void _) {
     viewPrimary();
-    unawaited(_agents.bindProvider(null));
+    unawaited(_agents.bindRuntime(null));
   }
 
   /// Releases resources owned by this use case. The upstream
@@ -615,6 +664,7 @@ class ChatUseCase implements ToolResponder, CommandContribution {
   Future<void> dispose() async {
     await _reloadsStartingSub.cancel();
     await _primarySub.cancel();
+    await _providerStatusSub.cancel();
     await _poolSub.cancel();
     await _subagentsSub.cancel();
     await _compactionSub.cancel();
@@ -624,6 +674,7 @@ class ChatUseCase implements ToolResponder, CommandContribution {
     await _conversationController.close();
     await _replacementController.close();
     await _rewindRequestController.close();
+    await _reasoningResetController.close();
   }
 }
 

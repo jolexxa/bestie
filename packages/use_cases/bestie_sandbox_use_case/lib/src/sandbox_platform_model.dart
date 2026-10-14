@@ -1,4 +1,5 @@
 import 'package:intentions/intentions.dart';
+import 'package:path_plus/path_plus.dart';
 
 /// The platform-shaped policy a `SandboxSpec` is built from: which system
 /// trees a confined program may read and write, whether it reads the home
@@ -8,15 +9,14 @@ import 'package:intentions/intentions.dart';
 @model
 class SandboxPlatformModel {
   /// Wraps the [systemReadRoots] and [systemWriteRoots], whether the model
-  /// [includesHome] and [includesTemp], the home-relative [secretHomePaths],
-  /// and the path [separator] that joins them.
+  /// [includesHome] and [includesTemp], and the home-relative
+  /// [secretHomePaths].
   const SandboxPlatformModel({
     required this.systemReadRoots,
     required this.systemWriteRoots,
     required this.includesHome,
     required this.includesTemp,
     required this.secretHomePaths,
-    required this.separator,
   });
 
   /// POSIX: the broad system trees a real binary loads from are readable, and
@@ -46,7 +46,6 @@ class SandboxPlatformModel {
       '.config/gh',
       '.bestie/bestie.json',
     ],
-    separator: '/',
   );
 
   /// Windows: system trees are already readable via `ALL APPLICATION PACKAGES`,
@@ -72,7 +71,6 @@ class SandboxPlatformModel {
       'AppData/Roaming/Microsoft/Credentials',
       'AppData/Local/Microsoft/Credentials',
     ],
-    separator: r'\',
   );
 
   /// System trees granted read directly.
@@ -87,23 +85,20 @@ class SandboxPlatformModel {
   /// Whether the process's temp directory is a writable root.
   final bool includesTemp;
 
-  /// Home-relative secrets carved out of the home read grant.
+  /// Home-relative secrets carved out of the home read grant, written with
+  /// `/`.
   final List<String> secretHomePaths;
 
-  /// The path separator joining [secretHomePaths] onto the home directory.
-  final String separator;
-
   /// The home directory as a readable root, or empty when home is not granted.
-  List<String> homeReadRoots(String homeDir) =>
-      includesHome ? [homeDir] : const [];
+  List<String> homeReadRoots(UserPaths paths) =>
+      includesHome ? [paths.homeDir] : const [];
 
   /// The temp directory as a writable root, or empty when temp is not granted.
   List<String> tempWriteRoots(String tempDir) =>
       includesTemp ? [tempDir] : const [];
 
-  /// The concrete secret paths to deny under [homeDir].
-  List<String> deniedReadsFor(String homeDir) => [
-    for (final secret in secretHomePaths)
-      '$homeDir$separator${secret.replaceAll('/', separator)}',
+  /// The concrete secret paths to deny under the user's home.
+  List<String> deniedReadsFor(UserPaths paths) => [
+    for (final secret in secretHomePaths) paths.underHome(secret),
   ];
 }

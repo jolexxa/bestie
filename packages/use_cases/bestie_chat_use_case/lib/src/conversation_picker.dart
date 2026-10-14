@@ -2,6 +2,7 @@ import 'package:agent_repository/agent_repository.dart';
 import 'package:bestie_chat_use_case/src/chat_use_case.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:intentions/intentions.dart';
+import 'package:path_plus/path_plus.dart';
 
 /// Turns the saved conversations into palette options and answers the
 /// user's search over them. Built once per palette flow, so the listing is
@@ -10,14 +11,14 @@ import 'package:intentions/intentions.dart';
 final class ConversationPicker {
   ConversationPicker({
     required Future<List<ConversationSummary>> summaries,
-    required this.homeDirectory,
+    required this.paths,
     required this.currentConversationId,
   }) : _summaries = summaries;
 
   final Future<List<ConversationSummary>> _summaries;
 
-  /// Shown as `~` at the front of a working directory.
-  final String homeDirectory;
+  /// Writes the user's home as `~` at the front of a working directory.
+  final UserPaths paths;
 
   /// Left out of the listing: it is already loaded.
   final String currentConversationId;
@@ -68,17 +69,8 @@ final class ConversationPicker {
       '${shortPath(summary.workingDirectory)} · '
       '${timestamp(summary.updatedAt)}';
 
-  /// [path] with a leading [homeDirectory] shown as `~`.
-  String shortPath(String path) {
-    if (path == homeDirectory) return '~';
-    for (final separator in const ['/', r'\']) {
-      final prefix = '$homeDirectory$separator';
-      if (path.startsWith(prefix)) {
-        return '~$separator${path.substring(prefix.length)}';
-      }
-    }
-    return path;
-  }
+  /// [path] with the user's home shown as `~`.
+  String shortPath(String path) => paths.shortenHome(path);
 
   /// Local `yyyy-MM-dd HH:mm`.
   static String timestamp(DateTime when) {

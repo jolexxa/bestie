@@ -14,6 +14,15 @@ void main() {
       );
     });
 
+    test('lists itself and then each parent', () {
+      expect(_profileScope('work').child(_modelScope('qwen')).ancestry, [
+        _profileScope('work').child(_modelScope('qwen')),
+        _profileScope('work'),
+        ConfigScope.global,
+      ]);
+      expect(ConfigScope.global.ancestry, [ConfigScope.global]);
+    });
+
     test('uses structural equality for paths', () {
       expect(_modelScope('qwen'), _modelScope('qwen'));
       expect(
@@ -36,6 +45,28 @@ void main() {
       ]);
     });
 
+    test('exposes its field through the untyped key', () {
+      final ConfigKeyBase key = _doubleKey('sampling.temperature');
+
+      expect(key.field.label, 'Temperature');
+      expect(key.field.formatValue(0.5), '0.5');
+    });
+
+    test('defaults, codes, and addresses untyped values', () {
+      final ConfigKeyBase key = _doubleKey('sampling.temperature');
+
+      expect(key.defaultObjectValue(), 0.7);
+      expect(key.decode(1), 1.0);
+      expect(key.decode('x'), isNull);
+      expect(key.encode(0.5), 0.5);
+      expect(key.atScope(_modelScope('qwen')).path, [
+        'models',
+        'qwen',
+        'runtimeConfig',
+        'temperature',
+      ]);
+    });
+
     test('uses key id and scope for equality', () {
       final a = _doubleKey('sampling.temperature').at(_modelScope('qwen'));
       final b = _doubleKey('sampling.temperature').at(_modelScope('qwen'));
@@ -48,6 +79,51 @@ void main() {
       expect(a, isNot(c));
     });
   });
+
+  group('ConfigResolution', () {
+    final temperature = _doubleKey('sampling.temperature');
+    final fallback = _doubleKey('sampling.default_temperature');
+    final scope = _profileScope('work').child(_modelScope('qwen'));
+
+    test('exact looks only at the address itself', () {
+      expect(temperature.resolution.chainBase(temperature.at(scope)), [
+        temperature.at(scope),
+      ]);
+    });
+
+    test('scoped walks fallbacks at each ancestor scope', () {
+      final scoped = ConfigKey<double>(
+        id: 'sampling.temperature',
+        path: const ['temperature'],
+        codec: ConfigCodecs.doubles,
+        defaultValue: () => 0.7,
+        field: temperature.field,
+        resolution: ConfigResolution.scoped(fallbackKeys: [fallback]),
+      );
+
+      expect(scoped.resolution.chainBase(scoped.at(scope)), [
+        scoped.at(scope),
+        fallback.at(scope),
+        scoped.at(_profileScope('work')),
+        fallback.at(_profileScope('work')),
+        scoped.global,
+        fallback.global,
+      ]);
+    });
+  });
+
+  group('ConfigEdit', () {
+    test('sets or clears a typed value', () {
+      expect(const ConfigEdit<int>.set(3), isA<SetConfigValue<int>>());
+      expect(const SetConfigValue<int>(3).value, 3);
+      expect(const ConfigEdit<int>.clear(), isA<ClearConfigValue<int>>());
+    });
+
+    test('sets or clears an untyped value', () {
+      expect(const ConfigEditBase.set(3), isA<SetConfigValue<Object?>>());
+      expect(const ConfigEditBase.clear(), isA<ClearConfigValue<Object?>>());
+    });
+  });
 }
 
 ConfigKey<double> _doubleKey(String id) => ConfigKey<double>(
@@ -55,6 +131,13 @@ ConfigKey<double> _doubleKey(String id) => ConfigKey<double>(
   path: const ['runtimeConfig', 'temperature'],
   codec: ConfigCodecs.doubles,
   defaultValue: () => 0.7,
+  field: const NumericField(
+    label: 'Temperature',
+    description: 'How random.',
+    min: 0,
+    max: 2,
+    step: 0.1,
+  ),
 );
 
 ConfigScope _modelScope(String modelId) =>

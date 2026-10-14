@@ -1,9 +1,6 @@
 import 'dart:async';
 
-import 'package:agent_provider_protocol/agent_provider_protocol.dart'
-    show SamplingOptions;
 import 'package:agent_repository/agent_repository.dart';
-import 'package:bestie_provider_use_case/src/built_in_providers.dart';
 import 'package:bestie_provider_use_case/src/provider_config_keys.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:config_repository/config_repository.dart';
@@ -12,7 +9,7 @@ import 'package:provider_protocol/provider_protocol.dart';
 import 'package:provider_repository/provider_repository.dart';
 
 /// Keeps the provider session in step with configuration and exposes the
-/// provider's account facts to the UI and the palette.
+/// chosen provider's status and credits to the UI and the palette.
 @useCase
 class ProviderUseCase implements CommandContribution {
   ProviderUseCase({
@@ -32,7 +29,7 @@ class ProviderUseCase implements CommandContribution {
         description: 'Re-check the remaining provider balance',
         group: 'Provider',
         availability: _readyAvailability(),
-        invoke: _refreshCreditsInvoke,
+        body: CommandFlow(invoke: _refreshCreditsInvoke),
       ),
       Command(
         id: 'provider.select_model',
@@ -42,8 +39,7 @@ class ProviderUseCase implements CommandContribution {
         tier: CommandTier.primary,
         group: 'Provider',
         availability: _idleAvailability(),
-        next: _selectModelFlow,
-        invoke: _selectModelInvoke,
+        body: CommandFlow(next: _selectModelFlow, invoke: _selectModelInvoke),
       ),
       Command(
         id: 'provider.reconnect',
@@ -52,7 +48,7 @@ class ProviderUseCase implements CommandContribution {
         description: 'Reopen the connection to the configured providers',
         group: 'Provider',
         availability: _idleAvailability(),
-        invoke: _reconnectInvoke,
+        body: CommandFlow(invoke: _reconnectInvoke),
       ),
     ]);
     _providers.configure(settings);
@@ -79,42 +75,14 @@ class ProviderUseCase implements CommandContribution {
   final _creditsController = StreamController<CreditsResult>.broadcast();
   CreditsResult? _lastCredits;
 
-  late final Set<String> _sessionKeyIds = {
-    for (final key in _configKeys.sessionKeys) key.id,
+  late final Set<String> _settingsKeyIds = {
+    for (final key in _configKeys.settingsKeys) key.id,
   };
 
-  /// The session settings as configured right now; accounts are listed in
-  /// the order their models should appear, the user's own endpoint first.
+  /// The session settings as configured right now.
   ProviderSettings get settings => ProviderSettings(
-    accounts: [
-      ProviderAccount(
-        descriptor: customDescriptor,
-        apiKey: _resolve(_configKeys.customApiKey),
-        baseUrl: _endpointUrl(_resolve(_configKeys.customBaseUrl)),
-        fallbackContextWindow: _resolve(_configKeys.customContextWindow),
-      ),
-      ProviderAccount(
-        descriptor: openRouterDescriptor,
-        apiKey: _resolve(_configKeys.openRouterApiKey),
-      ),
-      ProviderAccount(
-        descriptor: fireworksDescriptor,
-        apiKey: _resolve(_configKeys.fireworksApiKey),
-      ),
-    ],
     model: ProviderModelRef.parse(_resolve(_configKeys.model)),
     maxAgents: _resolve(_configKeys.maxAgents),
-  );
-
-  /// The sampling every turn runs under, as configured right now.
-  SamplingOptions get sampling => SamplingOptions(
-    seed: _config.resolve(_configKeys.sampling.seed.global),
-    temperature: _config.resolve(_configKeys.sampling.temperature.global),
-    topP: _config.resolve(_configKeys.sampling.topP.global),
-    penaltyFreq: _config.resolve(_configKeys.sampling.frequencyPenalty.global),
-    penaltyPresent: _config.resolve(
-      _configKeys.sampling.presencePenalty.global,
-    ),
   );
 
   ProviderStatus get status => _providers.status;
@@ -144,8 +112,6 @@ class ProviderUseCase implements CommandContribution {
     }
   }
 
-  Future<KeyInfoResult> keyInfo() => _providers.keyInfo();
-
   /// Every model across every provider, whether or not it can be used yet.
   Future<ModelList> models() => _providers.models();
 
@@ -164,14 +130,8 @@ class ProviderUseCase implements CommandContribution {
 
   T _resolve<T>(ConfigKey<T> key) => _config.resolve(key.global);
 
-  /// An absolute URL, or null when the setting is blank or not one.
-  static Uri? _endpointUrl(String setting) {
-    final url = Uri.tryParse(setting.trim());
-    return url != null && url.hasScheme && url.host.isNotEmpty ? url : null;
-  }
-
   void _onConfigChange(ConfigChange change) {
-    if (!change.keyIds.any(_sessionKeyIds.contains)) return;
+    if (!change.keyIds.any(_settingsKeyIds.contains)) return;
     _providers.configure(settings);
   }
 
@@ -239,7 +199,7 @@ class ProviderUseCase implements CommandContribution {
 
   static String _modelDetail(ListedModel listed) =>
       '${listed.providerName} · ${listed.model.id}'
-      '${listed.hasAccess ? '' : ' (no key)'}';
+      '${listed.hasAccess ? '' : ' (not set up)'}';
 
   Future<CommandResult> _selectModelInvoke(Answers answers) async {
     if (_idleGate() case Unavailable(:final reason)) {

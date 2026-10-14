@@ -1,6 +1,12 @@
 import 'package:intentions/intentions.dart';
+import 'package:provider_protocol/provider_protocol.dart'
+    show
+        ProviderAvailability,
+        ProviderFailure,
+        ProviderModelLoadProgress,
+        ProviderModelLoadResult;
 import 'package:provider_repository/src/models/provider_settings.dart';
-import 'package:provider_repository/src/state/provider_session/provider_probe.dart';
+import 'package:provider_repository/src/state/provider_session/model_resolution.dart';
 
 @model
 sealed class ProviderSessionInput {
@@ -21,11 +27,57 @@ final class ReconnectProvider extends ProviderSessionInput {
   const ReconnectProvider();
 }
 
-/// A probe started under [attempt] finished.
+/// Stop running the chosen model until the settings change or a reconnect.
 @model
-final class ProbeCompleted extends ProviderSessionInput {
-  const ProbeCompleted({required this.attempt, required this.outcome});
+final class StopProvider extends ProviderSessionInput {
+  const StopProvider();
+}
+
+/// The provider [providerId]'s client was configured anew and now reports
+/// [availability]; a model running on it starts over.
+@model
+final class ClientReconfigured extends ProviderSessionInput {
+  const ClientReconfigured({
+    required this.providerId,
+    required this.availability,
+  });
+
+  final String providerId;
+  final ProviderAvailability availability;
+}
+
+/// Looking up the chosen model, started under [attempt], finished.
+@model
+final class ModelResolved extends ProviderSessionInput {
+  const ModelResolved({required this.attempt, required this.resolution});
 
   final int attempt;
-  final ProbeOutcome outcome;
+  final ModelResolution resolution;
+}
+
+/// The model loading under [attempt] got further.
+@model
+final class LoadProgressed extends ProviderSessionInput {
+  const LoadProgressed({required this.attempt, required this.progress});
+
+  final int attempt;
+  final ProviderModelLoadProgress progress;
+}
+
+/// The load started under [attempt] ended.
+@model
+final class LoadCompleted extends ProviderSessionInput {
+  const LoadCompleted({required this.attempt, required this.result});
+
+  final int attempt;
+  final ProviderModelLoadResult result;
+}
+
+/// The model loaded under [attempt] is no longer served, for [failure].
+@model
+final class ModelLost extends ProviderSessionInput {
+  const ModelLost({required this.attempt, required this.failure});
+
+  final int attempt;
+  final ProviderFailure failure;
 }

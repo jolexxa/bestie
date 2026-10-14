@@ -1,34 +1,57 @@
-import 'package:dart_mappable/dart_mappable.dart';
-import 'package:provider_protocol/src/models/provider_reasoning.dart';
+import 'dart:async';
 
-part 'provider_model.mapper.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart';
+import 'package:provider_protocol/src/models/provider_failure.dart';
 
-/// A model in the provider's catalog.
-@MappableClass()
-final class ProviderModel with ProviderModelMappable {
-  const ProviderModel({
-    required this.id,
-    required this.name,
-    required this.supportsTools,
-    this.contextLength,
-    this.reasoning,
-    this.promptPricePerToken,
-    this.completionPricePerToken,
+/// A model a provider serves completions on, from the moment it is loaded
+/// until it is released.
+abstract interface class ProviderModel {
+  /// The context the model runs with.
+  int get contextWindow;
+
+  /// The most agents that may run on the model at once.
+  int get maxAgents;
+
+  /// Memory the model takes on the device; null when it runs elsewhere.
+  int? get deviceBytes;
+
+  /// Runs agents on the model.
+  AgentRuntime get runtime;
+
+  /// Completes with why once the model stops being served and must be
+  /// loaded again. Never completes with an error.
+  Future<ProviderFailure> get lost;
+
+  /// Lets go of whatever loading the model held, its runtime included.
+  Future<void> release();
+}
+
+/// A model served on demand by a hosted endpoint: nothing was loaded and it
+/// is never lost.
+final class HostedProviderModel implements ProviderModel {
+  HostedProviderModel({
+    required this.runtime,
+    required this.contextWindow,
+    required this.maxAgents,
   });
 
-  final String id;
+  @override
+  final AgentRuntime runtime;
 
-  final String name;
+  @override
+  final int contextWindow;
 
-  /// Tokens the model can attend to, when the provider says.
-  final int? contextLength;
+  @override
+  final int maxAgents;
 
-  final bool supportsTools;
+  @override
+  int? get deviceBytes => null;
 
-  /// How the model thinks; null when it cannot.
-  final ProviderReasoning? reasoning;
+  @override
+  Future<ProviderFailure> get lost => Completer<ProviderFailure>().future;
 
-  final double? promptPricePerToken;
-
-  final double? completionPricePerToken;
+  @override
+  Future<void> release() async {
+    await runtime.dispose();
+  }
 }

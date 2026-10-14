@@ -24,6 +24,15 @@ const _loading = ModelSnapshot(
   phase: ModelCardPhase.loading,
 );
 
+const _loadingWithProgress = ModelSnapshot(
+  modelId: 'qwen3-8b',
+  displayName: 'Qwen 3 8B',
+  contextSize: 40960,
+  provider: 'Local models',
+  phase: ModelCardPhase.loading,
+  progress: 0.62,
+);
+
 const _failed = ModelSnapshot(
   modelId: 'org/model',
   displayName: 'Model',
@@ -69,13 +78,32 @@ void main() {
       });
     });
 
-    test('marks a loading model with the loading color', () async {
+    test('reads a loading model as loading, in the loading color', () async {
       await testNocterm('model card loading', (tester) async {
         await tester.pumpComponent(
           _themed(const ModelCardItem(card: _loading, selected: false)),
         );
-        expect(tester.terminalState, containsText('◑ OpenRouter ◆ Model'));
-        expect(_glyphCell(tester)?.style.color, appThemeDefault.loading);
+        expect(tester.terminalState, containsText('◑ Loading Model'));
+        expect(tester.terminalState, isNot(containsText('OpenRouter')));
+        expect(tester.terminalState, isNot(containsText('%')));
+        final lines = tester.terminalState.getText().split('\n');
+        final row = lines.indexWhere((line) => line.contains('Loading'));
+        final glyph = tester.terminalState.getCellAt(
+          lines[row].indexOf('Loading') - 2,
+          row,
+        );
+        expect(glyph?.style.color, appThemeDefault.loading);
+      });
+    });
+
+    test('shows how far a loading model has come', () async {
+      await testNocterm('model card loading progress', (tester) async {
+        await tester.pumpComponent(
+          _themed(
+            const ModelCardItem(card: _loadingWithProgress, selected: false),
+          ),
+        );
+        expect(tester.terminalState, containsText('◑ Loading Qwen 3 8B 62%'));
       });
     });
 

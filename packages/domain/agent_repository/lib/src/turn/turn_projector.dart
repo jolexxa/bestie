@@ -1,4 +1,6 @@
-import 'package:agent_provider_protocol/agent_provider_protocol.dart'
+import 'package:agent_repository/src/agent/agent_session.dart';
+import 'package:agent_repository/src/turn/turn_activity.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
     show
         AgentCancelled,
         AgentCompactionCompleted,
@@ -36,8 +38,6 @@ import 'package:agent_provider_protocol/agent_provider_protocol.dart'
         TranscriptReasoningBlock,
         TranscriptToolCallBlock,
         TranscriptToolCallResponseBlock;
-import 'package:agent_repository/src/agent/agent_session.dart';
-import 'package:agent_repository/src/turn/turn_activity.dart';
 import 'package:intentions/intentions.dart';
 
 /// Outcome of feeding one [AgentRuntimeEvent] to a [TurnProjector].

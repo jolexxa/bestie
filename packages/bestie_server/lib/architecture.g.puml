@@ -1,0 +1,8 @@
+@startuml
+
+package "bestie_server" {
+
+}
+
+@enduml
+

@@ -76,7 +76,7 @@ List<Measurement> _atWithCost(
 ];
 
 ItemDetails _message(MessageTimelineItem item) {
-  final stat = item.blocks.map((b) => b.stat).fold<BlockStat?>(null, _merge);
+  final stat = item.blocks.map((block) => block.stat).merged;
   final text = item.text;
   return ItemDetails(
     title: senderLabelFor(item.role),
@@ -343,15 +343,4 @@ String? _changeSummary(ToolCallSucceeded result) {
     ..._diffs(result).map(diffSummary),
   ];
   return summaries.isEmpty ? null : summaries.join(', ');
-}
-
-BlockStat? _merge(BlockStat? a, BlockStat? b) {
-  if (a == null) return b;
-  if (b == null) return a;
-  final tokens = (a.tokenCount ?? 0) + (b.tokenCount ?? 0);
-  return BlockStat(
-    startedAt: a.startedAt.isBefore(b.startedAt) ? a.startedAt : b.startedAt,
-    endedAt: a.endedAt.isAfter(b.endedAt) ? a.endedAt : b.endedAt,
-    tokenCount: tokens > 0 ? tokens : null,
-  );
 }

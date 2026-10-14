@@ -127,6 +127,15 @@ String spendWindowSuffix(SpendWindow window) => switch (window) {
 /// Who is serving the chat, or how far along connecting to them is.
 String providerReading(ProviderStatus status) => switch (status) {
   ProviderStatusUnconfigured() => 'no provider configured',
+  ProviderStatusConnecting(
+    loading: LoadingModel(
+      :final name,
+      progress: ProviderModelLoading(:final fraction),
+    ),
+  ) =>
+    'loading $name ${(fraction * 100).round()}%',
+  ProviderStatusConnecting(loading: LoadingModel(:final name)) =>
+    'measuring $name…',
   ProviderStatusConnecting(:final model) => 'connecting to ${model.qualified}…',
   ProviderStatusReady(:final providerName, :final model) =>
     '$providerName · ${model.name}',

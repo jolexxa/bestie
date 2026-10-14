@@ -1,4 +1,3 @@
-import 'package:agent_provider_protocol/agent_provider_protocol.dart';
 import 'package:agent_repository/src/agent/agent_repository.dart';
 import 'package:agent_repository/src/conversation/agent_session_data.dart';
 import 'package:agent_repository/src/conversation/agent_transcript.dart';
@@ -7,6 +6,7 @@ import 'package:agent_repository/src/conversation/conversation_store.dart';
 import 'package:agent_repository/src/conversation/job_report.dart';
 import 'package:agent_repository/src/message/timeline_fold.dart';
 import 'package:agent_repository/src/message/timeline_item.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart';
 import 'package:diagnostics/diagnostics.dart';
 import 'package:intentions/intentions.dart';
 

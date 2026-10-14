@@ -1,5 +1,5 @@
 import 'package:file/file.dart';
-import 'package:real_paths/real_paths.dart';
+import 'package:path_plus/path_plus.dart';
 
 const _globChars = {'*', '?', '[', ']'};
 

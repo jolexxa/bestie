@@ -13,14 +13,13 @@ class ConfigCubit extends LogicBloc<ConfigState> {
     required this.configUseCase,
     required this.layout,
     required int toolCount,
-    ConfigScope? targetScope,
   }) : super(ConfigLogic(configUseCase: configUseCase, layout: layout)) {
     binding
       ..onOutput<ConfigStateUpdated>((_) => emit(state))
       ..onOutput<CloseRequested>((_) => onCloseRequested?.call())
       ..onOutput<CursorMoved>((output) => onCursorMoved?.call(output.index))
       ..onOutput<PageChanged>((_) => onPageChanged?.call());
-    input(Initialize(targetScope: targetScope, toolCount: toolCount));
+    input(Initialize(toolCount: toolCount));
   }
 
   final ConfigUseCase configUseCase;
@@ -53,9 +52,9 @@ class ConfigCubit extends LogicBloc<ConfigState> {
   void requestClose() => input(const RequestClose());
 
   /// Called by the hosting view when the config sheet becomes visible.
-  void openSession({required int toolCount, ConfigScope? targetScope}) {
+  void openSession({required int toolCount}) {
     configUseCase.beginSession();
-    input(Initialize(targetScope: targetScope, toolCount: toolCount));
+    input(Initialize(toolCount: toolCount));
   }
 
   /// Called by the hosting view when the config sheet becomes hidden.

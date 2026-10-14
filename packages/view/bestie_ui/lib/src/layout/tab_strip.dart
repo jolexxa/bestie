@@ -1,7 +1,7 @@
+import 'package:bestie_ui/src/format/formatters.dart';
 import 'package:bestie_ui/src/input/hoverable.dart';
 import 'package:bestie_ui/src/layout/wrap.dart';
 import 'package:bestie_ui/src/theme/app_theme.dart';
-import 'package:characters/characters.dart';
 import 'package:intentions/intentions.dart';
 import 'package:nocterm/nocterm.dart';
 
@@ -106,18 +106,7 @@ class TabStrip extends StatelessComponent {
       UnicodeWidth.stringWidth(_clip(tab.label)) + (tab.closable ? 6 : 4);
 
   /// Clips [label] to [maxLabelCells] display cells, ellipsis included.
-  String _clip(String label) {
-    if (UnicodeWidth.stringWidth(label) <= maxLabelCells) return label;
-    final clipped = StringBuffer();
-    var cells = 0;
-    for (final grapheme in label.characters) {
-      final width = UnicodeWidth.graphemeWidth(grapheme);
-      if (cells + width > maxLabelCells - 1) break;
-      clipped.write(grapheme);
-      cells += width;
-    }
-    return '$clipped…';
-  }
+  String _clip(String label) => label.ellipsizeCells(maxLabelCells);
 }
 
 class _Tab extends StatefulComponent {

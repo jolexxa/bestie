@@ -4,6 +4,7 @@ library;
 export 'src/fuzzy.dart';
 export 'src/models/indexed_option.dart';
 export 'src/models/palette_row.dart';
+export 'src/models/pane_frame.dart';
 export 'src/state/palette_cubit.dart';
 export 'src/state/palette_data.dart';
 export 'src/state/palette_input.dart';

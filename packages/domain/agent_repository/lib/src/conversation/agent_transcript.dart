@@ -1,6 +1,6 @@
-import 'package:agent_provider_protocol/agent_provider_protocol.dart';
 import 'package:agent_repository/src/conversation/conversation_entry.dart';
 import 'package:agent_repository/src/message/timeline_item.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart';
 import 'package:intentions/intentions.dart';
 
 /// A read-only view of one agent's history within a conversation: the
@@ -29,7 +29,7 @@ abstract interface class AgentTranscript {
   /// The persisted entry collection.
   List<ConversationEntry> get entries;
 
-  /// Token-stable transcript fed to `AgentProvider.startPrimary`.
+  /// Token-stable transcript fed to `AgentRuntime.startPrimary`.
   Transcript get transcript;
 
   /// Committed chat rows for the view.

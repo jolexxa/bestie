@@ -5,7 +5,8 @@ import 'package:intentions/intentions.dart';
 import 'package:nocterm/nocterm.dart';
 
 /// The model in play from a point in the transcript on, drawn as a one-line
-/// marker: a phase glyph, the provider, and the model's name.
+/// marker: a phase glyph, the provider, and the model's name. A loading
+/// model reads as loading, with its progress when known.
 @view
 class ModelCardItem extends StatelessComponent {
   const ModelCardItem({
@@ -33,15 +34,13 @@ class ModelCardItem extends StatelessComponent {
             text: '${mark.glyph} ',
             style: TextStyle(color: mark.color),
           ),
-          TextSpan(
-            text: card.provider,
-            style: TextStyle(color: theme.primary),
-          ),
-          TextSpan(
-            text: ' ◆ ',
-            style: TextStyle(color: theme.muted),
-          ),
+          ..._lead(card, theme),
           TextSpan(text: card.displayName),
+          if (card.progress case final progress?)
+            TextSpan(
+              text: ' ${(progress * 100).round()}%',
+              style: TextStyle(color: theme.loading),
+            ),
           if (card.error case final error?)
             TextSpan(
               text: ' · $error',
@@ -52,6 +51,28 @@ class ModelCardItem extends StatelessComponent {
     );
   }
 }
+
+/// What precedes the model's name: what is happening to a loading model,
+/// else who serves it.
+List<TextSpan> _lead(ModelSnapshot card, AppThemeData theme) =>
+    switch (card.phase) {
+      ModelCardPhase.loading => [
+        TextSpan(
+          text: 'Loading ',
+          style: TextStyle(color: theme.loading),
+        ),
+      ],
+      ModelCardPhase.ready || ModelCardPhase.failed => [
+        TextSpan(
+          text: card.provider,
+          style: TextStyle(color: theme.primary),
+        ),
+        TextSpan(
+          text: ' ◆ ',
+          style: TextStyle(color: theme.muted),
+        ),
+      ],
+    };
 
 /// The glyph that leads the marker, colored for the model's phase.
 @model

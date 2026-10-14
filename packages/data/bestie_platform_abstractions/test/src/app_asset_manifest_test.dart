@@ -5,6 +5,8 @@ const _caCert = AppAsset(path: 'cacert.pem', missingMessage: 'no cert');
 const _credits = AppAsset(path: 'CREDITS.md', missingMessage: 'no credits');
 const _shellBin = AppAsset(path: 'shell/bin', missingMessage: 'no shell');
 
+const _server = AppAsset(path: 'bestie_server', missingMessage: 'no server');
+
 const _shared = SharedAppAssets(
   caCert: _caCert,
   credits: _credits,
@@ -25,10 +27,18 @@ void main() {
       curl: curl,
       spawner: spawner,
       editor: editor,
+      server: _server,
       shared: _shared,
     );
 
-    expect(assets.bundleAssets, [curl, spawner, editor, ..._shared.all]);
+    expect(assets.bundleAssets, [
+      curl,
+      spawner,
+      editor,
+      _server,
+      ..._shared.all,
+    ]);
+    expect(assets.server, _server);
   });
 
   test('WindowsAppAssets.bundleAssets composes natives with shared assets', () {
@@ -49,14 +59,17 @@ void main() {
       conptyLibrary: conpty,
       consoleHostExecutable: console,
       editor: editor,
+      server: _server,
       shared: _shared,
     );
 
+    expect(assets.server, _server);
     expect(assets.bundleAssets, [
       curl,
       conpty,
       console,
       editor,
+      _server,
       ..._shared.all,
     ]);
   });

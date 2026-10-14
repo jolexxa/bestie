@@ -2,6 +2,10 @@ import 'package:app_shell_use_case/app_shell_use_case.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:test/test.dart';
 
+extension on Command {
+  CommandFlow get flow => body as CommandFlow;
+}
+
 void main() {
   late AppShellUseCase useCase;
 
@@ -99,7 +103,10 @@ void main() {
       final command = useCase.commands.firstWhere(
         (c) => c.id == 'nav.openConfig',
       );
-      expect(await command.invoke(const Answers.empty()), isA<CommandRan>());
+      expect(
+        await command.flow.invoke(const Answers.empty()),
+        isA<CommandRan>(),
+      );
       expect(useCase.configOpen, isTrue);
     });
   });

@@ -30,7 +30,8 @@ dependencies:
   intentions: ^0.1.0
   isolate_worker:
     path: ../../infra/isolate_worker
-  path: ^1.9.1
+  path_plus:
+    path: ../../infra/path_plus
   process_host:
     path: ../../infra/process_host
   sandbox:

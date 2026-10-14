@@ -19,16 +19,7 @@ ConfigCubit _buildCubit({
   required ConfigUseCase useCase,
   required ConfigLayout layout,
   int toolCount = 0,
-  ConfigScope? targetScope,
-}) => ConfigCubit(
-  configUseCase: useCase,
-  layout: layout,
-  toolCount: toolCount,
-  targetScope: targetScope,
-);
-
-ConfigScope _modelScope(String modelId) =>
-    ConfigScope.path(['models', modelId]);
+}) => ConfigCubit(configUseCase: useCase, layout: layout, toolCount: toolCount);
 
 bool _hasUserValue(
   ConfigView resolver,
@@ -64,22 +55,19 @@ void main() {
     tmp.deleteSync(recursive: true);
   });
 
-  test('openSession refreshes target scope and tool count', () async {
+  test('openSession refreshes the tool count', () async {
     final cubit = _buildCubit(
       useCase: useCase,
       layout: layout,
     );
     addTearDown(cubit.close);
 
-    // Initial state has no scoped config target.
     await Future<void>.delayed(Duration.zero);
-    expect(cubit.state.data.targetScope, isNull);
     expect(cubit.state.data.toolCount, 0);
 
-    cubit.openSession(targetScope: _modelScope('qwen3-test'), toolCount: 7);
+    cubit.openSession(toolCount: 7);
     await Future<void>.delayed(Duration.zero);
 
-    expect(cubit.state.data.targetScope, _modelScope('qwen3-test'));
     expect(cubit.state.data.toolCount, 7);
 
     cubit.closeSession();
@@ -104,8 +92,8 @@ void main() {
     expect(after, isNot(initial));
 
     // openSession (called by the router on each open) must NOT reset
-    // selectedPageId — it only refreshes target scope + tool count.
-    cubit.openSession(targetScope: _modelScope('whatever'), toolCount: 0);
+    // selectedPageId — it only refreshes the tool count.
+    cubit.openSession(toolCount: 0);
     await Future<void>.delayed(Duration.zero);
     expect(cubit.state.data.selectedPageId, after);
     cubit.closeSession();
@@ -151,10 +139,10 @@ void main() {
     );
     addTearDown(cubit.close);
 
-    cubit.openSession(targetScope: _modelScope('qwen3-test'), toolCount: 0);
+    cubit.openSession(toolCount: 0);
     await Future<void>.delayed(Duration.zero);
 
-    // Initial page is App; selected row is the theme entry.
+    // Initial page is App; selected row is the theme.
     cubit.adjustValue(1);
     await Future<void>.delayed(Duration.zero);
     cubit.closeSession();
@@ -170,11 +158,11 @@ void main() {
     cubit.openSession(toolCount: 0);
     await Future<void>.delayed(Duration.zero);
 
-    // App -> Agent -> Provider. Sampling temperature sits below the five
-    // account rows and max agents.
+    // App -> Agent -> Provider. Sampling temperature sits below the model
+    // folders, the provider rows and max agents.
     cubit.changePage(1);
     cubit.changePage(1);
-    cubit.moveSelection(6);
+    cubit.moveSelection(8);
     cubit.adjustValue(1);
     cubit.adjustValue(1);
     await Future<void>.delayed(Duration.zero);
@@ -182,7 +170,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(
-      _hasUserValue(repo, keys.provider.sampling.temperature.global),
+      _hasUserValue(repo, keys.chat.sampling.temperature.global),
       true,
     );
   });
@@ -194,16 +182,56 @@ void main() {
     cubit.openSession(toolCount: 0);
     await Future<void>.delayed(Duration.zero);
 
-    // App -> Agent -> Provider. Max agents follows the five account rows.
+    // App -> Agent -> Provider. Max agents follows the model folders and
+    // the provider rows.
     cubit.changePage(1);
     cubit.changePage(1);
-    cubit.moveSelection(5);
+    cubit.moveSelection(7);
     cubit.adjustValue(1);
     await Future<void>.delayed(Duration.zero);
     cubit.closeSession();
     await Future<void>.delayed(Duration.zero);
 
     expect(_hasUserValue(repo, keys.provider.maxAgents.global), true);
+  });
+
+  test('local context cap writes through the config use case', () async {
+    final cubit = _buildCubit(useCase: useCase, layout: layout);
+    addTearDown(cubit.close);
+
+    cubit.openSession(toolCount: 0);
+    await Future<void>.delayed(Duration.zero);
+
+    // App -> Agent -> Provider. The cap follows the model folders.
+    cubit.changePage(1);
+    cubit.changePage(1);
+    cubit.moveSelection(1);
+    cubit.adjustValue(1);
+    await Future<void>.delayed(Duration.zero);
+    cubit.closeSession();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      _hasUserValue(
+        repo,
+        keys.builtInServer.contextCap.global,
+      ),
+      true,
+    );
+  });
+
+  test('the provider page has a section for each provider with settings', () {
+    final page = layout.pageById('provider')! as ConfigParamPage;
+
+    expect(page.sections.map((section) => section.heading), [
+      'Local models',
+      'Built-in server',
+      'Custom endpoint',
+      'OpenRouter',
+      'Fireworks AI',
+      'Agents',
+      'Sampling',
+    ]);
   });
 
   test('opaque text config ignores inline adjust', () async {
@@ -213,7 +241,7 @@ void main() {
     );
     addTearDown(cubit.close);
 
-    cubit.openSession(targetScope: _modelScope('qwen3-test'), toolCount: 0);
+    cubit.openSession(toolCount: 0);
     await Future<void>.delayed(Duration.zero);
 
     // App -> Agent. First agent row is the multi-line system prompt.
@@ -234,7 +262,7 @@ void main() {
     );
     addTearDown(cubit.close);
 
-    cubit.openSession(targetScope: _modelScope('qwen3-test'), toolCount: 0);
+    cubit.openSession(toolCount: 0);
     await Future<void>.delayed(Duration.zero);
 
     // App -> Agent. Begin edit enters the prompt text field, but
@@ -258,7 +286,7 @@ void main() {
     );
     addTearDown(cubit.close);
 
-    cubit.openSession(targetScope: _modelScope('qwen3-test'), toolCount: 0);
+    cubit.openSession(toolCount: 0);
     await Future<void>.delayed(Duration.zero);
 
     // App -> Agent. First agent row is the multi-line system prompt.
@@ -273,7 +301,7 @@ void main() {
 
     expect(cubit.state, isA<BrowsingState>());
 
-    cubit.openSession(targetScope: _modelScope('qwen3-test'), toolCount: 0);
+    cubit.openSession(toolCount: 0);
     await Future<void>.delayed(Duration.zero);
 
     expect(cubit.state, isA<BrowsingState>());
@@ -289,7 +317,7 @@ void main() {
       );
       addTearDown(cubit.close);
 
-      cubit.openSession(targetScope: _modelScope('qwen3-test'), toolCount: 0);
+      cubit.openSession(toolCount: 0);
       await Future<void>.delayed(Duration.zero);
 
       // App -> Agent, then begin editing the multi-line system prompt.

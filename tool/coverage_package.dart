@@ -2,6 +2,7 @@
 
 import 'dart:io';
 
+import 'src/dart_test.dart';
 import 'src/helpers.dart';
 
 Future<void> main() async {
@@ -22,8 +23,7 @@ Future<void> main() async {
   }
 
   stdout.writeln('==> $packageName: dart test --coverage=coverage');
-  var code = await runCommand('dart', [
-    'test',
+  var code = await runDartTest([
     '--coverage=coverage',
   ], workingDirectory: packagePath);
   if (code != 0) {

@@ -1,10 +1,10 @@
 import 'dart:async';
 
+import 'package:bestie_platform_abstractions/bestie_platform_abstractions.dart';
 import 'package:bestie_sandbox_use_case/bestie_sandbox_use_case.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:config_repository/testing.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:path/path.dart' as p;
 import 'package:process_host/process_host.dart';
 import 'package:sandbox/sandbox.dart';
 import 'package:sandbox_repository/sandbox_repository.dart';
@@ -22,6 +22,10 @@ const _enforcement = SandboxEnforcement(
 );
 
 const _grantsKey = 'app.sandbox_write_grants';
+
+extension on Command {
+  CommandFlow get flow => body as CommandFlow;
+}
 
 void main() {
   setUpAll(() {
@@ -61,15 +65,24 @@ void main() {
       config: config,
       configKeys: SandboxConfigKeys.defaults(),
       sandboxModel: sandboxModel,
-      paths: p.posix,
     );
   }
 
   SandboxPlan setup(SandboxUseCase useCase) {
     final plan = useCase.setupSandbox(
-      workspaceRoot: '/work',
-      homeDir: '/home/cow',
-      tempDir: '/var/folders/cow/T',
+      platform: LinuxPlatform(
+        architecture: OSArchitecture.linuxX64,
+        homeDir: '/home/cow',
+        tempDir: '/var/folders/cow/T',
+        workingDirectory: '/work',
+        bestieDir: '/home/cow/.bestie',
+        configFile: '/home/cow/.bestie/bestie.json',
+        conversationsDir: '/home/cow/.bestie/conversations',
+        curlLibraryPath: '/opt/libcurl.so',
+        caCertPath: '/opt/cacert.pem',
+        creditsPath: '/opt/CREDITS.md',
+        serverExecutable: const ProgramCommand(executable: '/opt/server'),
+      ),
       programRoots: const ['/opt/bestie/bin', '/opt/bestie/editor'],
     );
     when(() => sandboxes.plan).thenReturn(plan);
@@ -417,14 +430,14 @@ void main() {
       final windows = useCaseWith(sandboxModel: SandboxPlatformModel.windows);
       setup(windows);
       expect(
-        resetCommand(windows).running,
+        resetCommand(windows).flow.running,
         'Resetting the Windows sandbox. This can take a while. Please be '
         'patient.',
       );
 
       final posix = useCaseWith();
       setup(posix);
-      expect(resetCommand(posix).running, 'Resetting the sandbox…');
+      expect(resetCommand(posix).flow.running, 'Resetting the sandbox…');
     });
 
     test('are available when ready or failed, not mid-initialization', () {
@@ -455,7 +468,9 @@ void main() {
       final useCase = useCaseWith();
       setup(useCase);
 
-      final result = await resetCommand(useCase).invoke(const Answers.empty());
+      final result = await resetCommand(
+        useCase,
+      ).flow.invoke(const Answers.empty());
 
       expect(result, isA<CommandRan>());
       verify(() => sandboxes.reset()).called(1);
@@ -468,7 +483,9 @@ void main() {
       final useCase = useCaseWith();
       setup(useCase);
 
-      final result = await resetCommand(useCase).invoke(const Answers.empty());
+      final result = await resetCommand(
+        useCase,
+      ).flow.invoke(const Answers.empty());
 
       expect(
         result,
@@ -492,7 +509,7 @@ void main() {
 
         final result = await forgetCommand(
           useCase,
-        ).invoke(const Answers.empty());
+        ).flow.invoke(const Answers.empty());
 
         expect(result, isA<CommandRan>());
         expect(config[_grantsKey], isNull);
@@ -516,7 +533,9 @@ void main() {
       final useCase = useCaseWith();
       setup(useCase);
 
-      final result = await forgetCommand(useCase).invoke(const Answers.empty());
+      final result = await forgetCommand(
+        useCase,
+      ).flow.invoke(const Answers.empty());
 
       expect(result, isA<CommandRejected>());
       verifyNever(() => sandboxes.replan(any()));

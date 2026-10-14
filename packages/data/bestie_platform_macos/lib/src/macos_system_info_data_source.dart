@@ -3,45 +3,37 @@ import 'package:intentions/intentions.dart';
 import 'package:posix_dart/posix_dart.dart';
 import 'package:system_info2/system_info2.dart';
 
-int macOSTotalRamBytes() => posixSysctl.byNameInt64('hw.memsize') ?? 0;
-
-/// Returns available system memory in bytes via Mach `host_statistics64`
-/// plus a `hw.pagesize` sysctl read.
-///
-/// Computes available memory matching Activity Monitor:
-///   used = (internal - purgeable + wired + compressor) × page_size
-///   available = total_ram - used
-///
-/// Returns 0 on failure.
-int macOSAvailableRamBytes() {
-  final stats = posixMach.hostVmStatistics();
-  if (stats == null) return 0;
-
-  final pageSize = posixSysctl.byNameInt32('hw.pagesize');
-  if (pageSize == null || pageSize <= 0) return 0;
-
-  final total = macOSTotalRamBytes();
-  final usedPages =
-      stats.internalPageCount -
-      stats.purgeableCount +
-      stats.wireCount +
-      stats.compressorPageCount;
-  final used = usedPages * pageSize;
-  final available = total - used;
-  return available > 0 ? available : 0;
-}
-
+/// Reads memory from Mach and sysctl.
 @dataSource
 class MacOSSystemInfoDataSource implements SystemInfoDataSource {
-  MacOSSystemInfoDataSource();
+  /// [mach] and [sysctl] default to the host's libc; pass them to substitute
+  /// doubles.
+  MacOSSystemInfoDataSource({PosixMach? mach, PosixSysctl? sysctl})
+    : _mach = mach ?? posixMach,
+      _sysctl = sysctl ?? posixSysctl;
+
+  final PosixMach _mach;
+  final PosixSysctl _sysctl;
 
   @override
   SystemInfoSnapshot readSystemInfo() {
+    final total = _sysctl.byNameInt64('hw.memsize') ?? 0;
     return SystemInfoSnapshot(
       logicalCoreCount: SysInfo.cores.length,
-      totalRamBytes: macOSTotalRamBytes(),
-      availableRamBytes: macOSAvailableRamBytes(),
+      totalRamBytes: total,
+      availableRamBytes: _availableBytes(total),
       platformAlwaysUnified: true,
     );
+  }
+
+  /// Memory the kernel counts as free or reclaimable before it reports
+  /// pressure: free (speculative included), active and inactive pages. Wired
+  /// pages and the compressor's pages are never available.
+  int _availableBytes(int total) {
+    final stats = _mach.hostVmStatistics();
+    if (stats == null) return 0;
+    final pageSize = _sysctl.byNameInt32('hw.pagesize') ?? 0;
+    final pages = stats.freeCount + stats.activeCount + stats.inactiveCount;
+    return (pages * pageSize).clamp(0, total);
   }
 }

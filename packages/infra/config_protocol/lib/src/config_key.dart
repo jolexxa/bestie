@@ -1,5 +1,6 @@
 import 'package:config_protocol/src/config_codec.dart';
 import 'package:config_protocol/src/config_effect.dart';
+import 'package:config_protocol/src/config_field.dart';
 import 'package:config_protocol/src/config_path.dart';
 import 'package:meta/meta.dart';
 
@@ -8,6 +9,7 @@ abstract interface class ConfigKeyBase {
   ConfigPath get path;
   ConfigEffect get effect;
   ConfigResolutionBase get resolution;
+  ConfigFieldBase get field;
 
   Object? defaultObjectValue();
   Object? decode(Object? raw);
@@ -21,6 +23,7 @@ final class ConfigKey<T> implements ConfigKeyBase {
     required this.path,
     required this.codec,
     required this.defaultValue,
+    required this.field,
     this.effect = ConfigEffect.live,
     this.resolution = const ConfigResolution.exact(),
   });
@@ -31,6 +34,8 @@ final class ConfigKey<T> implements ConfigKeyBase {
   final ConfigPath path;
   final ConfigCodec<T> codec;
   final T Function() defaultValue;
+  @override
+  final ConfigField<T> field;
   @override
   final ConfigEffect effect;
   @override
@@ -138,11 +143,6 @@ abstract interface class ConfigResolutionBase {
 }
 
 final class ConfigResolution<T> implements ConfigResolutionBase {
-  const ConfigResolution({
-    required this.includeScopeAncestry,
-    this.fallbackKeys = const [],
-  });
-
   const ConfigResolution.exact()
     : includeScopeAncestry = false,
       fallbackKeys = const [];
@@ -155,18 +155,7 @@ final class ConfigResolution<T> implements ConfigResolutionBase {
   final bool includeScopeAncestry;
   final List<ConfigKey<T>> fallbackKeys;
 
-  Iterable<ConfigAddress<T>> chain(ConfigAddress<T> address) sync* {
-    final scopes = includeScopeAncestry
-        ? address.scope.ancestry
-        : [address.scope];
-    for (final scope in scopes) {
-      yield address.key.at(scope);
-      for (final key in fallbackKeys) {
-        yield key.at(scope);
-      }
-    }
-  }
-
+  /// Where a value for [address] is looked for, in order.
   @override
   Iterable<ConfigAddressBase> chainBase(ConfigAddressBase address) sync* {
     final scopes = includeScopeAncestry

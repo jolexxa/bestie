@@ -44,6 +44,9 @@ Without the native assets, FFI-dependent tests and features are skipped or unava
 > dart tool/download_curl_assets.dart --tag v2.0.0a5
 > ```
 
+> [!NOTE]
+> The llama.cpp libraries come from the [hobbyfarm-ai/llama.cpp](https://github.com/hobbyfarm-ai/llama.cpp) fork. Bump it with `dart tool/update_llama.dart <tag>`, or stage a local build of the fork with `dart tool/download_llama_assets.dart --from-build <llama.cpp>/build`.
+
 ## 3. Run
 
 For day-to-day development:
@@ -64,10 +67,10 @@ Melos owns workspace orchestration. Run commands from the repo root; the root `p
 dart run melos run test --no-select           # run Dart tests
 dart run melos run analyze --no-select        # dart analyze --fatal-infos
 dart run melos run format --no-select         # format root tools and packages
-dart run melos run checks --no-select         # full CI check sequence
+dart run melos run checks                     # everything CI runs, plus coverage
 ```
 
-Run `dart run melos run checks --no-select` before pushing. It mirrors what CI runs.
+Run `dart run melos run checks` before pushing. CI runs `checks:static` and `checks:test`, and `checks` adds 100% coverage on top.
 
 [Dart SDK]: https://dart.dev/get-dart
 [FVM]: https://fvm.app/

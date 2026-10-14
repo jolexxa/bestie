@@ -30,6 +30,14 @@ Source: https://github.com/rust-lang/libc
 
 Copyright The Rust Project Developers.
 
+### llama.cpp
+
+Bestie ships the llama.cpp and ggml libraries, built from the hobbyfarm-ai/llama.cpp fork, so `bestie_server` can run GGUF models on your machine.
+
+Source: https://github.com/ggml-org/llama.cpp
+
+Copyright The ggml authors.
+
 ### ripgrep
 
 Bestie ships `rg` so its agent can search files from the shell. ripgrep is dual-licensed under MIT or the Unlicense; Bestie distributes it under the MIT terms. It links its Rust dependencies statically, so the licence of every crate inside the shipped binary is reproduced in THIRD_PARTY_LICENSES.txt.
@@ -123,6 +131,14 @@ The following components are licensed under the [BSD-2-Clause](https://opensourc
 
 The following components are licensed under the [BSD-3-Clause](https://opensource.org/licenses/BSD-3-Clause).
 
+### range_request
+
+The chunk queue and worker pool of Bestie's resumable model downloader (`model_downloader`) are derived from the design of `range_request`'s `ChunkFetcher`.
+
+Source: https://pub.dev/packages/range_request
+
+Copyright 2025, Kyohei Ito.
+
 | Package | Copyright |
 |---------|-----------|
 | [_fe_analyzer_shared](https://github.com/dart-lang/sdk/tree/main/pkg/_fe_analyzer_shared) | the Dart project authors |
@@ -176,6 +192,14 @@ The following components are licensed under the [BSD-3-Clause](https://opensourc
 
 The following components are licensed under the [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0).
 
+### LLVM OpenMP
+
+On Windows, Bestie ships the LLVM OpenMP runtime (`libomp.dll`) that ggml's CPU backends use for threading. It is licensed under the Apache License v2.0 with LLVM Exceptions.
+
+Source: https://github.com/llvm/llvm-project/tree/main/openmp
+
+Copyright The LLVM Project contributors.
+
 | Package | Copyright |
 |---------|-----------|
 | [arxlib](https://github.com/JinZr/arxlib.git) | JinZr |
@@ -221,4 +245,16 @@ The following components are licensed under the [curl](https://curl.se/docs/copy
 | Package | Copyright |
 |---------|-----------|
 | [curl / libcurl](https://curl.se/) | Daniel Stenberg and contributors |
+
+## Other
+
+The following components are licensed under their own terms.
+
+### Microsoft Visual C++ Runtime
+
+On Windows, Bestie ships `msvcp140.dll`, `vcruntime140.dll` and `vcruntime140_1.dll` beside the llama.cpp libraries, as Distributable Code under the Visual Studio licence terms.
+
+Source: https://learn.microsoft.com/en-us/visualstudio/releases/2026/redistribution
+
+Copyright Microsoft Corporation.
 

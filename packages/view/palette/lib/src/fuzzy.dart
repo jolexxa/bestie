@@ -1,5 +1,9 @@
 import 'package:fuzzy/fuzzy.dart';
 
+/// How closely typed text must match for the palette to keep a command or
+/// pane row.
+const double paletteMatchThreshold = 0.4;
+
 /// Ranks [candidates] against [query] using the `fuzzy` package, keeping
 /// matches scoring at least as well as [threshold] (0 is exact, 1 matches
 /// anything).

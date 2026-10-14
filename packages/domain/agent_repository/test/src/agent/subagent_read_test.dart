@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:agent_provider_protocol/agent_provider_protocol.dart';
 import 'package:agent_repository/agent_repository.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
@@ -11,7 +11,7 @@ void main() {
   setUpAll(registerFallbacks);
 
   late MockConversationStore store;
-  late MockProvider provider;
+  late MockAgentRuntime runtime;
   late MockAgent primary;
   late StreamController<AgentRuntimeEvent> events;
   late AgentRepository repository;
@@ -23,10 +23,10 @@ void main() {
       () => store.load(any(), agentId: any(named: 'agentId')),
     ).thenAnswer((_) async => null);
     events = StreamController<AgentRuntimeEvent>.broadcast();
-    provider = MockProvider();
+    runtime = MockAgentRuntime();
     primary = MockAgent();
-    when(() => provider.pool).thenAnswer((_) => const Stream.empty());
-    when(() => provider.spend).thenAnswer((_) => const Stream.empty());
+    when(() => runtime.pool).thenAnswer((_) => const Stream.empty());
+    when(() => runtime.spend).thenAnswer((_) => const Stream.empty());
     when(() => primary.handle).thenReturn(agentHandle);
     when(() => primary.kind).thenReturn(AgentKind.primary);
     when(() => primary.events).thenAnswer((_) => events.stream);
@@ -39,7 +39,7 @@ void main() {
     ).thenAnswer((_) async => const RunAccepted());
     when(primary.cancel).thenAnswer((_) async => const CancelAccepted());
     when(
-      () => provider.startPrimary(config: any(named: 'config')),
+      () => runtime.startPrimary(config: any(named: 'config')),
     ).thenAnswer((_) async => StartPrimaryStarted(primary));
     repository = AgentRepository(
       workingDirectory: '/work',
@@ -132,16 +132,16 @@ void main() {
     ).thenAnswer((_) async => const RunAccepted());
     when(subagent.cancel).thenAnswer((_) async => const CancelAccepted());
     when(
-      () => provider.startSubagent(
+      () => runtime.startSubagent(
         config: any(named: 'config'),
         label: any(named: 'label'),
       ),
     ).thenAnswer((_) async => StartSubagentStarted(subagent));
     when(
-      () => provider.disposeAgent(subagent),
+      () => runtime.disposeAgent(subagent),
     ).thenAnswer((_) async => const DisposeAgentDisposed());
 
-    await repository.bindProvider(provider, contextSize: 1024);
+    await repository.bindRuntime(runtime, contextSize: 1024);
     await repository.startSubagent(
       callId: 'call',
       prompt: 'Investigate',

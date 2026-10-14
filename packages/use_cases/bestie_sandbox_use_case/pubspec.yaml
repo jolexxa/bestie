@@ -9,6 +9,8 @@ environment:
   sdk: ^3.11.0
 
 dependencies:
+  bestie_platform_abstractions:
+    path: ../../data/bestie_platform_abstractions
   command_protocol:
     path: ../../infra/command_protocol
   config_protocol:
@@ -17,7 +19,8 @@ dependencies:
     path: ../../domain/config_repository
   intentions: ^0.1.0
   meta: ^1.18.0
-  path: ^1.9.1
+  path_plus:
+    path: ../../infra/path_plus
   rxdart: ^0.28.0
   sandbox:
     path: ../../infra/sandbox

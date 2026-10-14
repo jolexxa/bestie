@@ -2,6 +2,8 @@ import 'package:agent_repository/agent_repository.dart';
 import 'package:bestie_chat_use_case/src/conversation_picker.dart';
 import 'package:test/test.dart';
 
+import '../helpers/platform.dart';
+
 ConversationSummary _summary(
   String id, {
   String workingDirectory = '/home/j/proj',
@@ -22,7 +24,7 @@ ConversationPicker _picker(
   String currentConversationId = 'current',
 }) => ConversationPicker(
   summaries: Future.value(summaries),
-  homeDirectory: '/home/j',
+  paths: linuxPlatform.paths,
   currentConversationId: currentConversationId,
 );
 

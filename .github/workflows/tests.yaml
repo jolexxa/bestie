@@ -30,14 +30,8 @@ jobs:
       - name: 📦 Install dependencies
         run: dart pub get
 
-      - name: 🔖 Check version placeholder
-        run: dart tool/set_version.dart --check
-
-      - name: 🧹 Check formatting
-        run: dart run melos run format:check --no-select
-
-      - name: 🔍 Analyze
-        run: dart run melos run analyze --no-select
+      - name: 🔍 Static checks
+        run: dart run melos run checks:static
 
   test:
     name: 🧪 Test (${{ matrix.platform }})
@@ -75,10 +69,4 @@ jobs:
           os: ${{ matrix.asset_os }}
 
       - name: 🧪 Run tests
-        run: dart run melos run test --no-select
-
-      - name: 🦀 Check bestie_edit
-        run: dart run melos run checks:edit --no-select
-
-      - name: 🦀 Check bestie_guard
-        run: dart run melos run checks:guard --no-select
+        run: dart run melos run checks:test

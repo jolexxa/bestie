@@ -1,3 +1,4 @@
+import 'package:bestie_palette_view/src/models/pane_frame.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:intentions/intentions.dart';
 
@@ -93,9 +94,60 @@ final class AvailabilityChanged extends PaletteInput {
   final Availability availability;
 }
 
+/// A listed command's status changed.
+@model
+final class CommandStatusChanged extends PaletteInput {
+  const CommandStatusChanged(this.commandId, this.status);
+
+  final String commandId;
+  final CommandStatus? status;
+}
+
 @model
 final class InvokeSettled extends PaletteInput {
   const InvokeSettled(this.result);
 
   final CommandResult result;
+}
+
+/// The visible pane's listing arrived on its stream.
+@model
+final class PaneContentLoaded extends PaletteInput {
+  const PaneContentLoaded(this.content);
+
+  final PaneContent content;
+}
+
+/// The visible pane's status band changed.
+@model
+final class PaneStatusChanged extends PaletteInput {
+  const PaneStatusChanged(this.status);
+
+  final PaneStatus? status;
+}
+
+/// A printable key the pane claimed while its list had the keyboard.
+@model
+final class PaneKeyPressed extends PaletteInput {
+  const PaneKeyPressed(this.char);
+
+  final String char;
+}
+
+/// An action run on [frame] finished.
+@model
+final class PaneActionSettled extends PaletteInput {
+  const PaneActionSettled(this.frame, this.result);
+
+  final PaneFrame frame;
+  final PaneActionResult result;
+}
+
+/// One of [frame]'s streams failed.
+@model
+final class PaneStreamFailed extends PaletteInput {
+  const PaneStreamFailed(this.frame, this.reason);
+
+  final PaneFrame frame;
+  final String reason;
 }

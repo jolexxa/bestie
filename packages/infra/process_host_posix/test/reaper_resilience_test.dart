@@ -37,7 +37,7 @@ Future<void> main() async {
     test('reports signal death', () async {
       final proc = run(const ['-c', 'sleep 30']);
       await proc.pid;
-      await proc.kill(force: true);
+      expect(await proc.kill(force: true), isTrue);
       final exit = await proc.exit.timeout(const Duration(seconds: 10));
       expect(exit, const ProcessSignaled(9));
       await proc.close();

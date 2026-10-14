@@ -1,6 +1,7 @@
-export 'package:agent_provider_protocol/agent_provider_protocol.dart'
+export 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
     show
         BlockStat,
+        MergedBlockStats,
         Role,
         ToolCall,
         ToolCallCanceled,

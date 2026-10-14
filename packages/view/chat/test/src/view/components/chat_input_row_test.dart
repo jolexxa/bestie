@@ -58,6 +58,7 @@ ChatLogic _logic() {
     () => useCase.conversationReplacements,
   ).thenAnswer((_) => const Stream.empty());
   when(() => useCase.rewindRequests).thenAnswer((_) => const Stream.empty());
+  when(() => useCase.reasoningResets).thenAnswer((_) => const Stream.empty());
   when(() => tools.activeJobCount).thenReturn(0);
   when(() => tools.activeJobs).thenAnswer((_) => const Stream.empty());
   return ChatLogic(

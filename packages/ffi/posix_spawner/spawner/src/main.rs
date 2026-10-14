@@ -32,7 +32,7 @@ const EXIT_TIOCSCTTY: i32 = 103;
 const EXIT_TCSETATTR: i32 = 104;
 const EXIT_DUP2: i32 = 105;
 const EXIT_EXEC: i32 = 106;
-// `fork()` itself failed: no supervisor, no target. The helper exits
+// `pipe()` or `fork()` failed: no supervisor, no target. The helper exits
 // without writing any frame, so Dart sees status-pipe EOF (<8 bytes)
 // and reports supervisorLost.
 const EXIT_FORK: i32 = 107;
@@ -154,13 +154,20 @@ fn run(inv: Invocation) {
 /// Runs in the forked child: set up stdio for [mode], then `execvp` the
 /// target. Never returns.
 fn child(status_fd: c_int, confine_fd: Option<c_int>, mode: &Mode, target: &[String]) -> ! {
-    // The supervisor owns the status pipe. The target must not keep a
-    // write-end copy, or Dart never sees EOF after the two frames.
-    unsafe { libc::close(status_fd) };
-
     // New session so the target is a session/pgrp leader (and, in
     // terminal mode, can claim the pty as its controlling tty).
-    if unsafe { libc::setsid() } < 0 {
+    let session = unsafe { libc::setsid() };
+
+    // The pid goes out only once its group exists, so Dart can always
+    // signal it. The supervisor's status frame follows only after this
+    // process exits, keeping the two frames in order.
+    write_frame(status_fd, unsafe { libc::getpid() });
+
+    // The target must not keep a write-end copy, or Dart never sees EOF
+    // after the two frames.
+    unsafe { libc::close(status_fd) };
+
+    if session < 0 {
         unsafe { libc::_exit(EXIT_SETSID) };
     }
 
@@ -303,7 +310,7 @@ fn exec(target: &[String]) -> ! {
 }
 
 /// Runs in the parent after `fork`: reaps the target and reports its
-/// pid + raw wait-status down the status pipe. Never returns.
+/// raw wait-status down the status pipe. Never returns.
 fn supervise(status_fd: c_int, child_pid: i32, mode: &Mode) -> ! {
     // Drop our copies of the child-only pipe ends. Critically, closing
     // the stdout/stderr write ends here means that when the target
@@ -322,8 +329,6 @@ fn supervise(status_fd: c_int, child_pid: i32, mode: &Mode) -> ! {
             }
         }
     }
-
-    write_frame(status_fd, child_pid);
 
     let mut status: c_int = 0;
     loop {
@@ -400,21 +405,21 @@ fn set_sane_termios(fd: c_int) -> bool {
     t.c_cflag |= libc::CREAD | libc::CS8 | libc::HUPCL;
 
     // Special control chars — `stty sane`.
-    t.c_cc[libc::VINTR as usize] = 0x03; // ^C
-    t.c_cc[libc::VQUIT as usize] = 0x1C; // ^\
-    t.c_cc[libc::VERASE as usize] = 0x7F; // DEL
-    t.c_cc[libc::VKILL as usize] = 0x15; // ^U
-    t.c_cc[libc::VEOF as usize] = 0x04; // ^D
-    t.c_cc[libc::VEOL as usize] = 0x00; // disabled
-    t.c_cc[libc::VSTART as usize] = 0x11; // ^Q
-    t.c_cc[libc::VSTOP as usize] = 0x13; // ^S
-    t.c_cc[libc::VSUSP as usize] = 0x1A; // ^Z
-    t.c_cc[libc::VREPRINT as usize] = 0x12; // ^R
-    t.c_cc[libc::VWERASE as usize] = 0x17; // ^W
-    t.c_cc[libc::VLNEXT as usize] = 0x16; // ^V
-    t.c_cc[libc::VDISCARD as usize] = 0x0F; // ^O
-    t.c_cc[libc::VMIN as usize] = 1;
-    t.c_cc[libc::VTIME as usize] = 0;
+    t.c_cc[libc::VINTR] = 0x03; // ^C
+    t.c_cc[libc::VQUIT] = 0x1C; // ^\
+    t.c_cc[libc::VERASE] = 0x7F; // DEL
+    t.c_cc[libc::VKILL] = 0x15; // ^U
+    t.c_cc[libc::VEOF] = 0x04; // ^D
+    t.c_cc[libc::VEOL] = 0x00; // disabled
+    t.c_cc[libc::VSTART] = 0x11; // ^Q
+    t.c_cc[libc::VSTOP] = 0x13; // ^S
+    t.c_cc[libc::VSUSP] = 0x1A; // ^Z
+    t.c_cc[libc::VREPRINT] = 0x12; // ^R
+    t.c_cc[libc::VWERASE] = 0x17; // ^W
+    t.c_cc[libc::VLNEXT] = 0x16; // ^V
+    t.c_cc[libc::VDISCARD] = 0x0F; // ^O
+    t.c_cc[libc::VMIN] = 1;
+    t.c_cc[libc::VTIME] = 0;
 
     unsafe { libc::tcsetattr(fd, libc::TCSANOW, &t) >= 0 }
 }

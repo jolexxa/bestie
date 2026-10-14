@@ -1,11 +1,15 @@
-import 'package:agent_provider_protocol/agent_provider_protocol.dart'
-    show AgentProvider;
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
+    show AgentRuntime;
 import 'package:intentions/intentions.dart';
 import 'package:provider_protocol/provider_protocol.dart'
-    show ProviderFailure, ProviderKeyInfo;
+    show
+        ProviderAvailability,
+        ProviderClient,
+        ProviderFailure,
+        ProviderModel,
+        ProviderModelLoadProgress;
 import 'package:provider_repository/src/models/provider_settings.dart';
 import 'package:provider_repository/src/models/resolved_model.dart';
-import 'package:provider_repository/src/state/provider_session/provider_connection.dart';
 
 /// Mutable data shared by the provider session states.
 @model
@@ -14,21 +18,27 @@ final class ProviderSessionData {
 
   ProviderSettings? settings;
 
-  /// Bumped whenever the settings change so a probe that started under older
-  /// settings is ignored when it lands.
+  /// Bumped whenever the session starts over, so that work begun before is
+  /// ignored when it lands.
   int attempt = 0;
 
-  /// One connection per usable account, keyed by provider id.
-  Map<String, ProviderConnection> connections = const {};
+  /// Every provider's client, keyed by provider id.
+  Map<String, ProviderClient> clients = {};
 
-  /// The connection the chosen model runs on.
-  ProviderConnection? connection;
+  /// Whether each provider is usable, keyed by provider id, as last
+  /// reported by its client.
+  Map<String, ProviderAvailability> availability = {};
 
   ResolvedModel? model;
 
-  ProviderKeyInfo? keyInfo;
+  /// How far the chosen model is from serving, once its provider says.
+  ProviderModelLoadProgress? loading;
 
-  AgentProvider? handle;
+  /// The model being served; held only while the session is ready.
+  ProviderModel? loaded;
+
+  /// The agent runtime running on [loaded].
+  AgentRuntime? runtime;
 
   ProviderFailure? failure;
 }

@@ -87,6 +87,47 @@ void main() {
       expect(cancelled, isTrue);
     });
   });
+
+  group('alwaysAvailable', () {
+    test('emits Available on every listen', () async {
+      final stream = alwaysAvailable();
+      expect(await stream.first, isA<Available>());
+      expect(await stream.first, isA<Available>());
+    });
+  });
+
+  group('gatedAvailabilityOn', () {
+    test('re-gates on listen and whenever any signal ticks', () async {
+      final first = StreamController<int>.broadcast();
+      final second = StreamController<String>.broadcast();
+      addTearDown(first.close);
+      addTearDown(second.close);
+      var open = false;
+
+      final seen = <Availability>[];
+      final sub = gatedAvailabilityOn(
+        [first.stream, second.stream],
+        () => open ? const Available() : const Unavailable('closed'),
+      ).listen(seen.add);
+      await _pump();
+      expect(seen.single, isA<Unavailable>());
+
+      open = true;
+      first.add(1);
+      await _pump();
+      expect(seen.last, isA<Available>());
+
+      open = false;
+      second.add('tick');
+      await _pump();
+      expect(seen, hasLength(3));
+      expect(seen.last, isA<Unavailable>());
+
+      await sub.cancel();
+      expect(first.hasListener, isFalse);
+      expect(second.hasListener, isFalse);
+    });
+  });
 }
 
 Future<void> _pump() => Future<void>.delayed(Duration.zero);

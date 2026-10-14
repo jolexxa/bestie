@@ -24,12 +24,31 @@ final class ToolsConfigKeys {
       path: const ['tools', 'concurrent'],
       codec: ConfigCodecs.integers,
       defaultValue: () => defaultConcurrentTools,
+      field: const NumericField(
+        label: 'Concurrent Tools',
+        description:
+            'How many tool calls may run at once. Each runs off the '
+            'interface thread, so lowering this only trades tool speed '
+            'for room the model can generate in. Applies immediately.',
+        min: minConcurrentTools,
+        max: maxConcurrentTools,
+        step: 1,
+      ),
     ),
     toolCacheChars: ConfigKey<int>(
       id: 'tools.cache_characters',
       path: const ['tools', 'cacheCharacters'],
       codec: ConfigCodecs.integers,
       defaultValue: () => defaultToolCacheChars,
+      field: const NumericField(
+        label: 'Tool Cache Characters',
+        description:
+            'How much of the start of a stored tool output is kept on hand '
+            'to answer from.',
+        min: 1024,
+        max: 1 << 20,
+        step: 1024,
+      ),
     ),
   );
 

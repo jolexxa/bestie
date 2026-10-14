@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:ffi';
+import 'dart:io' show pid;
 
-import 'package:agent_provider_remote/agent_provider_remote.dart';
 import 'package:agent_repository/agent_repository.dart';
 import 'package:agentic_terminal/agentic_terminal.dart';
 import 'package:app_shell_use_case/app_shell_use_case.dart';
@@ -13,13 +13,19 @@ import 'package:bestie/src/app/models/app_metadata.dart';
 import 'package:bestie/src/app/prompts/compaction_prompt_content_builder.dart';
 import 'package:bestie/src/app/prompts/dynamic_system_prompt.dart';
 import 'package:bestie/src/app/prompts/subagent_system_prompt_builder.dart';
+import 'package:bestie/src/app/providers.dart';
 import 'package:bestie/src/app/tools/process_host_builder.dart';
 import 'package:bestie/src/app/tools/toolbox_builder.dart';
+import 'package:bestie_built_in_server_use_case/bestie_built_in_server_use_case.dart';
 import 'package:bestie_chat_use_case/bestie_chat_use_case.dart';
 import 'package:bestie_commands_use_case/bestie_commands_use_case.dart';
 import 'package:bestie_config/bestie_config.dart';
 import 'package:bestie_config_view/bestie_config_view.dart';
+import 'package:bestie_fireworks_use_case/bestie_fireworks_use_case.dart';
+import 'package:bestie_local_models_use_case/bestie_local_models_use_case.dart';
 import 'package:bestie_mascot_use_case/bestie_mascot_use_case.dart';
+import 'package:bestie_openai_endpoint_use_case/bestie_openai_endpoint_use_case.dart';
+import 'package:bestie_openrouter_use_case/bestie_openrouter_use_case.dart';
 import 'package:bestie_platform_abstractions/bestie_platform_abstractions.dart';
 import 'package:bestie_platform_linux/bestie_platform_linux.dart';
 import 'package:bestie_platform_macos/bestie_platform_macos.dart';
@@ -30,23 +36,28 @@ import 'package:bestie_sandbox_use_case/bestie_sandbox_use_case.dart';
 import 'package:bestie_shell_use_case/bestie_shell_use_case.dart';
 import 'package:bestie_tools_use_case/bestie_tools_use_case.dart';
 import 'package:bestie_ui/bestie_ui.dart';
+import 'package:built_in_server_client/built_in_server_client.dart';
+import 'package:built_in_server_repository/built_in_server_repository.dart';
 import 'package:clock/clock.dart';
 import 'package:config_repository/config_repository.dart';
 import 'package:diagnostics/diagnostics.dart';
 import 'package:file/file.dart' show FileSystem;
 import 'package:files_data_source/files_data_source.dart';
+import 'package:fireworks_repository/fireworks_repository.dart';
 import 'package:http/http.dart' as http;
-import 'package:inference_openai_compat/inference_openai_compat.dart';
+import 'package:hugging_face_client/hugging_face_client.dart';
 import 'package:intentions/intentions.dart';
-import 'package:model_catalog_modelsdev/model_catalog_modelsdev.dart';
-import 'package:openrouter_sdk/openrouter_sdk.dart' as openrouter;
+import 'package:local_models_repository/local_models_repository.dart';
+import 'package:local_server_protocol/local_server_protocol.dart'
+    show ModelIndex;
+import 'package:model_downloader/model_downloader.dart';
+import 'package:model_index_store/model_index_store.dart';
+import 'package:openai_endpoint_repository/openai_endpoint_repository.dart';
+import 'package:openrouter_repository/openrouter_repository.dart';
 import 'package:path/path.dart' as p;
 import 'package:platform/platform.dart';
 import 'package:platform_repository/platform_repository.dart';
 import 'package:process_host/process_host.dart';
-import 'package:provider_fireworks/provider_fireworks.dart';
-import 'package:provider_openai_compat/provider_openai_compat.dart';
-import 'package:provider_openrouter/provider_openrouter.dart';
 import 'package:provider_repository/provider_repository.dart';
 import 'package:sandbox_grant_store/sandbox_grant_store.dart';
 import 'package:sandbox_linux/sandbox_linux.dart';
@@ -58,10 +69,6 @@ import 'package:tool_protocol/tool_protocol.dart';
 import 'package:win32_dart/win32_dart.dart'
     show Capabilities, SidSucceeded, bestieReadCapabilityName, win32;
 
-const String openRouterAppTitle = 'Bestie';
-const String openRouterAppSite = 'https://hobbyfarm.ai';
-const List<String> openRouterAppCategories = ['cli-agent'];
-
 /// The constructed dependency graph for a running bestie process.
 @model
 class AppContext {
@@ -71,12 +78,21 @@ class AppContext {
     required this.terminalHost,
     required this.shellUserland,
     required this.httpClient,
+    required this.localModelsRepository,
+    required this.builtInServerRepository,
+    required this.openAiEndpointRepository,
+    required this.openRouterRepository,
+    required this.fireworksRepository,
     required this.providerRepository,
     required this.agentRepository,
     required this.shellRepository,
     required this.sandboxRepository,
     required this.userlandRepository,
     required this.configUseCase,
+    required this.builtInServerUseCase,
+    required this.openAiEndpointUseCase,
+    required this.openRouterUseCase,
+    required this.fireworksUseCase,
     required this.providerUseCase,
     required this.chatUseCase,
     required this.sandboxUseCase,
@@ -87,6 +103,7 @@ class AppContext {
     required this.appTerminalEnvironmentUseCase,
     required this.appShellUseCase,
     required this.mascotUseCase,
+    required this.localModelsUseCase,
     required this.configKeys,
     required this.configLayout,
     required this.appInfo,
@@ -110,10 +127,26 @@ class AppContext {
 
   // Repositories
 
-  /// The hosted provider session: key, model, and the agents it hands out.
-  /// Shared by every hosted-provider data source; closed on [dispose].
+  /// The HTTP client every provider and the model hub share; closed on
+  /// [dispose].
   final http.Client httpClient;
 
+  /// The models bestie downloaded and the ones in the user's folders.
+  final LocalModelsRepository localModelsRepository;
+
+  /// This bestie's hold on the built-in inference server.
+  final BuiltInServerRepository builtInServerRepository;
+
+  /// The custom OpenAI-compatible endpoint as configured.
+  final OpenAiEndpointRepository openAiEndpointRepository;
+
+  /// OpenRouter as configured.
+  final OpenRouterRepository openRouterRepository;
+
+  /// Fireworks AI as configured.
+  final FireworksRepository fireworksRepository;
+
+  /// The model the app runs, on whichever provider it is chosen from.
   final ProviderRepository providerRepository;
 
   /// Conversations and the agents that run them.
@@ -133,7 +166,19 @@ class AppContext {
   /// Reads and writes user configuration.
   final ConfigUseCase configUseCase;
 
-  /// Configures the hosted provider from config and exposes its status.
+  /// Runs the built-in server alongside bestie and configures its loads.
+  final BuiltInServerUseCase builtInServerUseCase;
+
+  /// Configures the custom endpoint from config.
+  final OpenAiEndpointUseCase openAiEndpointUseCase;
+
+  /// Configures OpenRouter from config.
+  final OpenRouterUseCase openRouterUseCase;
+
+  /// Configures Fireworks AI from config.
+  final FireworksUseCase fireworksUseCase;
+
+  /// Keeps the provider session in step with config and exposes its status.
   final ProviderUseCase providerUseCase;
 
   /// Drives conversations against the connected model.
@@ -164,6 +209,9 @@ class AppContext {
   /// The mascot in the corner of the app.
   final MascotUseCase mascotUseCase;
 
+  /// The model library and downloads in the palette.
+  final LocalModelsUseCase localModelsUseCase;
+
   // Config schema
 
   /// The typed configuration key tree.
@@ -191,6 +239,7 @@ class AppContext {
     if (provisioned is ProvisionFailed) {
       Diagnostics.log('shell-userland', provisioned.reason);
     }
+    unawaited(localModelsUseCase.start());
   }
 
   /// Tears down every owned service in dependency order.
@@ -202,10 +251,17 @@ class AppContext {
     await toolsUseCase.dispose();
     await utilityToolsUseCase.dispose();
     await chatUseCase.dispose();
+    await builtInServerUseCase.dispose();
+    await openAiEndpointUseCase.dispose();
+    await openRouterUseCase.dispose();
+    await fireworksUseCase.dispose();
     await providerUseCase.dispose();
+    await localModelsUseCase.dispose();
     // save session
     await agentRepository.dispose();
     await providerRepository.dispose();
+    await builtInServerRepository.dispose();
+    await localModelsRepository.dispose();
     httpClient.close();
     await configUseCase.dispose();
     await appShellUseCase.dispose();
@@ -300,11 +356,11 @@ class AppContext {
       final readPolicy = SandboxReadPolicy(
         readRoots: [
           ...sandboxModel.systemReadRoots,
-          ...sandboxModel.homeReadRoots(platform.homeDir),
+          ...sandboxModel.homeReadRoots(platform.paths),
           shellUserland.binDir,
           p.dirname(editorPath),
         ],
-        holes: sandboxModel.deniedReadsFor(platform.homeDir),
+        holes: sandboxModel.deniedReadsFor(platform.paths),
         policyVersion: 1,
       );
       final worker = switch (await Win32SandboxWorker.spawn()) {
@@ -380,6 +436,30 @@ class AppContext {
       fileSystem: fileSystem,
     );
 
+    final httpClient = http.Client();
+    final clients = BestieProviderClients(
+      builtInServer: BuiltInServerClient(
+        client: httpClient,
+        sessionClientFactory: http.Client.new,
+        fileSystem: fileSystem,
+        lockFile: platform.serverLockFile,
+        indexFile: p.join(platform.modelsDir, ModelIndex.fileName),
+        launch: BuiltInServerLaunch(
+          command: platform.serverExecutable,
+          bestieDir: platform.bestieDir,
+          logFile: platform.serverLogFile,
+        ),
+        pid: pid,
+        spawner: SupervisedServerSpawner(
+          host: processHost,
+          environment: hostEnvironment,
+        ),
+        clock: clock,
+      ),
+      httpClient: httpClient,
+      clock: clock,
+    );
+
     final configSchema = buildConfigSchema(
       defaultSystemPrompt: systemPrompt,
       defaultTheme: appThemeDefault.name,
@@ -404,9 +484,7 @@ class AppContext {
       sandboxModel: sandboxModel,
     );
     final sandboxPlan = sandboxUseCase.setupSandbox(
-      workspaceRoot: workingDirectory,
-      homeDir: platform.homeDir,
-      tempDir: platform.tempDir,
+      platform: platform,
       programRoots: [shellUserland.binDir, p.dirname(editorPath)],
     );
 
@@ -449,63 +527,19 @@ class AppContext {
           const BestieCompactionPromptContentBuilder(),
     );
 
-    final httpClient = http.Client();
-    final modelCatalog = ModelsDevCatalog(
-      client: httpClient,
-      cacheFile: fileSystem.file(platform.modelCatalogCacheFile),
+    final builtInServerRepository = BuiltInServerRepository(
+      client: clients.builtInServer,
     );
-    final providerRepository = ProviderRepository(
-      factories: ProviderSessionFactories(
-        providerFactory: (account) {
-          if (account.descriptor.id == openRouterDescriptor.id) {
-            return OpenRouterProvider(
-              client: openrouter.OpenRouter(
-                apiKey: account.apiKey,
-                httpReferer: openRouterAppSite,
-                appTitle: openRouterAppTitle,
-                appCategories: openRouterAppCategories.toSet(),
-              ),
-              apiKey: account.apiKey,
-              httpReferer: openRouterAppSite,
-              appTitle: openRouterAppTitle,
-              appCategories: openRouterAppCategories,
-            );
-          }
-          final inference = OpenAiCompatProvider(
-            descriptor: account.descriptor,
-            baseUrl: account.resolvedBaseUrl!,
-            apiKey: account.apiKey,
-            client: httpClient,
-          );
-          if (account.descriptor.id != fireworksDescriptor.id) return inference;
-          return FireworksProvider(
-            inference: inference,
-            apiKey: account.apiKey,
-            client: httpClient,
-            clock: clock,
-          );
-        },
-        inferenceClientFactory: (endpoint) => OpenAiCompatInferenceClient(
-          endpoint: endpoint,
-          clientFactory: http.Client.new,
-        ),
-        agentProviderSpawner:
-            ({
-              required client,
-              required modelId,
-              required contextWindow,
-              required maxAgents,
-            }) => RemoteAgentProvider(
-              client: client,
-              options: RemoteProviderOptions(
-                modelId: modelId,
-                contextWindow: contextWindow,
-                maxAgents: maxAgents,
-              ),
-            ),
-      ),
-      catalog: modelCatalog,
+    final openAiEndpointRepository = OpenAiEndpointRepository(
+      client: clients.openAiEndpoint,
     );
+    final openRouterRepository = OpenRouterRepository(
+      client: clients.openRouter,
+    );
+    final fireworksRepository = FireworksRepository(
+      client: clients.fireworks,
+    );
+    final providerRepository = ProviderRepository(clients: clients.all);
 
     final providerUseCase = ProviderUseCase(
       config: configRepository,
@@ -513,15 +547,37 @@ class AppContext {
       providerRepository: providerRepository,
       agentRepository: agentRepository,
     );
+    final builtInServerUseCase = BuiltInServerUseCase(
+      config: configRepository,
+      configKeys: parameters.builtInServer,
+      server: builtInServerRepository,
+      providers: providerRepository,
+      agents: agentRepository,
+      providerId: clients.builtInServer.id,
+    );
+    final openAiEndpointUseCase = OpenAiEndpointUseCase(
+      config: configRepository,
+      configKeys: parameters.openAiEndpoint,
+      repository: openAiEndpointRepository,
+    );
+    final openRouterUseCase = OpenRouterUseCase(
+      config: configRepository,
+      configKeys: parameters.openRouter,
+      repository: openRouterRepository,
+    );
+    final fireworksUseCase = FireworksUseCase(
+      config: configRepository,
+      configKeys: parameters.fireworks,
+      repository: fireworksRepository,
+    );
 
     final chatUseCase = ChatUseCase(
       providerRepository: providerRepository,
       agentRepository: agentRepository,
       config: configRepository,
       configKeys: parameters.chat,
-      sampling: () => providerUseCase.sampling,
       dynamicSystemPrompt: dynamicSystemPrompt,
-      homeDirectory: platform.homeDir,
+      paths: platform.paths,
     );
 
     final shellRepository = ShellRepository(
@@ -555,6 +611,37 @@ class AppContext {
 
     final appShellUseCase = AppShellUseCase();
 
+    final localModelsRepository = LocalModelsRepository(
+      modelsDir: platform.modelsDir,
+      hub: HubClient(client: httpClient),
+      downloader: ModelDownloader(clock: clock),
+      indexStore: ModelIndexStore(
+        path: p.join(platform.modelsDir, ModelIndex.fileName),
+        fileSystem: fileSystem,
+      ),
+      ledgerStore: DownloadLedgerStore(
+        path: p.join(platform.modelsDir, DownloadLedger.fileName),
+        fileSystem: fileSystem,
+      ),
+      folders: configRepository.resolve(
+        parameters.localModels.paths.global,
+      ),
+      fileSystem: fileSystem,
+      clock: clock,
+    );
+    final localModelsUseCase = LocalModelsUseCase(
+      library: localModelsRepository,
+      server: builtInServerRepository,
+      providers: providerRepository,
+      config: configRepository,
+      configKeys: parameters.localModels,
+      modelKey: parameters.provider.model,
+      providerId: clients.builtInServer.id,
+      agents: agentRepository,
+      platform: platformRepository,
+      clock: clock,
+    );
+
     final mascotUseCase = MascotUseCase(
       config: configRepository,
       configKeys: parameters.mascot,
@@ -563,6 +650,11 @@ class AppContext {
     final commandsUseCase = CommandsUseCase(
       contributions: [
         providerUseCase,
+        builtInServerUseCase,
+        openAiEndpointUseCase,
+        openRouterUseCase,
+        fireworksUseCase,
+        localModelsUseCase,
         toolsUseCase,
         chatUseCase,
         shellUseCase,
@@ -578,12 +670,21 @@ class AppContext {
       terminalHost: terminalHost,
       shellUserland: shellUserland,
       httpClient: httpClient,
+      localModelsRepository: localModelsRepository,
+      builtInServerRepository: builtInServerRepository,
+      openAiEndpointRepository: openAiEndpointRepository,
+      openRouterRepository: openRouterRepository,
+      fireworksRepository: fireworksRepository,
       providerRepository: providerRepository,
       agentRepository: agentRepository,
       shellRepository: shellRepository,
       sandboxRepository: sandboxRepository,
       userlandRepository: userlandRepository,
       configUseCase: configUseCase,
+      builtInServerUseCase: builtInServerUseCase,
+      openAiEndpointUseCase: openAiEndpointUseCase,
+      openRouterUseCase: openRouterUseCase,
+      fireworksUseCase: fireworksUseCase,
       providerUseCase: providerUseCase,
       chatUseCase: chatUseCase,
       sandboxUseCase: sandboxUseCase,
@@ -594,6 +695,7 @@ class AppContext {
       appTerminalEnvironmentUseCase: appTerminalEnvironmentUseCase,
       appShellUseCase: appShellUseCase,
       mascotUseCase: mascotUseCase,
+      localModelsUseCase: localModelsUseCase,
       configKeys: parameters,
       configLayout: configLayout,
       appInfo: appInfo,

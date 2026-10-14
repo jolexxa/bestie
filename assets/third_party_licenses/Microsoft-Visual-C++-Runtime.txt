@@ -1,0 +1,35 @@
+Microsoft Visual C++ Runtime
+Files: msvcp140.dll, vcruntime140.dll, vcruntime140_1.dll (Windows x64 only)
+
+These files are Microsoft "Distributable Code" shipped with Visual Studio 2026
+under VC\Redist\MSVC\<version>\x64\Microsoft.VC145.CRT. They are redistributed
+in unmodified form, as required. They are not open-source software and are not
+covered by any of the other notices in this file.
+
+The Visual Studio 2026 Distributable List states:
+
+    Subject to the License Terms for the software, you may copy and
+    distribute with your program any of the files within the following
+    folder and its subfolders except as noted below. You may not modify
+    these files.
+
+      - [VisualStudioFolder]\VC\redist
+
+    ...
+
+    The same Visual C++ Runtime Redistributable package is available from
+    Latest supported Visual C++ Redistributable downloads and Download
+    Visual Studio Tools. Distribution of the Visual C++ Runtime
+    Redistributable package, merge modules, and individual binaries
+    obtained from those pages is limited to licensed Visual Studio users
+    and is subject to its license terms.
+
+Full terms:
+
+  Visual Studio 2026 Redistribution ("Distributable List")
+  https://learn.microsoft.com/en-us/visualstudio/releases/2026/redistribution
+
+  Microsoft Software License Terms for Visual Studio 2026
+  https://visualstudio.microsoft.com/license-terms/
+
+Copyright (c) Microsoft Corporation. All rights reserved.

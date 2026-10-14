@@ -20,7 +20,7 @@ abstract interface class ToolWorker {
 typedef ToolWorkerFactory = Future<ToolWorkerCreateResult> Function();
 
 /// The result of standing up a [ToolWorker].
-@PartOf(UtilityToolsUseCase)
+@model
 sealed class ToolWorkerCreateResult {
   const ToolWorkerCreateResult();
 }
@@ -34,7 +34,7 @@ final class ToolWorkerCreated extends ToolWorkerCreateResult {
 }
 
 /// No worker; the call that wanted one has to be answered without it.
-@PartOf(UtilityToolsUseCase)
+@model
 final class ToolWorkerCreateFailed extends ToolWorkerCreateResult {
   const ToolWorkerCreateFailed(this.message);
 

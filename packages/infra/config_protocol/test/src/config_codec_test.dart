@@ -21,6 +21,11 @@ void main() {
       expect(ConfigCodecs.strings.decode(123), isNull);
     });
 
+    test('map casts a loosely typed JSON object', () {
+      final loose = <Object?, Object?>{'a': 1};
+      expect(ConfigCodecs.maps.decode(loose), {'a': 1});
+    });
+
     test('map preserves unknown string-keyed JSON objects', () {
       final raw = {
         'llama_cpp': {'flashAttentionEnabled': true},

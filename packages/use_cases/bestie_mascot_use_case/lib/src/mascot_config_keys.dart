@@ -12,6 +12,12 @@ final class MascotConfigKeys {
       path: const ['app', 'mascot'],
       codec: ConfigCodecs.strings,
       defaultValue: () => Mascot.cow.id,
+      field: EnumField(
+        label: 'Mascot',
+        description: 'The mascot that lives in the corner of the app.',
+        options: () => [for (final mascot in Mascot.values) mascot.id],
+        optionLabel: (id) => Mascot.parse(id).label,
+      ),
     ),
   );
 

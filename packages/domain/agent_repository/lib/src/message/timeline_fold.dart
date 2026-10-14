@@ -1,16 +1,16 @@
-import 'package:agent_provider_protocol/agent_provider_protocol.dart'
+import 'package:agent_repository/src/conversation/conversation_entry.dart';
+import 'package:agent_repository/src/conversation/job_report.dart';
+import 'package:agent_repository/src/message/model_snapshot.dart';
+import 'package:agent_repository/src/message/timeline_item.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
     show
-        BlockStat,
+        MergedBlockStats,
         Role,
         TranscriptBlock,
         TranscriptParagraphBlock,
         TranscriptReasoningBlock,
         TranscriptToolCallBlock,
         TranscriptToolCallResponseBlock;
-import 'package:agent_repository/src/conversation/conversation_entry.dart';
-import 'package:agent_repository/src/conversation/job_report.dart';
-import 'package:agent_repository/src/message/model_snapshot.dart';
-import 'package:agent_repository/src/message/timeline_item.dart';
 import 'package:tool_protocol/tool_protocol.dart' show ToolCallResponse;
 
 /// Folds conversation entries into chat rows. User entries become rows; an
@@ -165,22 +165,17 @@ void _splitTurn(
   // A reasoning run flushed mid-turn is settled; only one flushed at the very
   // end (nothing after it) is still running.
   void flushReasoning({required bool tail}) {
-    final text = StringBuffer();
-    BlockStat? stat;
-    for (final r in reasoning) {
-      // Drop whitespace-only reasoning blocks
-      if (r.text.trim().isEmpty) continue;
-      text.write(r.text);
-      stat = _mergeStats(stat, r.stat);
-    }
+    final visible = reasoning
+        .where((block) => block.text.trim().isNotEmpty)
+        .toList();
     reasoning.clear();
-    if (text.isEmpty) return;
+    if (visible.isEmpty) return;
     into.add(
       ReasoningStubTimelineItem(
         id: '${turn.id}#reasoning-${reasoningSeq++}',
         timestamp: turn.timestamp,
-        text: text.toString(),
-        stat: stat,
+        text: visible.map((block) => block.text).join(),
+        stat: visible.map((block) => block.stat).merged,
         running: live && tail,
       ),
     );
@@ -254,17 +249,6 @@ BackgroundJobTimelineItem _backgroundJob(
   job: entry.job,
   settled: reports[entry.job.callId],
 );
-
-BlockStat? _mergeStats(BlockStat? a, BlockStat? b) {
-  if (a == null) return b;
-  if (b == null) return a;
-  final tokens = (a.tokenCount ?? 0) + (b.tokenCount ?? 0);
-  return BlockStat(
-    startedAt: a.startedAt.isBefore(b.startedAt) ? a.startedAt : b.startedAt,
-    endedAt: a.endedAt.isAfter(b.endedAt) ? a.endedAt : b.endedAt,
-    tokenCount: tokens > 0 ? tokens : null,
-  );
-}
 
 class _Turn {
   _Turn({

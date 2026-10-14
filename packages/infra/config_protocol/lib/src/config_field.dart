@@ -11,6 +11,10 @@ abstract interface class ConfigFieldBase {
   /// Whether the value should stay hidden while browsing.
   bool get secret;
 
+  /// Shown in place of the key's default while nobody has chosen a value,
+  /// or null to show the default itself.
+  String? get unsetLabel;
+
   Object? adjustValue(Object? current, int delta);
   String formatValue(Object? value);
   Object? parseValue(String text);
@@ -18,12 +22,18 @@ abstract interface class ConfigFieldBase {
 }
 
 sealed class ConfigField<T> implements ConfigFieldBase {
-  ConfigField({required this.label, required this.description});
+  const ConfigField({
+    required this.label,
+    required this.description,
+    this.unsetLabel,
+  });
 
   @override
   final String label;
   @override
   final String description;
+  @override
+  final String? unsetLabel;
 
   T adjust(T current, int delta);
 
@@ -58,12 +68,13 @@ sealed class ConfigField<T> implements ConfigFieldBase {
 }
 
 final class NumericField<T extends num> extends ConfigField<T> {
-  NumericField({
+  const NumericField({
     required super.label,
     required super.description,
     required this.min,
     required this.max,
     required this.step,
+    super.unsetLabel,
   });
 
   final T min;
@@ -116,7 +127,7 @@ final class NumericField<T extends num> extends ConfigField<T> {
 }
 
 final class BoolField extends ConfigField<bool> {
-  BoolField({required super.label, required super.description});
+  const BoolField({required super.label, required super.description});
 
   @override
   bool adjust(bool current, int delta) => !current;
@@ -139,7 +150,7 @@ final class BoolField extends ConfigField<bool> {
 }
 
 final class EnumField<T> extends ConfigField<T> {
-  EnumField({
+  const EnumField({
     required super.label,
     required super.description,
     required this.options,
@@ -184,7 +195,7 @@ final class EnumField<T> extends ConfigField<T> {
 }
 
 final class OpaqueField<T> extends ConfigField<T> {
-  OpaqueField({
+  const OpaqueField({
     required super.label,
     required super.description,
     int maxLines = 1,
@@ -210,4 +221,32 @@ final class OpaqueField<T> extends ConfigField<T> {
 
   @override
   Validation validate(T value) => const Valid();
+}
+
+/// A list of text values, edited one per line.
+final class ListField extends ConfigField<List<String>> {
+  const ListField({
+    required super.label,
+    required super.description,
+    this.maxLines = 4,
+  });
+
+  @override
+  final int maxLines;
+
+  @override
+  List<String> adjust(List<String> current, int delta) => current;
+
+  @override
+  String format(List<String> value) => value.join('\n');
+
+  /// Each non-blank line, trimmed.
+  @override
+  List<String> parse(String text) => [
+    for (final line in text.split('\n'))
+      if (line.trim() case final value when value.isNotEmpty) value,
+  ];
+
+  @override
+  Validation validate(List<String> value) => const Valid();
 }

@@ -1,0 +1,29 @@
+name: model_downloader
+description: >-
+  Resumable, chunked, sha256-verified downloads of model files on a
+  background isolate.
+version: 0.0.0
+publish_to: none
+
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  clock: ^1.1.1
+  crypto: ^3.0.6
+  file: ^7.0.1
+  http: ^1.5.0
+  intentions: ^0.1.0
+  isolate_worker:
+    path: ../../infra/isolate_worker
+  meta: ^1.18.0
+  path: ^1.9.1
+
+dev_dependencies:
+  coverage: ^1.15.0
+  fake_async: ^1.3.2
+  mocktail: ^1.0.4
+  test: ^1.26.3
+  very_good_analysis: ^10.0.0

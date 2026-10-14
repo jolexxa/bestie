@@ -1,4 +1,4 @@
-import 'package:agent_provider_protocol/agent_provider_protocol.dart'
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
     show
         Role,
         TranscriptBlockId,

@@ -2,7 +2,8 @@
 // root), driven entirely by that platform's `bundleAssets` manifest — the same
 // list the app resolves at runtime. There is no hand-maintained copy list to
 // drift from the manifest, and a final pass verifies every declared asset
-// actually landed in the bundle.
+// actually landed in the bundle, along with the llama.cpp libraries the
+// bundled `bestie_server` loads.
 //
 // Usage:
 //   dart tool/bundle_assets.dart <bundle_dir>              # host platform
@@ -18,6 +19,8 @@ import 'package:bestie/src/app/assets/app_assets.dart';
 import 'package:bestie_platform_abstractions/bestie_platform_abstractions.dart';
 import 'package:file/local.dart';
 import 'package:path/path.dart' as p;
+
+import 'src/llama_release.dart';
 
 /// A release target: its manifest and the `native/<os>/<arch>` coordinates the
 /// resolver stamps into source paths.
@@ -108,11 +111,105 @@ Future<void> main(List<String> args) async {
         _copyOwnerNativeDir(asset, source, destination, copiedDirs);
       case AssetBundleUnit.assetPath:
         _copyAssetPath(asset, source, destination);
+      case AssetBundleUnit.ownerCliBundle:
+        await _mergeCliBundle(asset, repoRoot, bundleDir, destination);
     }
   }
 
   _verify(target.assets, destination);
-  stdout.writeln('Bundled ${target.assets.length} declared assets — verified.');
+  _verifyLlamaLibraries(os, bundleDir);
+  stdout.writeln(
+    'Bundled ${target.assets.length} declared assets and the llama.cpp '
+    'libraries — verified.',
+  );
+}
+
+/// Builds the asset's Dart program with `dart build cli` into a directory
+/// beside the bundle, then merges that build's bundle into this one. The
+/// executable replaces an earlier build of itself; any other file must match
+/// what the bundle already holds.
+Future<void> _mergeCliBundle(
+  AppAsset asset,
+  String repoRoot,
+  String bundleDir,
+  AppAssetResolver destination,
+) async {
+  final packageDir = p.join(repoRoot, asset.packageOwner);
+  final outputDir = p.join(p.dirname(bundleDir), p.basename(packageDir));
+  final entryPoint = p.relative(
+    p.join(repoRoot, asset.sourceScript),
+    from: packageDir,
+  );
+  stdout.writeln('  dart build cli $entryPoint (${asset.packageOwner})');
+  final build = await Process.start(
+    'dart',
+    ['build', 'cli', '--target', entryPoint, '--output', outputDir],
+    workingDirectory: packageDir,
+    mode: ProcessStartMode.inheritStdio,
+  );
+  final code = await build.exitCode;
+  if (code != 0) {
+    stderr.writeln('dart build cli failed for ${asset.packageOwner} ($code).');
+    exit(1);
+  }
+
+  final builtBundle = Directory(p.join(outputDir, 'bundle'));
+  final conflicts = <String>[];
+  var merged = 0;
+  for (final file in builtBundle.listSync(recursive: true).whereType<File>()) {
+    final relative = p.relative(file.path, from: builtBundle.path);
+    final target = File(p.join(bundleDir, relative));
+    final isExecutable = p.equals(target.path, destination.pathFor(asset));
+    if (isExecutable || !target.existsSync()) {
+      target.parent.createSync(recursive: true);
+      file.copySync(target.path);
+      merged++;
+    } else if (!_sameBytes(file, target)) {
+      conflicts.add(relative);
+    }
+  }
+  if (conflicts.isNotEmpty) {
+    stderr.writeln(
+      '${asset.packageOwner} would replace different files in the bundle:',
+    );
+    for (final conflict in conflicts) {
+      stderr.writeln('  - $conflict');
+    }
+    exit(1);
+  }
+  stdout.writeln('  merged $merged files from ${asset.packageOwner}');
+}
+
+bool _sameBytes(File first, File second) {
+  if (first.lengthSync() != second.lengthSync()) return false;
+  final firstBytes = first.readAsBytesSync();
+  final secondBytes = second.readAsBytesSync();
+  for (var index = 0; index < firstBytes.length; index++) {
+    if (firstBytes[index] != secondBytes[index]) return false;
+  }
+  return true;
+}
+
+/// Fails loudly unless the bundle's `lib/` carries every llama.cpp library
+/// `bestie_server` needs on [os]. The llama hook bundles whatever is staged,
+/// and nothing when nothing is, so a missing download only shows up here.
+void _verifyLlamaLibraries(String os, String bundleDir) {
+  final platform = llamaPlatforms.firstWhere((platform) => platform.os == os);
+  final libDir = p.join(bundleDir, 'lib');
+  final missing = [
+    for (final library in platform.requiredLibraries)
+      if (!File(p.join(libDir, library)).existsSync()) library,
+  ];
+  if (missing.isNotEmpty) {
+    stderr.writeln(
+      'Bundle is missing llama.cpp libraries in $libDir '
+      '(run `dart tool/download_llama_assets.dart --os $os`):',
+    );
+    for (final library in missing) {
+      stderr.writeln('  - $library');
+    }
+    exit(1);
+  }
 }
 
 /// Copies the whole `assets/native/<os>/<arch>/` directory the asset lives in

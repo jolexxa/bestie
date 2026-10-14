@@ -26,6 +26,10 @@ const _read = ToolDefinition(
   onError: 'Read failed',
 );
 
+extension on Command {
+  CommandFlow get flow => body as CommandFlow;
+}
+
 void main() {
   late StreamController<ToolCallRequest> requests;
   late _MockToolRequester agents;
@@ -110,7 +114,7 @@ void main() {
     final useCase = useCaseWith([_Responder(_search, (_) async => job)]);
     final command = useCase.commands.single;
     expect(command.id, 'tools.stopJobs');
-    expect(command.next(const Answers.empty()), isNull);
+    expect(command.flow.next(const Answers.empty()), isNull);
 
     final gates = <Availability>[];
     final subscription = command.availability.listen(gates.add);
@@ -119,7 +123,10 @@ void main() {
     expect(gates.single, isA<Unavailable>());
     expect((gates.single as Unavailable).reason, 'no active jobs');
 
-    expect(await command.invoke(const Answers.empty()), isA<CommandRejected>());
+    expect(
+      await command.flow.invoke(const Answers.empty()),
+      isA<CommandRejected>(),
+    );
 
     final request = _request(_search);
     requests.add(request);
@@ -134,7 +141,7 @@ void main() {
     await _pump();
     expect(lateGates.first, isA<Available>());
 
-    expect(await command.invoke(const Answers.empty()), isA<CommandRan>());
+    expect(await command.flow.invoke(const Answers.empty()), isA<CommandRan>());
     expect(job.stops, 1);
   });
 

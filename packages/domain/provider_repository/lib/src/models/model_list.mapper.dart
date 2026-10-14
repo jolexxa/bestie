@@ -16,7 +16,7 @@ class ListedModelMapper extends ClassMapperBase<ListedModel> {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = ListedModelMapper._());
       ProviderModelRefMapper.ensureInitialized();
-      ProviderModelMapper.ensureInitialized();
+      ProviderModelInfoMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -29,8 +29,8 @@ class ListedModelMapper extends ClassMapperBase<ListedModel> {
     'ref',
     _$ref,
   );
-  static ProviderModel _$model(ListedModel v) => v.model;
-  static const Field<ListedModel, ProviderModel> _f$model = Field(
+  static ProviderModelInfo _$model(ListedModel v) => v.model;
+  static const Field<ListedModel, ProviderModelInfo> _f$model = Field(
     'model',
     _$model,
   );
@@ -123,10 +123,10 @@ extension ListedModelValueCopy<$R, $Out>
 abstract class ListedModelCopyWith<$R, $In extends ListedModel, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
   ProviderModelRefCopyWith<$R, ProviderModelRef, ProviderModelRef> get ref;
-  ProviderModelCopyWith<$R, ProviderModel, ProviderModel> get model;
+  ProviderModelInfoCopyWith<$R, ProviderModelInfo, ProviderModelInfo> get model;
   $R call({
     ProviderModelRef? ref,
-    ProviderModel? model,
+    ProviderModelInfo? model,
     String? providerName,
     bool? hasAccess,
   });
@@ -145,12 +145,12 @@ class _ListedModelCopyWithImpl<$R, $Out>
   ProviderModelRefCopyWith<$R, ProviderModelRef, ProviderModelRef> get ref =>
       $value.ref.copyWith.$chain((v) => call(ref: v));
   @override
-  ProviderModelCopyWith<$R, ProviderModel, ProviderModel> get model =>
-      $value.model.copyWith.$chain((v) => call(model: v));
+  ProviderModelInfoCopyWith<$R, ProviderModelInfo, ProviderModelInfo>
+  get model => $value.model.copyWith.$chain((v) => call(model: v));
   @override
   $R call({
     ProviderModelRef? ref,
-    ProviderModel? model,
+    ProviderModelInfo? model,
     String? providerName,
     bool? hasAccess,
   }) => $apply(

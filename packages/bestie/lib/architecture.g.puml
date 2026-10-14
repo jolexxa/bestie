@@ -17,6 +17,37 @@ package "bestie" {
   class AppTerminalEnvironmentUseCase << useCase >>
   class ArxivSearchClient << dataSource >>
   class ArxivTools << repository >>
+  package "BuiltInServerClient" as _BuiltInServerClient {
+    class BuiltInServerClient << dataSource >>
+    class BuiltInAgentSessions << dataSource >>
+    BuiltInServerClient +-- BuiltInAgentSessions
+    class BuiltInServerLink << dataSource >>
+    BuiltInServerClient +-- BuiltInServerLink
+    class BuiltInServerModel << dataSource >>
+    BuiltInServerClient +-- BuiltInServerModel
+    class DisconnectWording << dataSource >>
+    BuiltInServerClient +-- DisconnectWording
+    class ModelIndexFile << dataSource >>
+    BuiltInServerClient +-- ModelIndexFile
+    class ServerApi << dataSource >>
+    BuiltInServerClient +-- ServerApi
+    class ServerAttacher << dataSource >>
+    BuiltInServerClient +-- ServerAttacher
+    class ServerConnectionData << dataSource >>
+    BuiltInServerClient +-- ServerConnectionData
+    class ServerConnectionLogic << dataSource >>
+    BuiltInServerClient +-- ServerConnectionLogic
+    class ServerConnectionState << dataSource >>
+    BuiltInServerClient +-- ServerConnectionState
+    class ServerDiscovery << dataSource >>
+    BuiltInServerClient +-- ServerDiscovery
+    class ServerSpawner << dataSource >>
+    BuiltInServerClient +-- ServerSpawner
+    class SessionLeases << dataSource >>
+    BuiltInServerClient +-- SessionLeases
+  }
+  class BuiltInServerRepository << repository >>
+  class BuiltInServerUseCase << useCase >>
   class Calculator << repository >>
   package "ChatCubit" as _ChatCubit {
     class ChatCubit << viewModel >>
@@ -41,14 +72,68 @@ package "bestie" {
   class ConversationStore << dataSource >>
   class DateTimeTools << repository >>
   class DiskSpaceDataSource << dataSource >>
+  class DownloadLedgerStore << dataSource >>
   class EditDataSource << dataSource >>
   class ExecutableLinkDataSource << dataSource >>
   class FilesDataSource << dataSource >>
+  class FireworksClient << dataSource >>
+  class FireworksRepository << repository >>
+  class FireworksUseCase << useCase >>
   class FsTools << repository >>
+  class GgufReader << dataSource >>
+  class HubClient << dataSource >>
   class InteractiveTerminalView << view >>
+  package "LocalModelsRepository" as _LocalModelsRepository {
+    class LocalModelsRepository << repository >>
+    class DownloadLogic << repository >>
+    LocalModelsRepository +-- DownloadLogic
+    class DownloadQueue << repository >>
+    LocalModelsRepository +-- DownloadQueue
+    class LedgerWriter << repository >>
+    LocalModelsRepository +-- LedgerWriter
+    class ModelScanner << repository >>
+    LocalModelsRepository +-- ModelScanner
+    class RepoResolver << repository >>
+    LocalModelsRepository +-- RepoResolver
+    class RepoSearcher << repository >>
+    LocalModelsRepository +-- RepoSearcher
+    class ScanLogic << repository >>
+    LocalModelsRepository +-- ScanLogic
+    class ScanState << repository >>
+    LocalModelsRepository +-- ScanState
+  }
+  package "LocalModelsUseCase" as _LocalModelsUseCase {
+    class LocalModelsUseCase << useCase >>
+    class DeleteModelPane << useCase >>
+    LocalModelsUseCase +-- DeleteModelPane
+    class DownloadPane << useCase >>
+    LocalModelsUseCase +-- DownloadPane
+    class InstalledPane << useCase >>
+    LocalModelsUseCase +-- InstalledPane
+    class LocalModelsOperations << useCase >>
+    LocalModelsUseCase +-- LocalModelsOperations
+    class ModelDetailsPane << useCase >>
+    LocalModelsUseCase +-- ModelDetailsPane
+    class QuantPane << useCase >>
+    LocalModelsUseCase +-- QuantPane
+  }
   class MascotUseCase << useCase >>
   class MetasearchClient << dataSource >>
+  package "ModelDownloader" as _ModelDownloader {
+    class ModelDownloader << dataSource >>
+    class ChunkedFileDownloader << dataSource >>
+    ModelDownloader +-- ChunkedFileDownloader
+    class FileHasher << dataSource >>
+    ModelDownloader +-- FileHasher
+  }
+  class ModelIndexStore << dataSource >>
   class OSPlatformRepository << repository >>
+  class OpenAiEndpointClient << dataSource >>
+  class OpenAiEndpointRepository << repository >>
+  class OpenAiEndpointUseCase << useCase >>
+  class OpenRouterClient << dataSource >>
+  class OpenRouterRepository << repository >>
+  class OpenRouterUseCase << useCase >>
   class PaletteCubit << viewModel >>
   class ProviderRepository << repository >>
   class ProviderUseCase << useCase >>
@@ -115,12 +200,6 @@ package "bestie" {
     class UtilityToolsUseCase << useCase >>
     class ToolCommandHandler << useCase >>
     UtilityToolsUseCase +-- ToolCommandHandler
-    class ToolIsolateWorker << useCase >>
-    UtilityToolsUseCase +-- ToolIsolateWorker
-    class ToolWorkReady << useCase >>
-    UtilityToolsUseCase +-- ToolWorkReady
-    class ToolWorkRequest << useCase >>
-    UtilityToolsUseCase +-- ToolWorkRequest
     class ToolWorker << useCase >>
     UtilityToolsUseCase +-- ToolWorker
     class ToolWorkerCreated << useCase >>
@@ -144,6 +223,20 @@ package "bestie" {
   AppTerminalEnvironmentUseCase --> OSPlatformRepository
   ArxivTools --> ArxivSearchClient
   ArxivTools --> FilesDataSource
+  BuiltInAgentSessions --> BuiltInServerLink
+  BuiltInServerClient --> DisconnectWording
+  BuiltInServerClient --> ModelIndexFile
+  BuiltInServerClient --> ServerConnectionData
+  BuiltInServerClient --> ServerConnectionLogic
+  BuiltInServerClient --> ServerConnectionState
+  BuiltInServerClient --> ServerSpawner
+  BuiltInServerModel --> BuiltInServerLink
+  BuiltInServerModel --> DisconnectWording
+  BuiltInServerRepository --> BuiltInServerClient
+  BuiltInServerUseCase --> AgentRepository
+  BuiltInServerUseCase --> BuiltInServerRepository
+  BuiltInServerUseCase --> ConfigRepository
+  BuiltInServerUseCase --> ProviderRepository
   ChatCubit --> ChatLogic
   ChatCubit --> ChatUseCase
   ChatLogic --> ChatUseCase
@@ -153,24 +246,71 @@ package "bestie" {
   ChatUseCase --> AgentRepository
   ChatUseCase --> ConfigRepository
   ChatUseCase --> ProviderRepository
+  ChunkedFileDownloader --> FileHasher
   ConfigCubit --> ConfigUseCase
   ConfigLogic --> ConfigUseCase
   ConfigRepository --> ConfigDataSource
   ConfigSession --> ConfigRepository
   ConfigUseCase --> ConfigRepository
   ConfigUseCase --> ConfigSession
+  DeleteModelPane --> LocalModelsOperations
+  DownloadLogic --> ModelDownloader
+  DownloadPane --> LocalModelsOperations
+  DownloadQueue --> DownloadLedgerStore
+  DownloadQueue --> DownloadLogic
+  DownloadQueue --> LedgerWriter
+  DownloadQueue --> ModelDownloader
+  FireworksRepository --> FireworksClient
+  FireworksUseCase --> ConfigRepository
+  FireworksUseCase --> FireworksRepository
   FsTools --> EditDataSource
+  InstalledPane --> LocalModelsOperations
   InteractiveTerminalView --> ShellPaneCubit
+  LedgerWriter --> DownloadLedgerStore
+  LocalModelsOperations --> AgentRepository
+  LocalModelsOperations --> BuiltInServerRepository
+  LocalModelsOperations --> ConfigRepository
+  LocalModelsOperations --> LocalModelsRepository
+  LocalModelsOperations --> OSPlatformRepository
+  LocalModelsOperations --> ProviderRepository
+  LocalModelsRepository --> DownloadLedgerStore
+  LocalModelsRepository --> DownloadQueue
+  LocalModelsRepository --> HubClient
+  LocalModelsRepository --> ModelDownloader
+  LocalModelsRepository --> ModelIndexStore
+  LocalModelsRepository --> RepoResolver
+  LocalModelsRepository --> RepoSearcher
+  LocalModelsRepository --> ScanLogic
+  LocalModelsRepository --> ScanState
+  LocalModelsUseCase --> AgentRepository
+  LocalModelsUseCase --> BuiltInServerRepository
+  LocalModelsUseCase --> ConfigRepository
+  LocalModelsUseCase --> DownloadPane
+  LocalModelsUseCase --> LocalModelsOperations
+  LocalModelsUseCase --> LocalModelsRepository
+  LocalModelsUseCase --> OSPlatformRepository
+  LocalModelsUseCase --> ProviderRepository
   MascotUseCase --> ConfigRepository
+  ModelDetailsPane --> LocalModelsOperations
+  ModelScanner --> GgufReader
   OSPlatformRepository --> ClipboardDataSource
   OSPlatformRepository --> DiskSpaceDataSource
   OSPlatformRepository --> SystemInfoDataSource
   OSPlatformRepository --> TerminalEnvironmentDataSource
+  OpenAiEndpointRepository --> OpenAiEndpointClient
+  OpenAiEndpointUseCase --> ConfigRepository
+  OpenAiEndpointUseCase --> OpenAiEndpointRepository
+  OpenRouterRepository --> OpenRouterClient
+  OpenRouterUseCase --> ConfigRepository
+  OpenRouterUseCase --> OpenRouterRepository
   PaletteCubit --> CommandsUseCase
   PendingToolCalls --> ConversationStore
   ProviderUseCase --> AgentRepository
   ProviderUseCase --> ConfigRepository
   ProviderUseCase --> ProviderRepository
+  QuantPane --> LocalModelsOperations
+  RepoResolver --> HubClient
+  RepoSearcher --> HubClient
   RouterCubit --> AppShellUseCase
   RouterLogic --> AppShellUseCase
   SandboxRepository --> SandboxReadinessLogic
@@ -178,6 +318,18 @@ package "bestie" {
   SandboxUseCase --> ConfigRepository
   SandboxUseCase --> SandboxRepository
   SandboxUseCase --> WriteAccessQueue
+  ScanLogic --> ModelScanner
+  ScanState --> ModelScanner
+  ServerAttacher --> ServerDiscovery
+  ServerConnectionData --> SessionLeases
+  ServerConnectionLogic --> ServerApi
+  ServerConnectionLogic --> ServerAttacher
+  ServerConnectionState --> ServerApi
+  ServerConnectionState --> ServerAttacher
+  ServerConnectionState --> ServerConnectionData
+  ServerDiscovery --> ServerApi
+  ServerDiscovery --> ServerSpawner
+  SessionLeases --> ServerApi
   Settlement --> JobReporter
   ShellCallIndex --> ShellRepository
   ShellPaneCubit --> ShellPaneLogic
@@ -198,11 +350,9 @@ package "bestie" {
   StatusBarLogic --> ProviderUseCase
   StatusBarLogic --> SandboxUseCase
   ToolCommandHandler --> Toolbox
-  ToolIsolateWorker --> ToolWorkRequest
   ToolRouter --> JobManager
   ToolRouter --> JobReporter
   ToolRouter --> Settlement
-  ToolWorkReady --> ToolWorkRequest
   ToolWorkerCreated --> ToolWorker
   ToolWorkerPool --> ToolWorker
   Toolbox --> ArxivTools

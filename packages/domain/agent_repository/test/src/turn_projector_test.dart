@@ -1,4 +1,6 @@
-import 'package:agent_provider_protocol/agent_provider_protocol.dart'
+import 'package:agent_repository/src/turn/turn_activity.dart';
+import 'package:agent_repository/src/turn/turn_projector.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
     show
         AgentCancelled,
         AgentCompactionCompleted,
@@ -30,8 +32,6 @@ import 'package:agent_provider_protocol/agent_provider_protocol.dart'
         TranscriptReasoningBlock,
         TranscriptToolCallBlock,
         TranscriptToolCallResponseBlock;
-import 'package:agent_repository/src/turn/turn_activity.dart';
-import 'package:agent_repository/src/turn/turn_projector.dart';
 import 'package:test/test.dart';
 
 const _agent = AgentHandle(id: 'primary', kind: AgentKind.primary);

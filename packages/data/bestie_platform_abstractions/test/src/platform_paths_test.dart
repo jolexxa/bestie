@@ -85,10 +85,6 @@ void main() {
         conversationsDirFor(bestieDir, p.posix),
         '$bestieDir/conversations',
       );
-      expect(
-        modelCatalogCacheFileFor(bestieDir, p.posix),
-        '$bestieDir/cache/models_dev.json',
-      );
     });
 
     test('gathers all logs in one directory', () {
@@ -98,6 +94,19 @@ void main() {
       expect(nativeLogFileFor(bestieDir, p.posix), '$logsDir/native.log');
       expect(managedLogFileFor(bestieDir, p.posix), '$logsDir/managed.log');
       expect(crashLogFileFor(bestieDir, p.posix), '$logsDir/crash.log');
+    });
+
+    test('keeps local inference files in models, run, and logs', () {
+      expect(modelsDirFor(bestieDir, p.posix), '$bestieDir/models');
+      expect(runDirFor(bestieDir, p.posix), '$bestieDir/run');
+      expect(
+        serverLockFileFor(bestieDir, p.posix),
+        '$bestieDir/run/server.lock',
+      );
+      expect(
+        serverLogFileFor(bestieDir, p.posix),
+        '$bestieDir/logs/server.log',
+      );
     });
 
     test('a windows layout joins with backslashes', () {

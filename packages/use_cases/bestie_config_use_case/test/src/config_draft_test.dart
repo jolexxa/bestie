@@ -11,6 +11,13 @@ final _primaryCap = ConfigKey<int>(
   path: const ['runtime', 'primaryContextCap'],
   codec: ConfigCodecs.integers,
   defaultValue: () => 0,
+  field: const NumericField(
+    label: 'Cap',
+    description: 'Tokens.',
+    min: 0,
+    max: 100000,
+    step: 1,
+  ),
   effect: ConfigEffect.onCommit,
 );
 
@@ -19,6 +26,13 @@ final _compactionRatio = ConfigKey<double>(
   path: const ['compaction', 'compactionRatio'],
   codec: ConfigCodecs.doubles,
   defaultValue: () => 0.6,
+  field: const NumericField(
+    label: 'Ratio',
+    description: 'Fraction.',
+    min: 0,
+    max: 1,
+    step: 0.05,
+  ),
   effect: ConfigEffect.onCommit,
 );
 
@@ -27,6 +41,7 @@ final _themeEffects = ConfigKey<bool>(
   path: const ['app', 'themeEffects'],
   codec: ConfigCodecs.booleans,
   defaultValue: () => true,
+  field: const BoolField(label: 'Effects', description: 'Fancy.'),
 );
 
 void main() {

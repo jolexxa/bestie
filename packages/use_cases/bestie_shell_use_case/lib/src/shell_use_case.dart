@@ -45,8 +45,10 @@ class ShellUseCase implements ToolResponder, CommandContribution {
         description: 'End the embedded shell and free its pane',
         group: 'Terminal',
         availability: _closeTerminalAvailability(),
-        next: _closeTerminalFlow,
-        invoke: _closeTerminalInvoke,
+        body: CommandFlow(
+          next: _closeTerminalFlow,
+          invoke: _closeTerminalInvoke,
+        ),
       ),
     ]);
   }

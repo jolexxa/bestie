@@ -27,7 +27,7 @@ class ToolsUseCase implements CommandContribution {
         description: 'Cancel every background tool job',
         group: 'Tools',
         availability: _stopJobsAvailability(),
-        invoke: _stopAllJobs,
+        body: CommandFlow(invoke: _stopAllJobs),
       ),
     ]);
   }

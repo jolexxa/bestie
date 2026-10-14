@@ -45,11 +45,13 @@ sealed class ChatState extends StateLogic<ChatState> {
     on<SubagentsChanged>(_onSubagentsChanged);
     on<ActiveJobsChanged>(_onActiveJobsChanged);
     on<SandboxReadinessChanged>(_onSandboxReadinessChanged);
+    on<ReasoningReset>(_onReasoningReset);
     on<InitializeSandbox>(_onInitializeSandbox);
     on<WriteAccessRequestChanged>(_onWriteAccessRequestChanged);
     on<AnswerWriteAccess>(_onAnswerWriteAccess);
     on<ToggleWriteAccessChoice>(_onToggleWriteAccessChoice);
     on<ConfirmWriteAccess>(_onConfirmWriteAccess);
+    on<ConversationStateChanged>(_onConversationStateChanged);
   }
 
   ChatData get data => get<ChatData>();
@@ -187,6 +189,12 @@ sealed class ChatState extends StateLogic<ChatState> {
 
   // ── Shared handlers ───────────────────────────────────
 
+  Transition _onReasoningReset(ReasoningReset input) {
+    data.reasoningMode = input.mode;
+    output(const StateUpdated());
+    return toSelf();
+  }
+
   Transition _onSandboxReadinessChanged(SandboxReadinessChanged input) {
     data.sandboxReadiness = input.readiness;
     output(const StateUpdated());
@@ -322,22 +330,23 @@ sealed class ChatState extends StateLogic<ChatState> {
     return toSelf();
   }
 
+  /// Repaints the conversation, which changes even while no turn can run,
+  /// as when a model loads.
+  Transition _onConversationStateChanged(ConversationStateChanged _) {
+    _repaintConversation();
+    return toSelf();
+  }
+
+  void _repaintConversation() {
+    _observeTimelineShape();
+    output(const StateUpdated());
+  }
+
   /// A ready provider changes nothing; anything else routes away.
   Transition _stayWhileProviderReady(ProviderStatusChanged input) {
     final status = input.status;
     if (status is ProviderStatusReady) return toSelf();
     return _routeStatus(status);
-  }
-
-  /// A turn can start unsolicited — a subagent report delivered back to the
-  /// primary. Ride it to completion like a submitted turn.
-  Transition _followUnsolicitedTurn(ConversationStateChanged _) {
-    _observeTimelineShape();
-    output(const StateUpdated());
-    if (useCase.conversationState is TurnInProgress) {
-      return to<TurnActiveState>();
-    }
-    return toSelf();
   }
 
   /// Notify the selection that the timeline shape changed.
@@ -353,12 +362,11 @@ sealed class ChatState extends StateLogic<ChatState> {
   // ── Shared provider status routing ────────────────────
 
   /// Common routing applied by chat states that don't specially handle the
-  /// ready phase. `InitializingState` overrides this in its handler to call
-  /// `_onReady` and attach the primary.
+  /// ready phase. `InitializingState` moves on to ready in its own handler.
   Transition _routeStatus(ProviderStatus status) {
     return switch (status) {
       ProviderStatusReady() => to<InitializingState>(),
-      ProviderStatusConnecting() => to<ReconnectingState>(),
+      ProviderStatusConnecting() => to<ConnectingState>(),
       ProviderStatusUnconfigured() => _fail(ChatStrings.providerUnconfigured),
       ProviderStatusFailed(:final failure) => _fail(failure.message),
     };
@@ -391,7 +399,7 @@ final class UninitializedState extends ChatState {
 final class InitializingState extends ChatState {
   InitializingState() {
     // If the provider is already ready when we enter, re-inject its status so
-    // the handler below attaches immediately.
+    // the handler below moves on immediately.
     onEnter(() {
       final status = provider.status;
       if (status is ProviderStatusReady) {
@@ -401,7 +409,7 @@ final class InitializingState extends ChatState {
 
     on<ProviderStatusChanged>((input) {
       return switch (input.status) {
-        final ProviderStatusReady ready => _onReady(ready),
+        ProviderStatusReady() => to<ReadyState>(),
         ProviderStatusConnecting() => _refreshAndStay(),
         ProviderStatusUnconfigured() => _fail(
           ChatStrings.providerUnconfigured,
@@ -414,23 +422,6 @@ final class InitializingState extends ChatState {
   Transition _refreshAndStay() {
     output(const StateUpdated());
     return toSelf();
-  }
-
-  Transition _onReady(ProviderStatusReady status) {
-    final primaryHandle = status.handle;
-    final isFreshPrimary = !identical(data.lastPrimaryHandle, primaryHandle);
-    data.lastPrimaryHandle = primaryHandle;
-
-    if (isFreshPrimary) {
-      data.reasoningMode = status.defaultReasoningMode;
-    }
-
-    useCase.attachSession(
-      primary: primaryHandle,
-      primaryContextSize: status.contextWindow,
-    );
-
-    return to<ReadyState>();
   }
 
   @override
@@ -490,7 +481,17 @@ base mixin ConversationSwitching on ChatState {
 /// Intermediate base for states where the primary session is guaranteed
 /// attached.
 @model
-sealed class InitializedChatState extends ChatState {}
+sealed class InitializedChatState extends ChatState {
+  /// A turn can start unsolicited — a subagent report delivered back to the
+  /// primary. Ride it to completion like a submitted turn.
+  @override
+  Transition _onConversationStateChanged(ConversationStateChanged _) {
+    _repaintConversation();
+    return useCase.conversationState is TurnInProgress
+        ? to<TurnActiveState>()
+        : toSelf();
+  }
+}
 
 @model
 final class ReadyState extends InitializedChatState with ConversationSwitching {
@@ -540,7 +541,6 @@ final class ReadyState extends InitializedChatState with ConversationSwitching {
     });
 
     on<ProviderStatusChanged>(_stayWhileProviderReady);
-    on<ConversationStateChanged>(_followUnsolicitedTurn);
   }
 }
 
@@ -558,7 +558,6 @@ final class RewindingState extends InitializedChatState
     on<ConfirmRewind>((_) => _confirm(effectiveSelectedIndex));
     on<CancelRewind>(_onCancel);
     on<ProviderStatusChanged>(_stayWhileProviderReady);
-    on<ConversationStateChanged>(_followUnsolicitedTurn);
     onExit(() => data.cursorBeforeRewind = null);
   }
 
@@ -607,10 +606,11 @@ final class RewindingState extends InitializedChatState
   }
 }
 
-/// The provider is reconnecting after its configuration changed.
+/// The provider is connecting: loading its model, or coming back after its
+/// configuration changed.
 @model
-final class ReconnectingState extends ChatState {
-  ReconnectingState() {
+final class ConnectingState extends ChatState {
+  ConnectingState() {
     // If the provider already advanced past connecting before this state was
     // entered, route immediately.
     onEnter(() {
@@ -639,24 +639,6 @@ final class TurnActiveState extends InitializedChatState {
   TurnActiveState() {
     onEnter(() => _sawTurn = false);
 
-    on<ConversationStateChanged>((input) {
-      _observeTimelineShape();
-      // The conversation stream delivers asynchronously — an Idle emitted
-      // before the turn began can land after this state is entered. Judge
-      // by the repository's current state, and never settle before the
-      // turn has actually been observed in flight.
-      final state = useCase.conversationState;
-      if (state is TurnInProgress) {
-        _sawTurn = true;
-        return _updateAndStay();
-      }
-      if (state case ConversationIdle(failure: final f?)) {
-        return _onError(f);
-      }
-      if (!_sawTurn) return _updateAndStay();
-      return _onComplete();
-    });
-
     on<Cancel>((_) {
       useCase.cancel();
       return toSelf();
@@ -676,6 +658,25 @@ final class TurnActiveState extends InitializedChatState {
   }
 
   var _sawTurn = false;
+
+  /// The conversation stream delivers asynchronously — an Idle emitted
+  /// before the turn began can land after this state is entered. Judges by
+  /// the repository's current state, and never settles before the turn has
+  /// actually been observed in flight.
+  @override
+  Transition _onConversationStateChanged(ConversationStateChanged _) {
+    _observeTimelineShape();
+    final state = useCase.conversationState;
+    if (state is TurnInProgress) {
+      _sawTurn = true;
+      return _updateAndStay();
+    }
+    if (state case ConversationIdle(:final failure?)) {
+      return _onError(failure);
+    }
+    if (!_sawTurn) return _updateAndStay();
+    return _onComplete();
+  }
 
   Transition _updateAndStay() {
     output(const StateUpdated());
@@ -773,7 +774,7 @@ final class ChatLogic extends LogicBlock<ChatState> {
     set(UninitializedState());
     set(InitializingState());
     set(ReadyState());
-    set(ReconnectingState());
+    set(ConnectingState());
     set(TurnActiveState());
     set(RewindingState());
     set(FailedState());
@@ -792,6 +793,7 @@ final class ChatLogic extends LogicBlock<ChatState> {
   StreamSubscription<ConversationState>? _conversationSub;
   StreamSubscription<ConversationReplacement>? _replacementSub;
   StreamSubscription<void>? _rewindRequestSub;
+  StreamSubscription<String>? _reasoningResetSub;
   StreamSubscription<List<SubagentSummary>>? _subagentsSub;
   StreamSubscription<int>? _activeJobsSub;
   StreamSubscription<SandboxReadiness>? _sandboxSub;
@@ -826,6 +828,9 @@ final class ChatLogic extends LogicBlock<ChatState> {
     _rewindRequestSub = useCase.rewindRequests.listen(
       (_) => input(const EnterRewind()),
     );
+    _reasoningResetSub = useCase.reasoningResets.listen(
+      (mode) => input(ReasoningReset(mode)),
+    );
     _subagentsSub = useCase.subagentSummariesStream.listen(
       (roster) => input(SubagentsChanged(roster)),
     );
@@ -853,6 +858,7 @@ final class ChatLogic extends LogicBlock<ChatState> {
     unawaited(_conversationSub?.cancel());
     unawaited(_replacementSub?.cancel());
     unawaited(_rewindRequestSub?.cancel());
+    unawaited(_reasoningResetSub?.cancel());
     unawaited(_subagentsSub?.cancel());
     unawaited(_activeJobsSub?.cancel());
     _activeJobsSub = null;
@@ -860,6 +866,7 @@ final class ChatLogic extends LogicBlock<ChatState> {
     _conversationSub = null;
     _replacementSub = null;
     _rewindRequestSub = null;
+    _reasoningResetSub = null;
     _subagentsSub = null;
     _selectionBinding?.dispose();
     _selectionBinding = null;

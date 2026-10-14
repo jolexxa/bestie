@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:agent_provider_protocol/agent_provider_protocol.dart'
-    show AgentProvider, AgentRunFailureReason;
 import 'package:agent_repository/agent_repository.dart';
+import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
+    show AgentRunFailureReason, AgentRuntime;
 import 'package:bestie_chat_use_case/bestie_chat_use_case.dart';
 import 'package:bestie_chat_view/src/state/chat_data.dart';
 import 'package:bestie_chat_view/src/state/chat_input.dart';
@@ -17,8 +17,6 @@ import 'package:bestie_provider_use_case/bestie_provider_use_case.dart';
 import 'package:bestie_sandbox_use_case/bestie_sandbox_use_case.dart';
 import 'package:bestie_tools_use_case/bestie_tools_use_case.dart';
 import 'package:clock/clock.dart';
-import 'package:inference_protocol/inference_protocol.dart'
-    show InferenceFailureKind;
 import 'package:logic_blocks/logic_blocks.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider_protocol/provider_protocol.dart';
@@ -34,9 +32,9 @@ class _MockToolsUseCase extends Mock implements ToolsUseCase {}
 
 class _MockSandboxUseCase extends Mock implements SandboxUseCase {}
 
-class _MockAgentProvider extends Mock implements AgentProvider {}
+class _MockAgentRuntime extends Mock implements AgentRuntime {}
 
-class _FakeAgentProvider extends Fake implements AgentProvider {}
+class _FakeAgentRuntime extends Fake implements AgentRuntime {}
 
 const _writeAsk = WriteAccessRequest(
   id: 'write-access-1',
@@ -54,18 +52,19 @@ const _efforts = ProviderReasoningEfforts(
 
 ProviderStatusReady _ready({
   ProviderReasoning? reasoning,
-  AgentProvider? handle,
+  AgentRuntime? runtime,
 }) => ProviderStatusReady(
   model: ResolvedModel(
     ref: _modelRef,
     name: 'GPT-4o mini',
+    providerName: 'OpenRouter',
     contextWindow: 1024,
     supportsTools: true,
     reasoning: reasoning,
   ),
-  handle: handle ?? _MockAgentProvider(),
-  keyInfo: const ProviderKeyInfo(label: 'key', usage: 0, isFreeTier: false),
-  providerName: 'OpenRouter',
+  runtime: runtime ?? _MockAgentRuntime(),
+  maxAgents: 1,
+  deviceBytes: null,
 );
 
 const _modelRef = ProviderModelRef(
@@ -78,7 +77,7 @@ const ProviderStatus _connecting = ProviderStatusConnecting(model: _modelRef);
 const ProviderStatus _unconfigured = ProviderStatusUnconfigured();
 
 const ProviderStatus _failed = ProviderStatusFailed(
-  failure: ProviderFailure(kind: InferenceFailureKind.auth, message: 'boom'),
+  failure: ProviderAuthFailed('boom'),
   model: _modelRef,
 );
 
@@ -135,7 +134,7 @@ final _epoch = DateTime.utc(2026);
 
 void main() {
   setUpAll(() {
-    registerFallbackValue(_FakeAgentProvider());
+    registerFallbackValue(_FakeAgentRuntime());
   });
 
   group('ReadyState.phase', () {
@@ -237,9 +236,9 @@ void main() {
       expect(t.stateType, ReadyState);
     });
 
-    test('a reconnecting provider moves to ReconnectingState', () {
+    test('a reconnecting provider moves to ConnectingState', () {
       final t = state.handleInput(const ProviderStatusChanged(_connecting));
-      expect(t.stateType, ReconnectingState);
+      expect(t.stateType, ConnectingState);
     });
 
     test('Cancel stops background jobs instead of a turn', () {
@@ -591,7 +590,7 @@ void main() {
       test('a reconnecting provider routes away', () {
         final t = state.handleInput(const ProviderStatusChanged(_connecting));
 
-        expect(t.stateType, ReconnectingState);
+        expect(t.stateType, ConnectingState);
       });
     });
   });
@@ -651,24 +650,12 @@ void main() {
         ..set<ChatUseCase>(useCase)
         ..set<ProviderUseCase>(provider);
       when(() => useCase.addSystemMessage(any())).thenReturn(null);
-      when(
-        () => useCase.attachSession(
-          primary: any(named: 'primary'),
-          primaryContextSize: any(named: 'primaryContextSize'),
-        ),
-      ).thenReturn(null);
     });
 
-    test('ready status attaches the primary with its context window', () {
-      final primary = _MockAgentProvider();
-      final ready = _ready(handle: primary);
-
-      final t = state.handleInput(ProviderStatusChanged(ready));
+    test('a ready provider moves on to ready', () {
+      final t = state.handleInput(ProviderStatusChanged(_ready()));
 
       expect(t.stateType, ReadyState);
-      verify(
-        () => useCase.attachSession(primary: primary, primaryContextSize: 1024),
-      ).called(1);
     });
 
     test('connecting adds no notice of its own', () {
@@ -677,25 +664,22 @@ void main() {
       verifyNever(() => useCase.addSystemMessage(any()));
     });
 
-    test('a fresh primary resets the reasoning mode to its default', () {
+    test('a ready provider keeps the chosen reasoning mode', () {
       data.reasoningMode = 'high';
 
       state.handleInput(ProviderStatusChanged(_ready(reasoning: _efforts)));
 
-      expect(data.reasoningMode, reasoningAuto);
+      expect(data.reasoningMode, 'high');
     });
 
-    test('the same primary keeps the chosen reasoning mode', () {
-      final primary = _MockAgentProvider();
-      data
-        ..lastPrimaryHandle = primary
-        ..reasoningMode = 'high';
+    test("a reasoning reset adopts the fresh model's starting mode", () {
+      data.reasoningMode = 'high';
 
-      state.handleInput(
-        ProviderStatusChanged(_ready(reasoning: _efforts, handle: primary)),
-      );
+      final t = state.handleInput(const ReasoningReset(reasoningAuto));
 
-      expect(data.reasoningMode, 'high');
+      expect(t.stateType, InitializingState);
+      expect(data.reasoningMode, reasoningAuto);
+      expect(ctx.outputs.whereType<StateUpdated>(), isNotEmpty);
     });
 
     test('a connecting provider refreshes and holds', () {
@@ -703,12 +687,6 @@ void main() {
 
       expect(t.stateType, InitializingState);
       expect(ctx.outputs.whereType<StateUpdated>(), isNotEmpty);
-      verifyNever(
-        () => useCase.attachSession(
-          primary: any(named: 'primary'),
-          primaryContextSize: any(named: 'primaryContextSize'),
-        ),
-      );
     });
 
     test('an unconfigured provider fails with the setup notice', () {
@@ -728,13 +706,13 @@ void main() {
     });
   });
 
-  group('ReconnectingState', () {
-    late ReconnectingState state;
+  group('ConnectingState', () {
+    late ConnectingState state;
     late _MockChatUseCase useCase;
     late _MockProviderUseCase provider;
 
     setUp(() {
-      state = ReconnectingState();
+      state = ConnectingState();
       useCase = _MockChatUseCase();
       provider = _MockProviderUseCase();
       state.createFakeContext()
@@ -750,7 +728,7 @@ void main() {
 
     test('holds while the provider is still connecting', () {
       final t = state.handleInput(const ProviderStatusChanged(_connecting));
-      expect(t.stateType, ReconnectingState);
+      expect(t.stateType, ConnectingState);
     });
 
     test('routes once the provider settles', () {
@@ -902,7 +880,7 @@ void main() {
     test('a reconnecting provider abandons the turn', () {
       final t = state.handleInput(const ProviderStatusChanged(_connecting));
 
-      expect(t.stateType, ReconnectingState);
+      expect(t.stateType, ConnectingState);
       verify(() => useCase.cancel()).called(1);
     });
 
@@ -950,9 +928,9 @@ void main() {
       );
     });
 
-    test('ProviderStatusChanged(connecting) routes to ReconnectingState', () {
+    test('ProviderStatusChanged(connecting) routes to ConnectingState', () {
       final t = state.handleInput(const ProviderStatusChanged(_connecting));
-      expect(t.stateType, ReconnectingState);
+      expect(t.stateType, ConnectingState);
     });
 
     test('ProviderStatusChanged(failed) stays and emits StateUpdated', () {
@@ -1596,6 +1574,9 @@ void main() {
       when(
         () => useCase.rewindRequests,
       ).thenAnswer((_) => const Stream.empty());
+      when(
+        () => useCase.reasoningResets,
+      ).thenAnswer((_) => const Stream.empty());
       when(() => useCase.addSystemMessage(any())).thenReturn(null);
       when(() => tools.activeJobCount).thenReturn(0);
       when(() => tools.activeJobs).thenAnswer((_) => const Stream.empty());
@@ -1613,6 +1594,33 @@ void main() {
 
       expect(logic.get<ChatData>().reasoningMode, reasoningAuto);
       logic.dispose();
+    });
+
+    test('adopts each reasoning reset the use case announces', () async {
+      final resets = StreamController<String>.broadcast();
+      addTearDown(resets.close);
+      when(() => provider.status).thenReturn(_unconfigured);
+      when(() => useCase.reasoningResets).thenAnswer((_) => resets.stream);
+      final logic =
+          ChatLogic(
+              useCase: useCase,
+              providerUseCase: provider,
+              toolsUseCase: tools,
+              sandboxUseCase: sandbox,
+              chatData: ChatData()..reasoningMode = 'high',
+            )
+            ..start()
+            ..input(const Start());
+      addTearDown(
+        () => logic
+          ..stop()
+          ..dispose(),
+      );
+
+      resets.add(reasoningAuto);
+      await pumpEventQueue();
+
+      expect(logic.get<ChatData>().reasoningMode, reasoningAuto);
     });
 
     test('seeds and follows the sandbox readiness', () async {
@@ -1706,12 +1714,6 @@ void main() {
       when(() => provider.statusStream).thenAnswer((_) => statuses.stream);
       when(() => useCase.viewedConversationState).thenReturn(_idleState());
       when(() => useCase.conversationState).thenReturn(_idleState());
-      when(
-        () => useCase.attachSession(
-          primary: any(named: 'primary'),
-          primaryContextSize: any(named: 'primaryContextSize'),
-        ),
-      ).thenReturn(null);
 
       final logic =
           ChatLogic(
@@ -1733,18 +1735,74 @@ void main() {
       current = _connecting;
       statuses.add(_connecting);
       await Future<void>.delayed(Duration.zero);
-      expect(logic.value, isA<ReconnectingState>());
+      expect(logic.value, isA<ConnectingState>());
 
       current = _ready();
       statuses.add(current);
       await Future<void>.delayed(Duration.zero);
       expect(logic.value, isA<ReadyState>());
-      verify(
-        () => useCase.attachSession(
-          primary: any(named: 'primary'),
-          primaryContextSize: 1024,
+    });
+
+    test('repaints the conversation while the provider loads', () async {
+      final conversation = StreamController<ConversationState>.broadcast();
+      addTearDown(conversation.close);
+      const loading = ProviderStatusConnecting(
+        model: _modelRef,
+        loading: LoadingModel(
+          name: 'Qwen3 1.7B',
+          providerName: 'Bestie Server',
+          contextWindow: 40960,
+          progress: ProviderModelLoading(0.62),
         ),
-      ).called(2);
+      );
+      final withCard = _idleState(
+        timelineItems: [
+          ModelCardTimelineItem(
+            id: 'live-model-status',
+            timestamp: DateTime.utc(2025),
+            card: const ModelSnapshot(
+              modelId: 'qwen3-1.7b',
+              displayName: 'Qwen3 1.7B',
+              contextSize: 40960,
+              provider: 'Bestie Server',
+              phase: ModelCardPhase.loading,
+              progress: 0.62,
+            ),
+          ),
+        ],
+      );
+      when(() => provider.status).thenReturn(loading);
+      when(
+        () => useCase.conversationStream,
+      ).thenAnswer((_) => conversation.stream);
+      when(() => useCase.viewedConversationState).thenReturn(withCard);
+      when(() => useCase.conversationState).thenReturn(withCard);
+
+      final logic =
+          ChatLogic(
+              useCase: useCase,
+              providerUseCase: provider,
+              toolsUseCase: tools,
+              sandboxUseCase: sandbox,
+            )
+            ..start()
+            ..input(const Start());
+      addTearDown(
+        () => logic
+          ..stop()
+          ..dispose(),
+      );
+      final updates = <StateUpdated>[];
+      final binding = logic.bind()..onOutput<StateUpdated>(updates.add);
+      addTearDown(binding.dispose);
+      expect(logic.value, isA<ConnectingState>());
+
+      conversation.add(withCard);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(updates, isNotEmpty);
+      expect(logic.value.timelineItems.single, isA<ModelCardTimelineItem>());
+      expect(logic.value.selectionPosition.itemIndex, 0);
     });
 
     test('forwards a replacement from the use case into the machine', () async {
@@ -1756,12 +1814,6 @@ void main() {
       when(
         () => useCase.conversationReplacements,
       ).thenAnswer((_) => replacements.stream);
-      when(
-        () => useCase.attachSession(
-          primary: any(named: 'primary'),
-          primaryContextSize: any(named: 'primaryContextSize'),
-        ),
-      ).thenReturn(null);
 
       final logic =
           ChatLogic(
@@ -1801,11 +1853,8 @@ void main() {
       when(() => useCase.canRewind).thenReturn(true);
       when(() => useCase.rewindRequests).thenAnswer((_) => requests.stream);
       when(
-        () => useCase.attachSession(
-          primary: any(named: 'primary'),
-          primaryContextSize: any(named: 'primaryContextSize'),
-        ),
-      ).thenReturn(null);
+        () => useCase.reasoningResets,
+      ).thenAnswer((_) => const Stream.empty());
 
       final logic =
           ChatLogic(
@@ -1833,12 +1882,6 @@ void main() {
     test('re-routes when the provider settled before reconnecting began', () {
       when(() => provider.status).thenReturn(_ready());
       when(() => useCase.viewedConversationState).thenReturn(_idleState());
-      when(
-        () => useCase.attachSession(
-          primary: any(named: 'primary'),
-          primaryContextSize: any(named: 'primaryContextSize'),
-        ),
-      ).thenReturn(null);
 
       final logic =
           ChatLogic(
@@ -1857,6 +1900,135 @@ void main() {
       );
 
       expect(logic.value, isA<ReadyState>());
+    });
+
+    group('after a failed turn, a newly picked model takes messages', () {
+      late StreamController<ProviderStatus> statuses;
+      late StreamController<ConversationState> conversation;
+      late ProviderStatus currentStatus;
+      late ConversationState currentConversation;
+
+      setUp(() {
+        statuses = StreamController<ProviderStatus>.broadcast();
+        conversation = StreamController<ConversationState>.broadcast();
+        currentConversation = _idleState();
+        when(() => provider.status).thenAnswer((_) => currentStatus);
+        when(() => provider.statusStream).thenAnswer((_) => statuses.stream);
+        when(
+          () => useCase.conversationStream,
+        ).thenAnswer((_) => conversation.stream);
+        when(
+          () => useCase.conversationState,
+        ).thenAnswer((_) => currentConversation);
+        when(
+          () => useCase.viewedConversationState,
+        ).thenAnswer((_) => currentConversation);
+        when(() => useCase.failure).thenAnswer(
+          (_) => switch (currentConversation) {
+            ConversationIdle(:final failure) => failure,
+            TurnInProgress() => null,
+          },
+        );
+        when(() => useCase.canSubmit).thenReturn(true);
+        when(
+          () => useCase.submit(
+            message: any(named: 'message'),
+            reasoningMode: any(named: 'reasoningMode'),
+          ),
+        ).thenAnswer((_) async => true);
+        when(() => useCase.clearSettledSubagents()).thenReturn(null);
+      });
+
+      tearDown(() async {
+        await statuses.close();
+        await conversation.close();
+      });
+
+      Future<void> settle() => Future<void>.delayed(Duration.zero);
+
+      Future<void> provide(ProviderStatus status) {
+        currentStatus = status;
+        statuses.add(status);
+        return settle();
+      }
+
+      Future<void> converse(ConversationState state) {
+        currentConversation = state;
+        conversation.add(state);
+        return settle();
+      }
+
+      Future<void> pickModelAfterFailedTurn(
+        ProviderStatus startingStatus,
+      ) async {
+        currentStatus = startingStatus;
+        final logic =
+            ChatLogic(
+                useCase: useCase,
+                providerUseCase: provider,
+                toolsUseCase: tools,
+                sandboxUseCase: sandbox,
+              )
+              ..start()
+              ..input(const Start());
+        addTearDown(
+          () => logic
+            ..stop()
+            ..dispose(),
+        );
+
+        await provide(_connecting);
+        final first = _MockAgentRuntime();
+        await provide(_ready(runtime: first));
+        await converse(_idleState());
+        expect(logic.value, isA<ReadyState>());
+
+        logic.input(const Submit('hi'));
+        await converse(_turnInProgress());
+        await converse(
+          const ConversationIdle(
+            timelineItems: [],
+            conversationPhase: ConversationPhase.idle,
+            failure: TurnFailure(
+              reason: AgentRunFailureReason.loopFailed,
+              message: 'badRequest: requires more credits',
+            ),
+          ),
+        );
+        expect(logic.value, isA<FailedState>());
+
+        await provide(_connecting);
+        final second = _MockAgentRuntime();
+        await provide(_ready(runtime: second));
+        await converse(_idleState());
+
+        expect(logic.value, isA<ReadyState>());
+
+        logic.input(const Submit('hello again'));
+
+        expect(logic.value, isA<TurnActiveState>());
+        verify(
+          () => useCase.submit(
+            message: 'hello again',
+            reasoningMode: any(named: 'reasoningMode'),
+          ),
+        ).called(1);
+      }
+
+      test('when the window started on a busy server', () async {
+        await pickModelAfterFailedTurn(
+          const ProviderStatusFailed(
+            failure: ProviderServerFailed(
+              'Another bestie is using Bestie Server.',
+            ),
+            model: ProviderModelRef(providerId: 'local', modelId: 'qwen3'),
+          ),
+        );
+      });
+
+      test('when the window started on a hosted model', () async {
+        await pickModelAfterFailedTurn(_connecting);
+      });
     });
   });
 }
