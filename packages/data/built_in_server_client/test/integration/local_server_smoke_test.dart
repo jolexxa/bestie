@@ -171,6 +171,88 @@ void main() {
           .forEach((line) => print('  server: $line'));
     },
   );
+
+  test(
+    'tells how the server was lost',
+    skip: 'Starts and kills the real server; run with --run-skipped.',
+    timeout: const Timeout(Duration(minutes: 2)),
+    () async {
+      final bestieDir = Directory.systemTemp.createTempSync('bestie_lost');
+      addTearDown(() => bestieDir.deleteSync(recursive: true));
+      final logFile = serverLogFileFor(bestieDir.path, p.context);
+      final client = BuiltInServerClient(
+        client: http.Client(),
+        sessionClientFactory: http.Client.new,
+        fileSystem: const LocalFileSystem(),
+        lockFile: serverLockFileFor(bestieDir.path, p.context),
+        indexFile: p.join(
+          modelsDirFor(bestieDir.path, p.context),
+          ModelIndex.fileName,
+        ),
+        launch: BuiltInServerLaunch(
+          command: ProgramCommand(
+            executable: Platform.resolvedExecutable,
+            arguments: [
+              'run',
+              p.join(repoRoot, 'packages/bestie_server/bin/bestie_server.dart'),
+            ],
+          ),
+          bestieDir: bestieDir.path,
+          logFile: logFile,
+        ),
+        pid: pid,
+        spawner: SupervisedServerSpawner(
+          host: PosixProcessHost(
+            spawnerBinaryPath: p.join(
+              repoRoot,
+              'packages/ffi/posix_spawner/assets/native',
+              Platform.operatingSystem,
+              Abi.current() == Abi.macosArm64 || Abi.current() == Abi.linuxArm64
+                  ? 'arm64'
+                  : 'x64',
+              'spawner',
+            ),
+          ),
+          environment: Platform.environment,
+        ),
+      );
+
+      Future<DisconnectCause> killedWith(ProcessSignal signal) async {
+        final attached = await client.attach() as BuiltInServerAttached;
+        final detached = client.untilDetached();
+        final watch = Stopwatch()..start();
+        Process.killPid(attached.pid, signal);
+        final cause = await detached;
+        final failure = client.failureFor(
+          BuiltInServerDisconnected(cause: cause),
+        );
+        print(
+          '${signal.name} (pid ${attached.pid}) after '
+          '${watch.elapsedMilliseconds} ms: $cause -> ${failure.message}',
+        );
+        return cause;
+      }
+
+      expect(await killedWith(ProcessSignal.sigsegv), isA<ServerExited>());
+      expect(await killedWith(ProcessSignal.sigkill), isA<ServerExited>());
+      final terminated = await killedWith(ProcessSignal.sigterm);
+      print('sigterm cause: $terminated');
+
+      final attached = await client.attach() as BuiltInServerAttached;
+      final released = client.untilDetached();
+      await client.release();
+      print('release: ${await released}');
+      while (Process.killPid(attached.pid, ProcessSignal.sigcont)) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      await client.close();
+      final lifecycle = RegExp('Listening|Waiting|Shutting|exit code|gone');
+      File(logFile)
+          .readAsLinesSync()
+          .where(lifecycle.hasMatch)
+          .forEach((line) => print('  server: $line'));
+    },
+  );
 }
 
 const _config = AgentConfig(
