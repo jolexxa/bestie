@@ -105,6 +105,9 @@ class LocalModelsOperations {
   /// [path] as the user knows it: their home shortened to `~`.
   String shorten(String path) => _platform.platform.paths.shortenHome(path);
 
+  /// Where the built-in server writes its log, as the user knows it.
+  String get serverLogFile => shorten(_platform.platform.serverLogFile);
+
   /// All of this machine's memory, which the fit of a download is judged
   /// against.
   int get memoryBytes => _platform.readSystemInfo().totalRamBytes;

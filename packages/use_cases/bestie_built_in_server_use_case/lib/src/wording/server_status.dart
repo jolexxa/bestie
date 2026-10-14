@@ -1,10 +1,15 @@
+import 'package:built_in_server_client/built_in_server_client.dart'
+    show NotYetAttached, SessionReleased;
 import 'package:built_in_server_repository/built_in_server_repository.dart';
 import 'package:command_protocol/command_protocol.dart';
 
 /// What the server commands' palette rows say the server is doing; null
-/// while it is off.
+/// while it is off by this bestie's doing.
 CommandStatus? serverStatus(BuiltInServerStatus server) => switch (server) {
-  ServerOffline() => null,
+  ServerOffline(cause: NotYetAttached() || SessionReleased()) => null,
+  ServerOffline() => const CommandStatus([
+    PaneSpan('✕ gone', PaneTone.danger),
+  ]),
   ServerStarting() => const CommandStatus([
     PaneSpan('◑ starting', PaneTone.loading),
   ]),

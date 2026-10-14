@@ -178,4 +178,7 @@ void stubOperations(
   );
   when(() => operations.memoryBytes).thenReturn(memoryBytes);
   when(() => operations.freeMemoryBytes).thenReturn(freeMemoryBytes);
+  when(
+    () => operations.serverLogFile,
+  ).thenReturn('~/.bestie/logs/server.log');
 }

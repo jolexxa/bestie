@@ -1,4 +1,5 @@
 import 'package:bestie_built_in_server_use_case/src/wording/server_status.dart';
+import 'package:built_in_server_client/built_in_server_client.dart';
 import 'package:built_in_server_repository/built_in_server_repository.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:test/test.dart';
@@ -10,9 +11,18 @@ void main() {
   PaneTone toneOf(BuiltInServerStatus server) =>
       serverStatus(server)!.spans.single.tone;
 
-  test('says nothing while the server is off', () {
+  test('says nothing while the server is off by our doing', () {
     expect(serverStatus(const ServerOffline()), isNull);
-    expect(serverStatus(const ServerOffline(reason: 'gone')), isNull);
+    expect(
+      serverStatus(const ServerOffline(cause: SessionReleased())),
+      isNull,
+    );
+  });
+
+  test('says the server is gone when it was lost', () {
+    const lost = ServerOffline(cause: ServerDisappeared(pid: 42));
+    expect(textOf(lost), '✕ gone');
+    expect(toneOf(lost), PaneTone.danger);
   });
 
   test('follows the server getting a model ready', () {

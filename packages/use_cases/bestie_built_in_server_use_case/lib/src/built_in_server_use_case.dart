@@ -106,8 +106,8 @@ class BuiltInServerUseCase implements CommandContribution {
     _server.configure(options);
   }
 
-  /// Whether the app is set to run a model on this server, so that stopping
-  /// it stops the app's model too.
+  /// Whether the app is set to run a model on this server, so that a
+  /// restart loads it again.
   bool get _runsHere => _providers.settings?.model?.providerId == _providerId;
 
   /// Stopping or restarting the server tears the app's model down, so both
@@ -125,7 +125,6 @@ class BuiltInServerUseCase implements CommandContribution {
     if (_stopGate() case Unavailable(:final reason)) {
       return CommandRejected(reason);
     }
-    if (_runsHere) _providers.stop();
     await _server.stop();
     return const CommandRan();
   }
@@ -134,10 +133,8 @@ class BuiltInServerUseCase implements CommandContribution {
     if (_idleGate() case Unavailable(:final reason)) {
       return CommandRejected(reason);
     }
-    final runsHere = _runsHere;
-    if (runsHere) _providers.stop();
     await _server.restart();
-    if (runsHere) _providers.reconnect();
+    if (_runsHere) _providers.reconnect();
     return const CommandRan();
   }
 }

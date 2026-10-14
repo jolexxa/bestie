@@ -41,6 +41,7 @@ class InstalledPane extends Pane {
       server,
       nameOf: (localId) => modelName(library, localId),
       freeBytes: _operations.freeMemoryBytes,
+      logFile: _operations.serverLogFile,
       retry: _retryServer,
     ),
   );

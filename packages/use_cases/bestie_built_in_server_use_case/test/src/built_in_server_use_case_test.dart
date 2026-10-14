@@ -44,7 +44,6 @@ final class _Harness {
     when(server.stop).thenAnswer((_) async {});
     when(server.restart).thenAnswer((_) async {});
     when(() => providers.settings).thenAnswer((_) => settings);
-    when(providers.stop).thenReturn(null);
     when(providers.reconnect).thenReturn(null);
     when(() => agents.primary).thenReturn(primary);
     when(
@@ -232,25 +231,15 @@ void main() {
         verifyNever(harness.server.stop);
       });
 
-      test("stops the app's model first when it runs here", () async {
+      test("stops the server; the app's model learns from it", () async {
         final harness = _Harness()
           ..serverStatus = const ServerIdle()
           ..settings = _localModel;
 
         expect(await harness.invoke('server.stop'), isA<CommandRan>());
 
-        verifyInOrder([harness.providers.stop, harness.server.stop]);
-      });
-
-      test("leaves the app's model be when it runs elsewhere", () async {
-        final harness = _Harness()
-          ..serverStatus = const ServerStarting()
-          ..settings = _hostedModel;
-
-        expect(await harness.invoke('server.stop'), isA<CommandRan>());
-
-        verifyNever(harness.providers.stop);
         verify(harness.server.stop).called(1);
+        verifyNever(harness.providers.stop);
       });
 
       test('refuses under a running turn', () async {
@@ -328,16 +317,13 @@ void main() {
         await subscription.cancel();
       });
 
-      test("stops the app's model, restarts, then loads it again", () async {
+      test("restarts, then loads the app's model again", () async {
         final harness = _Harness()..settings = _localModel;
 
         expect(await harness.invoke('server.restart'), isA<CommandRan>());
 
-        verifyInOrder([
-          harness.providers.stop,
-          harness.server.restart,
-          harness.providers.reconnect,
-        ]);
+        verifyInOrder([harness.server.restart, harness.providers.reconnect]);
+        verifyNever(harness.providers.stop);
       });
 
       test("leaves the app's model be when it runs elsewhere", () async {
@@ -346,7 +332,6 @@ void main() {
         expect(await harness.invoke('server.restart'), isA<CommandRan>());
 
         verify(harness.server.restart).called(1);
-        verifyNever(harness.providers.stop);
         verifyNever(harness.providers.reconnect);
       });
     });

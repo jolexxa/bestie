@@ -67,8 +67,7 @@ void main() {
 
   group('status', () {
     test('starts offline', () {
-      expect(repository.status, isA<ServerOffline>());
-      expect((repository.status as ServerOffline).reason, isNull);
+      expect((repository.status as ServerOffline).cause, isA<NotYetAttached>());
     });
 
     test('follows the connection to the server', () async {
@@ -92,9 +91,13 @@ void main() {
         isA<ServerStarting>(),
         isA<ServerIdle>(),
         isA<ServerOffline>().having(
-          (status) => status.reason,
-          'reason',
-          'server went away',
+          (status) => status.cause,
+          'cause',
+          isA<AttachFailed>().having(
+            (cause) => cause.reason,
+            'reason',
+            'server went away',
+          ),
         ),
       ]);
     });

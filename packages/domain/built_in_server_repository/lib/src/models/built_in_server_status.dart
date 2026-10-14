@@ -15,12 +15,7 @@ sealed class BuiltInServerStatus {
     ModelStatus model,
     PoolSnapshotEvent? pool,
   ) => switch (connection) {
-    BuiltInServerDisconnected(:final cause) => ServerOffline(
-      reason: switch (cause) {
-        AttachFailed(:final reason) => reason,
-        _ => null,
-      },
-    ),
+    BuiltInServerDisconnected(:final cause) => ServerOffline(cause: cause),
     BuiltInServerAttaching() => const ServerStarting(),
     BuiltInServerBusy(:final ownerPid) => ServerTaken(ownerPid: ownerPid),
     BuiltInServerVersionMismatch(
@@ -60,13 +55,13 @@ sealed class BuiltInServerStatus {
   };
 }
 
-/// This bestie holds no server: it was stopped, never started, or ended
-/// the session for [reason].
+/// This bestie holds no server, for [cause]: none was started yet, it was
+/// stopped, or it was lost.
 @model
 final class ServerOffline extends BuiltInServerStatus {
-  const ServerOffline({this.reason});
+  const ServerOffline({this.cause = const NotYetAttached()});
 
-  final String? reason;
+  final DisconnectCause cause;
 }
 
 /// The server is this bestie's: being taken, or taken and holding whatever

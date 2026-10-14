@@ -259,6 +259,7 @@ void main() {
     expect(operations.memoryBytes, 24 * gigabyte);
     expect(operations.freeMemoryBytes, 18 * gigabyte);
     expect(operations.shorten('$homeDir/models/a.gguf'), '~/models/a.gguf');
+    expect(operations.serverLogFile, '~/.bestie/logs/server.log');
     await operations.dispose();
   });
 

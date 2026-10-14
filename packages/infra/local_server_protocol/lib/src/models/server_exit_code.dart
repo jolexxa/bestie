@@ -2,26 +2,26 @@
 /// the code can still say what happened.
 enum ServerExitCode {
   /// The server stopped the way servers stop; the owner session heard why.
-  stopped(0),
+  stopped(0, 'exited'),
 
-  /// It could not listen on loopback.
-  bindFailed(69),
+  bindFailed(69, 'could not listen on loopback'),
 
   /// The engine could not start, or was lost while serving.
-  engineFailed(70),
+  engineFailed(70, 'lost its engine'),
 
-  /// The native libraries the engine needs are missing.
-  librariesMissing(72),
+  librariesMissing(72, 'could not find its llama.cpp libraries'),
 
-  /// The lock file could not be opened.
-  lockFailed(73),
+  lockFailed(73, 'could not open its lock file'),
 
   /// Another server already runs for the bestie directory.
-  alreadyRunning(75);
+  alreadyRunning(75, 'found another server running');
 
-  const ServerExitCode(this.code);
+  const ServerExitCode(this.code, this.meaning);
 
   final int code;
+
+  /// What the server did, said of it: "the server [meaning]".
+  final String meaning;
 
   /// The exit named by [code], or null when the server never ends with it.
   static ServerExitCode? of(int code) {

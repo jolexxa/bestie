@@ -13,6 +13,8 @@ environment:
 dependencies:
   agent_repository:
     path: ../../domain/agent_repository
+  built_in_server_client:
+    path: ../../data/built_in_server_client
   built_in_server_repository:
     path: ../../domain/built_in_server_repository
   clock: ^1.1.1
@@ -30,6 +32,8 @@ dependencies:
     path: ../../infra/local_server_protocol
   platform_repository:
     path: ../../domain/platform_repository
+  process_host:
+    path: ../../infra/process_host
   provider_protocol:
     path: ../../infra/provider_protocol
   provider_repository:

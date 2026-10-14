@@ -54,16 +54,8 @@ final class DisconnectWording {
   static String _exited(ProcessExit exit) => switch (exit) {
     ProcessSignaled(:final signal) =>
       _signals[signal] ?? 'ended by signal $signal',
-    ProcessExited(:final code) => switch (ServerExitCode.of(code)) {
-      ServerExitCode.stopped => 'exited',
-      ServerExitCode.bindFailed => 'could not listen on loopback',
-      ServerExitCode.engineFailed => 'lost its engine',
-      ServerExitCode.librariesMissing =>
-        'could not find its llama.cpp libraries',
-      ServerExitCode.lockFailed => 'could not open its lock file',
-      ServerExitCode.alreadyRunning => 'found another server running',
-      null => 'exited with code $code',
-    },
+    ProcessExited(:final code) =>
+      ServerExitCode.of(code)?.meaning ?? 'exited with code $code',
     ProcessUnknown() => 'ended in a way bestie could not read',
     ProcessSupervisorLost() => 'ended without its exit being reported',
   };
