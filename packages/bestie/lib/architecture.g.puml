@@ -231,6 +231,7 @@ package "bestie" {
   BuiltInServerClient --> ServerConnectionState
   BuiltInServerClient --> ServerSpawner
   BuiltInServerModel --> BuiltInServerLink
+  BuiltInServerModel --> DisconnectWording
   BuiltInServerRepository --> BuiltInServerClient
   BuiltInServerUseCase --> AgentRepository
   BuiltInServerUseCase --> BuiltInServerRepository

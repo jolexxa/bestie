@@ -539,10 +539,7 @@ class AppContext {
     final fireworksRepository = FireworksRepository(
       client: clients.fireworks,
     );
-    final providerRepository = ProviderRepository(
-      clients: clients.all,
-      clock: clock,
-    );
+    final providerRepository = ProviderRepository(clients: clients.all);
 
     final providerUseCase = ProviderUseCase(
       config: configRepository,

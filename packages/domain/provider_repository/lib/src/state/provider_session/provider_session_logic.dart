@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:intentions/intentions.dart';
 import 'package:logic_blocks/logic_blocks.dart';
 import 'package:provider_protocol/provider_protocol.dart';
@@ -73,8 +71,7 @@ sealed class ProviderSessionState extends StateLogic<ProviderSessionState> {
       ..attempt += 1
       ..model = null
       ..loading = null
-      ..failure = null
-      ..losses = 0;
+      ..failure = null;
   }
 
   /// Hands the agent runtime, if one runs, to whoever tears it down.
@@ -101,15 +98,20 @@ final class UnconfiguredState extends ProviderSessionState {
 /// The session is on its way to running the chosen model, or runs it.
 @model
 sealed class RunningState extends ProviderSessionState {
-  /// Leaves the session failed until the settings change or a reconnect.
   @override
-  Transition onStop(StopProvider input) {
+  Transition onStop(StopProvider input) => fail(
+    const ProviderCancelled(
+      'Stopped. Reconnect or pick a model to start again.',
+    ),
+  );
+
+  /// Leaves the session failed with [failure] until the settings change or
+  /// a reconnect; whatever was under way lands unheeded.
+  Transition fail(ProviderFailure failure) {
     data
       ..attempt += 1
       ..loading = null
-      ..failure = const ProviderCancelled(
-        'Stopped. Reconnect or pick a model to start again.',
-      );
+      ..failure = failure;
     return to<FailedState>();
   }
 }
@@ -214,59 +216,26 @@ final class StartingState extends RunningState {
     data
       ..model = model
       ..loaded = loaded
-      ..servingSince = get<RecoveryPolicy>().clock.now()
       ..runtime = loaded.runtime;
-    async(loaded.lost).input((_) => ModelLost(attempt: attempt));
-  }
-}
-
-/// The chosen model serves completions until its provider loses it, when
-/// it is loaded again after a wait, up to the recovery policy's limit.
-@model
-final class ReadyState extends RunningState {
-  ReadyState() {
-    on<ModelLost>((input) {
-      if (input.attempt != data.attempt) return toSelf();
-      final policy = get<RecoveryPolicy>();
-      final served = policy.clock.now().difference(data.servingSince);
-      data
-        ..losses = served >= policy.stableAfter ? 1 : data.losses + 1
-        ..attempt += 1
-        ..loading = null;
-      if (data.losses <= policy.maxLosses) return to<RecoveringState>();
-      data.failure = ProviderServerFailed(
-        '${data.model!.name} stopped being served ${data.losses} times '
-        'in a row. Reconnect to try again.',
-      );
-      return to<FailedState>();
-    });
-  }
-}
-
-/// The chosen model was lost; it is loaded again once the wait the
-/// recovery policy sets for this loss is over.
-@model
-final class RecoveringState extends RunningState {
-  RecoveringState() {
-    onEnter(() {
-      releaseLoaded();
-      final attempt = data.attempt;
-      final policy = get<RecoveryPolicy>();
-      final due = Completer<void>();
-      data.recovery = Timer(policy.delayBefore(data.losses), due.complete);
-      async(due.future).input((_) => RecoveryDue(attempt: attempt));
-    });
-
-    onExit(() => data.recovery?.cancel());
-
-    on<RecoveryDue>(
-      (input) => input.attempt == data.attempt ? to<StartingState>() : toSelf(),
+    async(loaded.lost).input(
+      (failure) => ModelLost(attempt: attempt, failure: failure),
     );
   }
 }
 
-/// The model could not be found or loaded, kept being lost, or was
-/// stopped. A provider configured anew gets its model another try.
+/// The chosen model serves completions until its provider loses it, which
+/// fails the session with the provider's reason.
+@model
+final class ReadyState extends RunningState {
+  ReadyState() {
+    on<ModelLost>(
+      (input) => input.attempt == data.attempt ? fail(input.failure) : toSelf(),
+    );
+  }
+}
+
+/// The model could not be found or loaded, was lost, or was stopped. A
+/// provider configured anew or a reconnect gets its model another try.
 @model
 final class FailedState extends ProviderSessionState {
   FailedState() {
@@ -276,10 +245,7 @@ final class FailedState extends ProviderSessionState {
 
 @model
 final class ProviderSessionLogic extends LogicBlock<ProviderSessionState> {
-  ProviderSessionLogic({
-    required List<ProviderClient> clients,
-    required RecoveryPolicy recovery,
-  }) {
+  ProviderSessionLogic({required List<ProviderClient> clients}) {
     set(
       ProviderSessionData()
         ..clients = {for (final client in clients) client.id: client}
@@ -287,12 +253,9 @@ final class ProviderSessionLogic extends LogicBlock<ProviderSessionState> {
           for (final client in clients) client.id: client.availability,
         },
     );
-    set(recovery);
-
     set(UnconfiguredState());
     set(StartingState());
     set(ReadyState());
-    set(RecoveringState());
     set(FailedState());
   }
 

@@ -2,6 +2,7 @@ import 'package:intentions/intentions.dart';
 import 'package:provider_protocol/provider_protocol.dart'
     show
         ProviderAvailability,
+        ProviderFailure,
         ProviderModelLoadProgress,
         ProviderModelLoadResult;
 import 'package:provider_repository/src/models/provider_settings.dart';
@@ -72,19 +73,11 @@ final class LoadCompleted extends ProviderSessionInput {
   final ProviderModelLoadResult result;
 }
 
-/// The model loaded under [attempt] is no longer served.
+/// The model loaded under [attempt] is no longer served, for [failure].
 @model
 final class ModelLost extends ProviderSessionInput {
-  const ModelLost({required this.attempt});
+  const ModelLost({required this.attempt, required this.failure});
 
   final int attempt;
-}
-
-/// The wait before loading a lost model again, started under [attempt], is
-/// over.
-@model
-final class RecoveryDue extends ProviderSessionInput {
-  const RecoveryDue({required this.attempt});
-
-  final int attempt;
+  final ProviderFailure failure;
 }

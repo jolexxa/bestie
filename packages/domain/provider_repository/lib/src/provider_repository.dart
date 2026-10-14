@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:clock/clock.dart';
 import 'package:intentions/intentions.dart';
 import 'package:logic_blocks/logic_blocks.dart';
 import 'package:provider_protocol/provider_protocol.dart';
@@ -17,14 +16,9 @@ import 'package:rxdart/rxdart.dart';
 /// providers' clients, and whether it is usable right now.
 @repository
 class ProviderRepository {
-  ProviderRepository({
-    required List<ProviderClient> clients,
-    Clock clock = const Clock(),
-  }) : _clients = clients {
-    _logic = ProviderSessionLogic(
-      clients: clients,
-      recovery: RecoveryPolicy(clock: clock),
-    )..start();
+  ProviderRepository({required List<ProviderClient> clients})
+    : _clients = clients {
+    _logic = ProviderSessionLogic(clients: clients)..start();
     _statusController = BehaviorSubject<ProviderStatus>.seeded(_project());
     _binding = _logic.bind()
       ..onState<ProviderSessionState>((_) => _publish())

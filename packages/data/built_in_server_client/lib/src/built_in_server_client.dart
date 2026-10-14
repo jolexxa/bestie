@@ -231,6 +231,7 @@ class BuiltInServerClient implements ProviderClient, BuiltInServerLink {
             attached: attached,
             ready: ready,
             modelId: request.modelId,
+            wording: _wording,
           ),
         );
       case ModelLoadFailed(:final reason):

@@ -4,6 +4,7 @@ import 'package:built_in_server_client/src/bestie_server_dialect.dart';
 import 'package:built_in_server_client/src/built_in_agent_sessions.dart';
 import 'package:built_in_server_client/src/built_in_server_client.dart';
 import 'package:built_in_server_client/src/built_in_server_link.dart';
+import 'package:built_in_server_client/src/disconnect_wording.dart';
 import 'package:built_in_server_client/src/models/built_in_server_connection.dart';
 import 'package:built_in_server_client/src/server_api.dart';
 import 'package:completion_openai/completion_openai.dart';
@@ -22,6 +23,7 @@ final class BuiltInServerModel implements ProviderModel {
     required BuiltInServerAttached attached,
     required ModelReady ready,
     required String modelId,
+    required DisconnectWording wording,
   }) : _link = link,
        _generation = generation,
        contextWindow = ready.contextSize,
@@ -41,7 +43,7 @@ final class BuiltInServerModel implements ProviderModel {
            maxAgents: ready.maxAgents,
          ),
        ),
-       lost = link.untilDetached();
+       lost = link.untilDetached().then(wording.failureFor);
 
   final BuiltInServerLink _link;
   final int _generation;
@@ -59,7 +61,7 @@ final class BuiltInServerModel implements ProviderModel {
   final AgentRuntime runtime;
 
   @override
-  final Future<void> lost;
+  final Future<ProviderFailure> lost;
 
   /// Frees the model's memory, keeping the server, unless a newer load
   /// already took it over.

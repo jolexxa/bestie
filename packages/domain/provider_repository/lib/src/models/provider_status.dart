@@ -24,7 +24,7 @@ sealed class ProviderStatus {
     ProviderSessionData data,
   ) => switch (state) {
     UnconfiguredState() => const ProviderStatusUnconfigured(),
-    StartingState() || RecoveringState() => ProviderStatusConnecting(
+    StartingState() => ProviderStatusConnecting(
       model: data.settings!.model!,
       loading: LoadingModel.of(data.model, progress: data.loading),
     ),

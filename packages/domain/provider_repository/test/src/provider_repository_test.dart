@@ -2,8 +2,6 @@ import 'dart:async';
 
 import 'package:agent_runtime_protocol/agent_runtime_protocol.dart'
     show AgentRuntime, DisposeRuntimeSucceeded;
-import 'package:clock/clock.dart';
-import 'package:fake_async/fake_async.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 import 'package:provider_repository/provider_repository.dart';
@@ -89,7 +87,6 @@ const _names = {
 
 final class _Harness {
   _Harness({
-    Clock clock = const Clock(),
     Map<String, ProviderAvailability> availability = const {
       'local': ProviderReady(),
       'custom': ProviderNotSetUp(_noUrl),
@@ -102,7 +99,6 @@ final class _Harness {
         for (final MapEntry(key: id, value: name) in _names.entries)
           _client(id, name, availability[id]!),
       ],
-      clock: clock,
     );
     repository.statusStream.listen(statuses.add);
     repository.reloadsStarting.listen((_) => reloads++);
@@ -138,7 +134,7 @@ final class _Harness {
     int contextWindow = 8192,
     int maxAgents = 3,
     int? deviceBytes,
-    Future<void>? lost,
+    Future<ProviderFailure>? lost,
   }) {
     final runtime = _MockAgentRuntime();
     when(
@@ -149,7 +145,9 @@ final class _Harness {
     when(() => model.maxAgents).thenReturn(maxAgents);
     when(() => model.deviceBytes).thenReturn(deviceBytes);
     when(() => model.runtime).thenReturn(runtime);
-    when(() => model.lost).thenAnswer((_) => lost ?? Completer<void>().future);
+    when(
+      () => model.lost,
+    ).thenAnswer((_) => lost ?? Completer<ProviderFailure>().future);
     when(model.release).thenAnswer((_) async {});
     loaded.add(model);
     return model;
@@ -984,140 +982,56 @@ void main() {
     });
 
     group('when the model is lost', () {
-      test('waits, then loads it again on a fresh agent runtime', () {
-        fakeAsync((async) {
-          final harness = _Harness(clock: async.getClock(DateTime(2026)));
-          final lost = Completer<void>();
-          final models = [
-            harness.stageModel(contextWindow: 4096, lost: lost.future),
-            harness.stageModel(contextWindow: 2048),
-          ];
-          harness.onLoad = (_) => ProviderModelLoad.settled(
-            ProviderModelLoaded(models.removeAt(0)),
-          );
-          harness.repository.configure(_settings);
-          async.flushMicrotasks();
-          final stale = harness.repository.status.runtime;
+      const crashed = ProviderServerFailed('Built-in server crashed.');
 
-          lost.complete();
-          async.flushMicrotasks();
+      test('fails with the reason its provider gives', () async {
+        final harness = _Harness();
+        final lost = Completer<ProviderFailure>();
+        harness.onLoad = (_) => ProviderModelLoad.settled(
+          ProviderModelLoaded(harness.stageModel(lost: lost.future)),
+        );
+        harness.repository.configure(_settings);
+        await pumpEventQueue();
+        final runtime = harness.repository.status.runtime!;
 
-          expect(harness.reloads, 1);
-          expect(harness.repository.status, isA<ProviderStatusConnecting>());
-          verify(harness.loaded.first.release).called(1);
-          expect(harness.requests, hasLength(1));
+        lost.complete(crashed);
+        await pumpEventQueue();
 
-          async.elapse(const Duration(seconds: 1));
-
-          final ready = harness.repository.status as ProviderStatusReady;
-          expect(harness.requests, hasLength(2));
-          expect(ready.runtime, isNot(same(stale)));
-          expect(ready.contextWindow, 2048);
-        });
+        final failed = harness.repository.status as ProviderStatusFailed;
+        expect(failed.failure.message, crashed.message);
+        verify(harness.loaded.single.release).called(1);
+        verify(runtime.dispose).called(1);
+        expect(harness.requests, hasLength(1));
       });
 
-      test('doubles the wait with each loss in a row, then fails', () {
-        fakeAsync((async) {
-          final harness = _Harness(clock: async.getClock(DateTime(2026)));
-          var served = Completer<void>();
-          harness.onLoad = (_) => ProviderModelLoad.settled(
-            ProviderModelLoaded(
-              harness.stageModel(lost: (served = Completer<void>()).future),
-            ),
-          );
-          harness.repository.configure(_settings);
-          async.flushMicrotasks();
+      test('loads it again on a reconnect', () async {
+        final harness = _Harness();
+        final lost = Completer<ProviderFailure>();
+        final models = [
+          harness.stageModel(lost: lost.future),
+          harness.stageModel(contextWindow: 2048),
+        ];
+        harness.onLoad = (_) => ProviderModelLoad.settled(
+          ProviderModelLoaded(models.removeAt(0)),
+        );
+        harness.repository.configure(_settings);
+        await pumpEventQueue();
+        final stale = harness.repository.status.runtime;
+        lost.complete(crashed);
+        await pumpEventQueue();
 
-          for (final wait in const [1, 2, 4]) {
-            served.complete();
-            async
-              ..flushMicrotasks()
-              ..elapse(Duration(milliseconds: wait * 1000 - 1));
-            expect(
-              harness.repository.status,
-              isA<ProviderStatusConnecting>(),
-              reason: 'still waiting out ${wait}s',
-            );
-            async.elapse(const Duration(milliseconds: 1));
-            expect(harness.repository.status, isA<ProviderStatusReady>());
-          }
-          served.complete();
-          async.flushMicrotasks();
+        harness.repository.reconnect();
+        await pumpEventQueue();
 
-          final failed = harness.repository.status as ProviderStatusFailed;
-          expect(failed.failure, isA<ProviderServerFailed>());
-          expect(
-            failed.failure.message,
-            'Model stopped being served 4 times in a row. Reconnect to try '
-            'again.',
-          );
-          expect(harness.requests, hasLength(4));
-          for (final model in harness.loaded) {
-            verify(model.release).called(1);
-          }
-          async.elapse(const Duration(minutes: 1));
-          expect(harness.requests, hasLength(4));
-        });
-      });
-
-      test('counts afresh once the model served for a while', () {
-        fakeAsync((async) {
-          final harness = _Harness(clock: async.getClock(DateTime(2026)));
-          var served = Completer<void>();
-          harness.onLoad = (_) => ProviderModelLoad.settled(
-            ProviderModelLoaded(
-              harness.stageModel(lost: (served = Completer<void>()).future),
-            ),
-          );
-          harness.repository.configure(_settings);
-          async.flushMicrotasks();
-
-          for (final wait in const [1, 2, 4]) {
-            served.complete();
-            async
-              ..flushMicrotasks()
-              ..elapse(Duration(seconds: wait));
-          }
-          async.elapse(const Duration(minutes: 5));
-          served.complete();
-          async
-            ..flushMicrotasks()
-            ..elapse(const Duration(seconds: 1));
-
-          expect(harness.repository.status, isA<ProviderStatusReady>());
-        });
-      });
-
-      test('stops waiting when the settings change', () {
-        fakeAsync((async) {
-          final harness = _Harness(clock: async.getClock(DateTime(2026)));
-          final lost = Completer<void>();
-          final models = [
-            harness.stageModel(lost: lost.future),
-            harness.stageModel(),
-          ];
-          harness.onLoad = (_) => ProviderModelLoad.settled(
-            ProviderModelLoaded(models.removeAt(0)),
-          );
-          harness.repository.configure(_settings);
-          async.flushMicrotasks();
-          lost.complete();
-          async.flushMicrotasks();
-
-          harness.repository.configure(_settingsFor(maxAgents: 2));
-          async.flushMicrotasks();
-          expect(harness.requests, hasLength(2));
-          async.elapse(const Duration(seconds: 1));
-
-          expect(harness.requests, hasLength(2));
-          expect(harness.repository.status, isA<ProviderStatusReady>());
-          expect(async.pendingTimers, isEmpty);
-        });
+        final ready = harness.repository.status as ProviderStatusReady;
+        expect(harness.requests, hasLength(2));
+        expect(ready.runtime, isNot(same(stale)));
+        expect(ready.contextWindow, 2048);
       });
 
       test('is ignored when the loss belongs to an older load', () async {
         final harness = _Harness();
-        final lost = Completer<void>();
+        final lost = Completer<ProviderFailure>();
         final models = [
           harness.stageModel(lost: lost.future),
           harness.stageModel(),
@@ -1130,7 +1044,7 @@ void main() {
         harness.repository.configure(_settingsFor(maxAgents: 2));
         await pumpEventQueue();
 
-        lost.complete();
+        lost.complete(crashed);
         await pumpEventQueue();
 
         expect(harness.repository.status, isA<ProviderStatusReady>());
