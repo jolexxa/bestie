@@ -4,6 +4,8 @@ library;
 
 export 'src/models/credits_result.dart'
     show CreditsFailed, CreditsFetched, CreditsResult, CreditsUnsupported;
+export 'src/models/provider_availability.dart'
+    show ProviderAvailability, ProviderNotSetUp, ProviderReady;
 export 'src/models/provider_credentials.dart'
     show
         ApiKeyCredentials,
@@ -46,5 +48,6 @@ export 'src/models/provider_reasoning.dart'
         ProviderReasoningFixed,
         ProviderReasoningToggle;
 export 'src/provider.dart' show Provider;
+export 'src/provider_client.dart' show ProviderClient;
 export 'src/provider_connection.dart' show ProviderConnection;
 export 'src/unconfigured_connection.dart' show UnconfiguredConnection;
