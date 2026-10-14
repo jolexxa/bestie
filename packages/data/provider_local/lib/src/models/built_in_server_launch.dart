@@ -4,8 +4,8 @@ import 'package:intentions/intentions.dart';
 
 /// How to start a server for one bestie directory.
 @model
-final class LocalServerLaunch {
-  const LocalServerLaunch({
+final class BuiltInServerLaunch {
+  const BuiltInServerLaunch({
     required this.command,
     required this.bestieDir,
     required this.logFile,

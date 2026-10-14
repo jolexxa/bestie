@@ -1,6 +1,7 @@
 import 'package:http/http.dart' as http;
 import 'package:intentions/intentions.dart';
-import 'package:provider_openai/src/open_ai_connection.dart';
+import 'package:provider_openai/src/open_ai_endpoint_client.dart';
+import 'package:provider_openai/src/open_ai_endpoint_settings.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 
 /// Any OpenAI-compatible server the user points bestie at.
@@ -28,15 +29,14 @@ final class OpenAiProvider implements Provider {
           :final apiKey,
           :final fallbackContextWindow,
         ) =>
-          OpenAiConnection(
-            baseUrl: baseUrl,
-            apiKey: apiKey,
-            fallbackContextWindow: fallbackContextWindow,
-            client: _client,
+          OpenAiEndpointClient(client: _client)..configure(
+            OpenAiEndpointSettings(
+              baseUrl: baseUrl,
+              apiKey: apiKey,
+              contextWindow: fallbackContextWindow,
+            ),
           ),
-        NoCredentials() => UnconfiguredConnection(
-          ProviderRejected('$displayName URL is not set.'),
-        ),
+        NoCredentials() => OpenAiEndpointClient(client: _client),
         ApiKeyCredentials() => throw ArgumentError.value(
           credentials,
           'credentials',

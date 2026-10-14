@@ -2,9 +2,8 @@ import 'package:clock/clock.dart';
 import 'package:file/file.dart';
 import 'package:http/http.dart' as http;
 import 'package:intentions/intentions.dart';
-import 'package:local_server_protocol/local_server_protocol.dart';
-import 'package:provider_local/src/local_connection.dart';
-import 'package:provider_local/src/models/local_server_launch.dart';
+import 'package:provider_local/src/built_in_server_client.dart';
+import 'package:provider_local/src/models/built_in_server_launch.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 
 /// The models in bestie's own index, run by bestie's local server.
@@ -16,7 +15,7 @@ final class LocalProvider implements Provider {
     required FileSystem fileSystem,
     required String lockFile,
     required String indexFile,
-    required LocalServerLaunch launch,
+    required BuiltInServerLaunch launch,
     required int pid,
     Clock clock = const Clock(),
     Duration startTimeout = const Duration(seconds: 90),
@@ -37,7 +36,7 @@ final class LocalProvider implements Provider {
   final FileSystem _fileSystem;
   final String _lockFile;
   final String _indexFile;
-  final LocalServerLaunch _launch;
+  final BuiltInServerLaunch _launch;
   final int _pid;
   final Clock _clock;
   final Duration _startTimeout;
@@ -47,7 +46,7 @@ final class LocalProvider implements Provider {
   String get id => 'local';
 
   @override
-  String get displayName => bestieServerName;
+  String get displayName => 'Built-in server';
 
   @override
   ProviderCredentialsKind get credentialsKind => ProviderCredentialsKind.none;
@@ -55,7 +54,7 @@ final class LocalProvider implements Provider {
   @override
   ProviderConnection connect(ProviderCredentials credentials) =>
       switch (credentials) {
-        NoCredentials() => LocalConnection(
+        NoCredentials() => BuiltInServerClient(
           client: _client,
           sessionClientFactory: _sessionClientFactory,
           fileSystem: _fileSystem,

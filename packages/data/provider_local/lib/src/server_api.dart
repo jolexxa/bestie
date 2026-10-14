@@ -6,13 +6,13 @@ import 'package:dart_mappable/dart_mappable.dart';
 import 'package:http/http.dart' as http;
 import 'package:intentions/intentions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
-import 'package:provider_local/src/local_connection.dart';
-import 'package:provider_local/src/models/local_server_connection.dart';
+import 'package:provider_local/src/built_in_server_client.dart';
+import 'package:provider_local/src/models/built_in_server_connection.dart';
 import 'package:provider_local/src/models/server_results.dart';
 
 /// The server's request-and-answer routes, each answered with a sealed
 /// result instead of an exception.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class ServerApi {
   ServerApi({required http.Client client, required Duration healthTimeout})
     : _client = client,
@@ -38,7 +38,7 @@ final class ServerApi {
   }
 
   Future<ModelLoadResult> load(
-    LocalServerAttached owner,
+    BuiltInServerAttached owner,
     ModelLoadRequest request,
   ) async {
     try {
@@ -61,7 +61,7 @@ final class ServerApi {
     }
   }
 
-  Future<ModelUnloadResult> unload(LocalServerAttached owner) async {
+  Future<ModelUnloadResult> unload(BuiltInServerAttached owner) async {
     try {
       final response = await _client.delete(
         urlFor(owner.port, bestieModelPath),
@@ -76,7 +76,7 @@ final class ServerApi {
   }
 
   Future<AgentSessionResult> openLease(
-    LocalServerAttached owner,
+    BuiltInServerAttached owner,
     AgentIdentity agent,
   ) async {
     try {
@@ -102,7 +102,7 @@ final class ServerApi {
 
   /// Releases the lease; an unknown agent or an unreachable server leaves
   /// nothing to release.
-  Future<void> closeLease(LocalServerAttached owner, String agentId) async {
+  Future<void> closeLease(BuiltInServerAttached owner, String agentId) async {
     try {
       await _client.delete(
         urlFor(owner.port, bestieAgentPath(agentId)),
@@ -118,11 +118,11 @@ final class ServerApi {
     AgentIdentityKind.subagent => AgentLeaseKind.subagent,
   };
 
-  static Map<String, String> _owned(LocalServerAttached owner) => {
+  static Map<String, String> _owned(BuiltInServerAttached owner) => {
     bestieOwnerHeader: owner.ownerToken,
   };
 
-  static Map<String, String> _ownedJson(LocalServerAttached owner) => {
+  static Map<String, String> _ownedJson(BuiltInServerAttached owner) => {
     ..._owned(owner),
     'Content-Type': 'application/json',
   };

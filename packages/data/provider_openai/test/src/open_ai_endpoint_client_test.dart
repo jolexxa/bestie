@@ -19,22 +19,83 @@ void main() {
     requests = [];
   });
 
-  OpenAiConnection connectionFor(
-    http.Response Function(http.Request request) respond, {
-    String? apiKey = 'local-key',
-    Uri? baseUrl,
-  }) => OpenAiConnection(
-    baseUrl: baseUrl ?? _url,
-    apiKey: apiKey,
-    fallbackContextWindow: _fallbackContextWindow,
+  OpenAiEndpointClient clientFor(
+    http.Response Function(http.Request request) respond,
+  ) => OpenAiEndpointClient(
     client: MockClient((request) async {
       requests.add(request);
       return respond(request);
     }),
   );
 
+  OpenAiEndpointClient connectionFor(
+    http.Response Function(http.Request request) respond, {
+    String? apiKey = 'local-key',
+    Uri? baseUrl,
+  }) => clientFor(respond)
+    ..configure(
+      OpenAiEndpointSettings(
+        baseUrl: baseUrl ?? _url,
+        apiKey: apiKey,
+        contextWindow: _fallbackContextWindow,
+      ),
+    );
+
   http.Response Function(http.Request) json(Object? body, {int status = 200}) =>
       (_) => http.Response(jsonEncode(body), status);
+
+  test('is named for the palette', () {
+    final client = clientFor((_) => throw StateError('no calls'));
+
+    expect(client.id, 'custom');
+    expect(client.displayName, 'Custom endpoint');
+  });
+
+  group('without an address', () {
+    const noUrl = ProviderRejected('Custom endpoint URL is not set.');
+
+    test('is not set up', () {
+      expect(
+        clientFor((_) => throw StateError('no calls')).availability,
+        const ProviderNotSetUp(noUrl),
+      );
+    });
+
+    test('lists nothing and serves no model', () async {
+      final client = clientFor((_) => throw StateError('no calls'));
+
+      expect((await client.models() as ProviderModelsListed).models, isEmpty);
+      final load = client.load(
+        const ProviderModelLoadRequest(
+          modelId: 'm',
+          contextWindow: 8192,
+          maxAgents: 1,
+        ),
+      );
+      expect((await load.result as ProviderModelLoadFailed).failure, noUrl);
+      expect(requests, isEmpty);
+    });
+  });
+
+  group('configure', () {
+    test('makes it ready and reports each change', () async {
+      final client = clientFor((_) => throw StateError('no calls'));
+      final reported = <ProviderAvailability>[];
+      final listening = client.reconfigured.listen(reported.add);
+
+      client
+        ..configure(OpenAiEndpointSettings(baseUrl: _url))
+        ..configure(OpenAiEndpointSettings(baseUrl: _url))
+        ..configure(OpenAiEndpointSettings.unset);
+      await pumpEventQueue();
+
+      expect(reported, const [
+        ProviderReady(),
+        ProviderNotSetUp(ProviderRejected('Custom endpoint URL is not set.')),
+      ]);
+      await listening.cancel();
+    });
+  });
 
   test('has no credits', () async {
     final connection = connectionFor(json(const {'data': <Object?>[]}));

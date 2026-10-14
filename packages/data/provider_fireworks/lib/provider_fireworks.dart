@@ -1,5 +1,6 @@
 /// Fireworks AI as a bestie provider.
 library;
 
-export 'src/fireworks_connection.dart' show FireworksConnection;
+export 'src/fireworks_client.dart' show FireworksClient;
 export 'src/fireworks_provider.dart' show FireworksProvider;
+export 'src/fireworks_settings.dart' show FireworksSettings;

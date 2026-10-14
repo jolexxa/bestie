@@ -43,12 +43,11 @@ void main() {
   http.Response json(Object? body, {int status = 200}) =>
       http.Response(jsonEncode(body), status);
 
-  FireworksConnection connectionFor(
+  FireworksClient clientFor(
     http.Response Function(http.Request request) respond, {
     Uri? managementUrl,
     DateTime? now,
-  }) => FireworksConnection(
-    apiKey: 'fw-key',
+  }) => FireworksClient(
     client: MockClient((request) async {
       requests.add(request);
       return respond(request);
@@ -57,6 +56,48 @@ void main() {
     clock: Clock.fixed(now ?? DateTime.utc(2026, 9, 6, 12)),
   );
 
+  FireworksClient connectionFor(
+    http.Response Function(http.Request request) respond, {
+    Uri? managementUrl,
+    DateTime? now,
+  }) =>
+      clientFor(respond, managementUrl: managementUrl, now: now)
+        ..configure(const FireworksSettings(apiKey: 'fw-key'));
+
+  test('is named for the palette', () {
+    final client = clientFor((_) => throw StateError('no calls'));
+
+    expect(client.id, 'fireworks');
+    expect(client.displayName, 'Fireworks AI');
+  });
+
+  group('without a key', () {
+    const noKey = ProviderAuthFailed('No Fireworks AI API key configured.');
+
+    test('is not set up', () {
+      expect(
+        clientFor((_) => throw StateError('no calls')).availability,
+        const ProviderNotSetUp(noKey),
+      );
+    });
+
+    test('lists nothing, asks for no billing and serves no model', () async {
+      final client = clientFor((_) => throw StateError('no calls'));
+
+      expect((await client.models() as ProviderModelsListed).models, isEmpty);
+      expect((await client.credits() as CreditsFailed).failure, noKey);
+      final load = client.load(
+        const ProviderModelLoadRequest(
+          modelId: 'm',
+          contextWindow: 8192,
+          maxAgents: 1,
+        ),
+      );
+      expect((await load.result as ProviderModelLoadFailed).failure, noKey);
+      expect(requests, isEmpty);
+    });
+  });
+
   /// Serves the accounts list, then [summary] for the billing summary.
   http.Response Function(http.Request) billing(http.Response summary) =>
       (request) => switch (request.url.path) {
@@ -64,6 +105,42 @@ void main() {
         _summaryPath => summary,
         _ => throw StateError('unexpected ${request.url}'),
       };
+
+  group('configure', () {
+    test('makes it ready and reports each change', () async {
+      final client = clientFor(billing(json(_summaryOf([]))));
+      final reported = <ProviderAvailability>[];
+      final listening = client.reconfigured.listen(reported.add);
+
+      client
+        ..configure(const FireworksSettings(apiKey: 'fw-key'))
+        ..configure(const FireworksSettings(apiKey: 'fw-key'))
+        ..configure(FireworksSettings.unset);
+      await pumpEventQueue();
+
+      expect(reported, const [
+        ProviderReady(),
+        ProviderNotSetUp(
+          ProviderAuthFailed('No Fireworks AI API key configured.'),
+        ),
+      ]);
+      await listening.cancel();
+    });
+
+    test('looks the account up again under a new key', () async {
+      final client = connectionFor(billing(json(_summaryOf([]))));
+
+      await client.credits();
+      client.configure(const FireworksSettings(apiKey: 'fw-other'));
+      await client.credits();
+
+      expect(
+        requests.map((request) => request.url.path),
+        [_accountsPath, _summaryPath, _accountsPath, _summaryPath],
+      );
+      expect(requests.last.headers['Authorization'], 'Bearer fw-other');
+    });
+  });
 
   group('models', () {
     const modelsPath = '/v1/accounts/fireworks/models';

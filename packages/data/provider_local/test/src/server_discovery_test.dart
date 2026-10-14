@@ -19,7 +19,7 @@ class _MockServerSpawner extends Mock implements ServerSpawner {}
 void main() {
   const lockFile = '/bestie/run/server.lock';
   const logFile = '/bestie/logs/server.log';
-  const launch = LocalServerLaunch(
+  const launch = BuiltInServerLaunch(
     command: ProgramCommand(executable: 'dart', arguments: ['run', 'server']),
     bestieDir: '/bestie',
     logFile: logFile,

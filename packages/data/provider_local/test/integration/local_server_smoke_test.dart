@@ -50,7 +50,7 @@ void main() {
           modelsDirFor(bestieDir.path, p.context),
           ModelIndex.fileName,
         ),
-        launch: LocalServerLaunch(
+        launch: BuiltInServerLaunch(
           command: ProgramCommand(
             executable: Platform.resolvedExecutable,
             arguments: [

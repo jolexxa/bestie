@@ -5,20 +5,20 @@ import 'package:clock/clock.dart';
 import 'package:file/file.dart';
 import 'package:intentions/intentions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
-import 'package:provider_local/src/local_connection.dart';
-import 'package:provider_local/src/models/local_server_launch.dart';
+import 'package:provider_local/src/built_in_server_client.dart';
+import 'package:provider_local/src/models/built_in_server_launch.dart';
 import 'package:provider_local/src/models/server_results.dart';
 import 'package:provider_local/src/server_api.dart';
 import 'package:provider_local/src/server_spawner.dart';
 
 /// Finds the server the lock file names, starting one when none answers.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class ServerDiscovery {
   ServerDiscovery({
     required ServerApi api,
     required FileSystem fileSystem,
     required String lockFile,
-    required LocalServerLaunch launch,
+    required BuiltInServerLaunch launch,
     required ServerSpawner spawner,
     required Clock clock,
     required Duration startTimeout,
@@ -40,7 +40,7 @@ final class ServerDiscovery {
   final ServerApi _api;
   final FileSystem _fileSystem;
   final String _lockFile;
-  final LocalServerLaunch _launch;
+  final BuiltInServerLaunch _launch;
   final ServerSpawner _spawner;
   final Clock _clock;
   final Duration _startTimeout;
@@ -119,12 +119,12 @@ final class ServerDiscovery {
 }
 
 /// What looking for the server found.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 sealed class ServerDiscoveryResult {
   const ServerDiscoveryResult();
 }
 
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class ServerFound extends ServerDiscoveryResult {
   const ServerFound({required this.port, required this.health});
 
@@ -134,14 +134,14 @@ final class ServerFound extends ServerDiscoveryResult {
 }
 
 /// A server runs, but it speaks another protocol version.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class ServerSpeaksOtherProtocol extends ServerDiscoveryResult {
   const ServerSpeaksOtherProtocol(this.health);
 
   final HealthResponse health;
 }
 
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class ServerNotStarted extends ServerDiscoveryResult {
   const ServerNotStarted(this.reason);
 

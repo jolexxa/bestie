@@ -1,12 +1,12 @@
 import 'package:completion_protocol/completion_protocol.dart';
 import 'package:intentions/intentions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
-import 'package:provider_local/src/local_connection.dart';
+import 'package:provider_local/src/built_in_server_client.dart';
 
 /// What a loaded model and its agent sessions need of the link to the
 /// server.
-@PartOf(LocalConnection)
-abstract interface class LocalServerLink {
+@PartOf(BuiltInServerClient)
+abstract interface class BuiltInServerLink {
   /// Completes once this bestie stops holding the session it holds now,
   /// whether it let go, the server ended the session, or the connection
   /// closed; at once when it holds none.
@@ -14,9 +14,9 @@ abstract interface class LocalServerLink {
 
   Stream<PoolSnapshotEvent> get poolSnapshots;
 
-  /// Unloads the model and hangs up the owner session, unless a load newer
-  /// than the [generation]th has started since, which then owns them.
-  Future<void> releaseLoad(int generation);
+  /// Unloads the model, keeping the server, unless a load newer than the
+  /// [generation]th has started since, which then owns it.
+  Future<void> unload(int generation);
 
   /// Opens a lease for [agent] on behalf of [holder]. A lease another
   /// holder still has under the same id is closed first.

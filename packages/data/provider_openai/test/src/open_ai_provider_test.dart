@@ -23,7 +23,11 @@ void main() {
       ),
     );
 
-    expect(connection, isA<OpenAiConnection>());
+    expect(connection, isA<OpenAiEndpointClient>());
+    expect(
+      (connection as OpenAiEndpointClient).availability,
+      const ProviderReady(),
+    );
   });
 
   test('without an address, lists nothing and says what is missing', () async {
@@ -31,8 +35,10 @@ void main() {
 
     expect(await connection.models(), isA<ProviderModelsListed>());
     expect(
-      (await connection.credits() as CreditsFailed).failure,
-      const ProviderRejected('Custom endpoint URL is not set.'),
+      (connection as OpenAiEndpointClient).availability,
+      const ProviderNotSetUp(
+        ProviderRejected('Custom endpoint URL is not set.'),
+      ),
     );
   });
 

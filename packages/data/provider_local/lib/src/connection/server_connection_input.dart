@@ -3,37 +3,46 @@ import 'dart:async';
 import 'package:completion_protocol/completion_protocol.dart';
 import 'package:intentions/intentions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
-import 'package:provider_local/src/local_connection.dart';
-import 'package:provider_local/src/models/local_server_connection.dart';
+import 'package:provider_local/src/built_in_server_client.dart';
+import 'package:provider_local/src/models/built_in_server_connection.dart';
 import 'package:provider_local/src/models/server_results.dart';
 import 'package:provider_local/src/owner_session.dart';
 import 'package:provider_local/src/server_attacher.dart';
 
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 sealed class ServerConnectionInput {
   const ServerConnectionInput();
 }
 
 /// Hold the owner session, finding or starting the server first; [reply]
 /// says where that left things.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class AttachRequested extends ServerConnectionInput {
   const AttachRequested(this.reply);
 
-  final Completer<LocalServerConnection> reply;
+  final Completer<BuiltInServerConnection> reply;
 }
 
 /// Unload the model and let go of the server; [reply] completes once it is
 /// let go.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class ReleaseRequested extends ServerConnectionInput {
   const ReleaseRequested(this.reply);
 
   final Completer<void> reply;
 }
 
+/// Unload the model, keeping the server; [reply] completes once it is
+/// unloaded.
+@PartOf(BuiltInServerClient)
+final class UnloadRequested extends ServerConnectionInput {
+  const UnloadRequested(this.reply);
+
+  final Completer<void> reply;
+}
+
 /// Load the model [request] names.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class LoadRequested extends ServerConnectionInput {
   const LoadRequested({required this.request, required this.reply});
 
@@ -43,7 +52,7 @@ final class LoadRequested extends ServerConnectionInput {
 }
 
 /// Let go of the server for good; [reply] completes once it is let go.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class CloseRequested extends ServerConnectionInput {
   const CloseRequested(this.reply);
 
@@ -51,7 +60,7 @@ final class CloseRequested extends ServerConnectionInput {
 }
 
 /// Open a lease for [agent] on behalf of [holder].
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class LeaseOpenRequested extends ServerConnectionInput {
   const LeaseOpenRequested({
     required this.holder,
@@ -68,7 +77,7 @@ final class LeaseOpenRequested extends ServerConnectionInput {
 
 /// Close the lease of [agentId] if [holder] holds it, or every lease it
 /// holds when [agentId] is null.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class LeaseCloseRequested extends ServerConnectionInput {
   const LeaseCloseRequested({
     required this.holder,
@@ -84,7 +93,7 @@ final class LeaseCloseRequested extends ServerConnectionInput {
 }
 
 /// The attempt to hold the session numbered [attempt] ended.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class AttachSettled extends ServerConnectionInput {
   const AttachSettled({required this.attempt, required this.outcome});
 
@@ -94,19 +103,29 @@ final class AttachSettled extends ServerConnectionInput {
 }
 
 /// Whatever was held has been let go.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class LetGo extends ServerConnectionInput {
   const LetGo();
 }
 
 /// The client has let go of the server for good.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class HungUp extends ServerConnectionInput {
   const HungUp();
 }
 
+/// An unload asked for over [session] finished; [reply] is told.
+@PartOf(BuiltInServerClient)
+final class UnloadSettled extends ServerConnectionInput {
+  const UnloadSettled({required this.session, required this.reply});
+
+  final OwnerSession session;
+
+  final Completer<void> reply;
+}
+
 /// A load asked for over [session] answered [result].
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class LoadSettled extends ServerConnectionInput {
   const LoadSettled({
     required this.session,
@@ -122,7 +141,7 @@ final class LoadSettled extends ServerConnectionInput {
 }
 
 /// [session] reported the model's [status].
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class ModelStatusReported extends ServerConnectionInput {
   const ModelStatusReported({required this.session, required this.status});
 
@@ -132,7 +151,7 @@ final class ModelStatusReported extends ServerConnectionInput {
 }
 
 /// The server ended [session].
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class SessionEnded extends ServerConnectionInput {
   const SessionEnded(this.session);
 

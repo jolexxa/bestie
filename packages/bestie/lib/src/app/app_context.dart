@@ -397,7 +397,7 @@ class AppContext {
       fileSystem: fileSystem,
       lockFile: platform.serverLockFile,
       indexFile: p.join(platform.modelsDir, ModelIndex.fileName),
-      launch: LocalServerLaunch(
+      launch: BuiltInServerLaunch(
         command: platform.serverExecutable,
         bestieDir: platform.bestieDir,
         logFile: platform.serverLogFile,

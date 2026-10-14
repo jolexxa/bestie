@@ -2,15 +2,15 @@ import 'package:intentions/intentions.dart';
 
 /// Where this bestie stands with the local inference server.
 @model
-sealed class LocalServerConnection {
-  const LocalServerConnection();
+sealed class BuiltInServerConnection {
+  const BuiltInServerConnection();
 }
 
 /// No session is held: none was asked for yet, it was closed, or the server
 /// ended it.
 @model
-final class LocalServerDisconnected extends LocalServerConnection {
-  const LocalServerDisconnected({this.reason});
+final class BuiltInServerDisconnected extends BuiltInServerConnection {
+  const BuiltInServerDisconnected({this.reason});
 
   /// Why a session that was asked for is not held, if one was.
   final String? reason;
@@ -18,14 +18,14 @@ final class LocalServerDisconnected extends LocalServerConnection {
 
 /// Finding or starting the server and asking it for the owner session.
 @model
-final class LocalServerAttaching extends LocalServerConnection {
-  const LocalServerAttaching();
+final class BuiltInServerAttaching extends BuiltInServerConnection {
+  const BuiltInServerAttaching();
 }
 
 /// This bestie owns the server: it may lease agents and load models.
 @model
-final class LocalServerAttached extends LocalServerConnection {
-  const LocalServerAttached({required this.ownerToken, required this.port});
+final class BuiltInServerAttached extends BuiltInServerConnection {
+  const BuiltInServerAttached({required this.ownerToken, required this.port});
 
   /// Authorizes this bestie's lease, model, and agent completion requests.
   final String ownerToken;
@@ -36,16 +36,16 @@ final class LocalServerAttached extends LocalServerConnection {
 
 /// Another bestie owns the server.
 @model
-final class LocalServerBusy extends LocalServerConnection {
-  const LocalServerBusy({required this.ownerPid});
+final class BuiltInServerBusy extends BuiltInServerConnection {
+  const BuiltInServerBusy({required this.ownerPid});
 
   final int ownerPid;
 }
 
 /// The running server speaks a protocol this bestie does not.
 @model
-final class LocalServerVersionMismatch extends LocalServerConnection {
-  const LocalServerVersionMismatch({
+final class BuiltInServerVersionMismatch extends BuiltInServerConnection {
+  const BuiltInServerVersionMismatch({
     required this.protocolVersion,
     required this.serverVersion,
   });
@@ -58,8 +58,8 @@ final class LocalServerVersionMismatch extends LocalServerConnection {
 
 /// No server answered, and one could not be started.
 @model
-final class LocalServerSpawnFailed extends LocalServerConnection {
-  const LocalServerSpawnFailed({required this.reason});
+final class BuiltInServerSpawnFailed extends BuiltInServerConnection {
+  const BuiltInServerSpawnFailed({required this.reason});
 
   final String reason;
 }

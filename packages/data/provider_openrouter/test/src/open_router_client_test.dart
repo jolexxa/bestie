@@ -34,7 +34,7 @@ void main() {
   late MockOpenRouter client;
   late MockCreditsResource creditsResource;
   late MockModelsResource modelsResource;
-  late OpenRouterConnection connection;
+  late OpenRouterClient connection;
 
   Future<List<openrouter.Model>> textModels() =>
       modelsResource.list(outputModalities: {openrouter.Modality.text});
@@ -45,11 +45,68 @@ void main() {
     modelsResource = MockModelsResource();
     when(() => client.credits).thenReturn(creditsResource);
     when(() => client.models).thenReturn(modelsResource);
-    connection = OpenRouterConnection(
-      client: client,
-      apiKey: 'sk-or-v1-abc',
-      headers: const {'X-OpenRouter-Title': 'bestie'},
-    );
+    connection = OpenRouterClient(
+      appTitle: 'bestie',
+      sdkFactory: (_) => client,
+    )..configure(const OpenRouterSettings(apiKey: 'sk-or-v1-abc'));
+  });
+
+  test('is named for the palette', () {
+    expect(connection.id, 'openrouter');
+    expect(connection.displayName, 'OpenRouter');
+  });
+
+  group('configure', () {
+    const noKey = ProviderAuthFailed('No OpenRouter API key configured.');
+
+    test('is not set up until it has a key', () {
+      final bare = OpenRouterClient(sdkFactory: (_) => client);
+
+      expect(bare.availability, const ProviderNotSetUp(noKey));
+
+      bare.configure(const OpenRouterSettings(apiKey: 'sk'));
+
+      expect(bare.availability, const ProviderReady());
+    });
+
+    test('reports each change, and only changes', () async {
+      final bare = OpenRouterClient(sdkFactory: (_) => client);
+      final reported = <ProviderAvailability>[];
+      final listening = bare.reconfigured.listen(reported.add);
+
+      bare
+        ..configure(const OpenRouterSettings(apiKey: 'sk'))
+        ..configure(const OpenRouterSettings(apiKey: 'sk'))
+        ..configure(OpenRouterSettings.unset);
+      await pumpEventQueue();
+
+      expect(reported, const [
+        ProviderReady(),
+        ProviderNotSetUp(noKey),
+      ]);
+      await listening.cancel();
+    });
+
+    test('hands the key to the SDK it builds', () {
+      final keys = <String>[];
+      OpenRouterClient(
+        sdkFactory: (apiKey) {
+          keys.add(apiKey);
+          return client;
+        },
+      ).configure(const OpenRouterSettings(apiKey: 'sk-or'));
+
+      expect(keys, ['', 'sk-or']);
+    });
+
+    test('builds the real SDK when none is injected', () {
+      expect(
+        () => OpenRouterClient(
+          appTitle: 'bestie',
+        ).configure(const OpenRouterSettings(apiKey: 'sk')),
+        returnsNormally,
+      );
+    });
   });
 
   const request = ProviderModelLoadRequest(
@@ -85,7 +142,7 @@ void main() {
     const noKey = ProviderAuthFailed('No OpenRouter API key configured.');
 
     setUp(() {
-      connection = OpenRouterConnection(client: client);
+      connection = OpenRouterClient(sdkFactory: (_) => client);
     });
 
     test('says a key is missing instead of asking for credits', () async {

@@ -5,21 +5,21 @@ import 'package:http/http.dart' as http;
 import 'package:intentions/intentions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:provider_local/src/bestie_server_dialect.dart';
-import 'package:provider_local/src/local_agent_sessions.dart';
-import 'package:provider_local/src/local_connection.dart';
-import 'package:provider_local/src/local_server_link.dart';
-import 'package:provider_local/src/models/local_server_connection.dart';
+import 'package:provider_local/src/built_in_agent_sessions.dart';
+import 'package:provider_local/src/built_in_server_client.dart';
+import 'package:provider_local/src/built_in_server_link.dart';
+import 'package:provider_local/src/models/built_in_server_connection.dart';
 import 'package:provider_local/src/server_api.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 
 /// A model the local server loaded for this bestie, served over the owner
 /// session it was loaded on.
-@PartOf(LocalConnection)
-final class LocalProviderModel implements ProviderModel {
-  LocalProviderModel({
-    required LocalServerLink link,
+@PartOf(BuiltInServerClient)
+final class BuiltInServerModel implements ProviderModel {
+  BuiltInServerModel({
+    required BuiltInServerLink link,
     required int generation,
-    required LocalServerAttached attached,
+    required BuiltInServerAttached attached,
     required ModelReady ready,
     required String modelId,
   }) : _link = link,
@@ -34,7 +34,7 @@ final class LocalProviderModel implements ProviderModel {
            dialect: const BestieServerDialect(),
            clientFactory: http.Client.new,
          ),
-         sessions: LocalAgentSessions(link: link),
+         sessions: BuiltInAgentSessions(link: link),
          options: AgentRuntimeOptions(
            modelId: modelId,
            contextWindow: ready.contextSize,
@@ -43,7 +43,7 @@ final class LocalProviderModel implements ProviderModel {
        ),
        lost = link.untilDetached();
 
-  final LocalServerLink _link;
+  final BuiltInServerLink _link;
   final int _generation;
 
   @override
@@ -61,11 +61,11 @@ final class LocalProviderModel implements ProviderModel {
   @override
   final Future<void> lost;
 
-  /// Hands the server back so another bestie can use it, unless a newer
-  /// load already took it over.
+  /// Frees the model's memory, keeping the server, unless a newer load
+  /// already took it over.
   @override
   Future<void> release() async {
     await runtime.dispose();
-    await _link.releaseLoad(_generation);
+    await _link.unload(_generation);
   }
 }

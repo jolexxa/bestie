@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:agent_runtime/agent_runtime.dart';
@@ -5,20 +6,20 @@ import 'package:clock/clock.dart';
 import 'package:completion_openai/completion_openai.dart';
 import 'package:http/http.dart' as http;
 import 'package:intentions/intentions.dart';
+import 'package:provider_fireworks/src/fireworks_settings.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 
 /// Fireworks AI: models and billing from the management API, completions
-/// from its OpenAI-compatible inference API, all behind one API key.
-/// Fireworks reports no balance, so [credits] carries spend alone.
+/// from its OpenAI-compatible inference API, all behind one API key. It
+/// lists nothing until it has one. Fireworks reports no balance, so
+/// [credits] carries spend alone.
 @dataSource
-final class FireworksConnection implements ProviderConnection {
-  FireworksConnection({
-    required String apiKey,
+final class FireworksClient implements ProviderClient, ProviderConnection {
+  FireworksClient({
     required http.Client client,
     Uri? managementUrl,
     Clock clock = const Clock(),
-  }) : _apiKey = apiKey,
-       _client = client,
+  }) : _client = client,
        _managementUrl =
            managementUrl ?? Uri.parse('https://api.fireworks.ai/v1'),
        _clock = clock;
@@ -28,17 +29,44 @@ final class FireworksConnection implements ProviderConnection {
     'https://api.fireworks.ai/inference/v1',
   );
 
-  final String _apiKey;
+  static const _noKey = ProviderAuthFailed(
+    'No Fireworks AI API key configured.',
+  );
+
   final http.Client _client;
   final Uri _managementUrl;
   final Clock _clock;
+  final _reconfigured = StreamController<ProviderAvailability>.broadcast();
+  FireworksSettings _settings = FireworksSettings.unset;
 
   /// The account slug behind the key, kept after the first successful lookup.
   String? _accountId;
 
+  @override
+  String get id => 'fireworks';
+
+  @override
+  String get displayName => 'Fireworks AI';
+
+  @override
+  ProviderAvailability get availability =>
+      _settings.isSet ? const ProviderReady() : const ProviderNotSetUp(_noKey);
+
+  @override
+  Stream<ProviderAvailability> get reconfigured => _reconfigured.stream;
+
+  /// Reaches Fireworks with [settings] from now on.
+  void configure(FireworksSettings settings) {
+    if (settings == _settings) return;
+    _settings = settings;
+    _accountId = null;
+    _reconfigured.add(availability);
+  }
+
   /// The serverless chat models, the only ones a key alone can run.
   @override
   Future<ProviderModelsResult> models() async {
+    if (!_settings.isSet) return const ProviderModelsListed([]);
     final models = <ProviderModelInfo>[];
     String? pageToken;
     do {
@@ -66,6 +94,7 @@ final class FireworksConnection implements ProviderConnection {
 
   @override
   Future<CreditsResult> credits() async {
+    if (!_settings.isSet) return const CreditsFailed(_noKey);
     final summary = await _summary();
     return switch (summary) {
       _FetchFailed(:final failure) => CreditsFailed(failure),
@@ -81,24 +110,26 @@ final class FireworksConnection implements ProviderConnection {
   @override
   ProviderModelLoad load(ProviderModelLoadRequest request) =>
       ProviderModelLoad.settled(
-        ProviderModelLoaded(
-          HostedProviderModel(
-            runtime: CompletionAgentRuntime.perAgentWindow(
-              client: OpenAiCompletionClient(
-                baseUrl: inferenceUrl,
-                apiKey: _apiKey,
-                clientFactory: http.Client.new,
-              ),
-              options: AgentRuntimeOptions(
-                modelId: request.modelId,
-                contextWindow: request.contextWindow,
-                maxAgents: request.maxAgents,
-              ),
-            ),
-            contextWindow: request.contextWindow,
-            maxAgents: request.maxAgents,
-          ),
-        ),
+        _settings.isSet
+            ? ProviderModelLoaded(
+                HostedProviderModel(
+                  runtime: CompletionAgentRuntime.perAgentWindow(
+                    client: OpenAiCompletionClient(
+                      baseUrl: inferenceUrl,
+                      apiKey: _settings.apiKey,
+                      clientFactory: http.Client.new,
+                    ),
+                    options: AgentRuntimeOptions(
+                      modelId: request.modelId,
+                      contextWindow: request.contextWindow,
+                      maxAgents: request.maxAgents,
+                    ),
+                  ),
+                  contextWindow: request.contextWindow,
+                  maxAgents: request.maxAgents,
+                ),
+              )
+            : const ProviderModelLoadFailed(_noKey),
       );
 
   @override
@@ -130,7 +161,7 @@ final class FireworksConnection implements ProviderConnection {
     try {
       response = await _client.get(
         url,
-        headers: {'Authorization': 'Bearer $_apiKey'},
+        headers: {'Authorization': 'Bearer ${_settings.apiKey}'},
       );
     } on http.ClientException catch (error) {
       return _FetchFailed(

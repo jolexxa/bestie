@@ -1,7 +1,7 @@
 import 'package:completion_protocol/completion_protocol.dart';
 import 'package:intentions/intentions.dart';
-import 'package:provider_local/src/local_connection.dart';
-import 'package:provider_local/src/models/local_server_connection.dart';
+import 'package:provider_local/src/built_in_server_client.dart';
+import 'package:provider_local/src/models/built_in_server_connection.dart';
 import 'package:provider_local/src/server_api.dart';
 
 /// The agent leases held over one owner session, and which holder holds
@@ -9,14 +9,14 @@ import 'package:provider_local/src/server_api.dart';
 /// it ends. Requests reach the server in the order they were made, so a
 /// lease handed from one holder to another is closed before it is opened
 /// again.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class SessionLeases {
-  SessionLeases({required ServerApi api, required LocalServerAttached owner})
+  SessionLeases({required ServerApi api, required BuiltInServerAttached owner})
     : _api = api,
       _owner = owner;
 
   final ServerApi _api;
-  final LocalServerAttached _owner;
+  final BuiltInServerAttached _owner;
   final Map<String, Object> _holders = {};
   Future<void> _requests = Future.value();
 

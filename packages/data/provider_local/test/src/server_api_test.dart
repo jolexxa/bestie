@@ -5,13 +5,13 @@ import 'package:completion_protocol/completion_protocol.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
-import 'package:provider_local/src/models/local_server_connection.dart';
+import 'package:provider_local/src/models/built_in_server_connection.dart';
 import 'package:provider_local/src/models/server_results.dart';
 import 'package:provider_local/src/server_api.dart';
 import 'package:test/test.dart';
 
 void main() {
-  const owner = LocalServerAttached(ownerToken: 'token', port: 4100);
+  const owner = BuiltInServerAttached(ownerToken: 'token', port: 4100);
   const ready = ModelReady(
     localId: 'qwen',
     contextSize: 8192,

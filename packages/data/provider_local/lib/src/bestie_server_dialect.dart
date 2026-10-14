@@ -2,13 +2,13 @@ import 'package:completion_openai/completion_openai.dart';
 import 'package:completion_protocol/completion_protocol.dart';
 import 'package:intentions/intentions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
-import 'package:provider_local/src/local_connection.dart';
+import 'package:provider_local/src/built_in_server_client.dart';
 
 /// The local bestie server: the agent identity on every completion so each
 /// agent keeps its own cached prefix, thinking toggled through the chat
 /// template, effort through the base protocol, and prefill progress and
 /// per-chunk timings streamed back.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class BestieServerDialect implements OpenAiDialect {
   const BestieServerDialect();
 

@@ -1,7 +1,7 @@
 import 'package:completion_protocol/completion_protocol.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
-import 'package:provider_local/src/local_agent_sessions.dart';
-import 'package:provider_local/src/local_connection.dart';
+import 'package:provider_local/src/built_in_agent_sessions.dart';
+import 'package:provider_local/src/built_in_server_client.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 import 'package:test/test.dart';
 
@@ -42,11 +42,11 @@ void main() {
   );
 
   late FakeServer server;
-  late LocalConnection client;
+  late BuiltInServerClient client;
 
   setUp(() async {
     server = FakeServer();
-    client = server.connection();
+    client = server.client();
     await client
         .load(
           const ProviderModelLoadRequest(
@@ -61,7 +61,7 @@ void main() {
   tearDown(() => client.close());
 
   test('reports the pool with the subagent claims reserved', () {
-    final report = LocalAgentSessions.reportOf(snapshot);
+    final report = BuiltInAgentSessions.reportOf(snapshot);
 
     expect(report.contextSize, 8192);
     expect(report.reservedTokens, 3072);
@@ -82,11 +82,11 @@ void main() {
       borrowedTokens: 512,
     );
 
-    expect(LocalAgentSessions.reportOf(borrowing).reservedTokens, 3584);
+    expect(BuiltInAgentSessions.reportOf(borrowing).reservedTokens, 3584);
   });
 
   test('streams the pool the owner session reports', () async {
-    final sessions = LocalAgentSessions(link: client);
+    final sessions = BuiltInAgentSessions(link: client);
     final reports = sessions.pool.toList();
 
     server.emit(snapshot);
@@ -100,7 +100,7 @@ void main() {
   });
 
   test('opens and closes leases on the server', () async {
-    final sessions = LocalAgentSessions(link: client);
+    final sessions = BuiltInAgentSessions(link: client);
 
     expect(await sessions.open(primary), isA<AgentSessionOpened>());
     await sessions.close(primary);
@@ -112,8 +112,8 @@ void main() {
   });
 
   test('releases only its own leases when disposed', () async {
-    final sessions = LocalAgentSessions(link: client);
-    final others = LocalAgentSessions(link: client);
+    final sessions = BuiltInAgentSessions(link: client);
+    final others = BuiltInAgentSessions(link: client);
     await sessions.open(primary);
     await others.open(subagent);
 

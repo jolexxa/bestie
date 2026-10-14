@@ -1,10 +1,10 @@
 import 'package:completion_openai/completion_openai.dart';
 import 'package:completion_protocol/completion_protocol.dart';
 import 'package:intentions/intentions.dart';
-import 'package:provider_openrouter/src/open_router_connection.dart';
+import 'package:provider_openrouter/src/open_router_client.dart';
 
 /// OpenRouter controls reasoning through its `reasoning` object.
-@PartOf(OpenRouterConnection)
+@PartOf(OpenRouterClient)
 final class OpenRouterDialect implements OpenAiDialect {
   const OpenRouterDialect();
 

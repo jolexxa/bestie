@@ -1,7 +1,8 @@
 import 'package:clock/clock.dart';
 import 'package:http/http.dart' as http;
 import 'package:intentions/intentions.dart';
-import 'package:provider_fireworks/src/fireworks_connection.dart';
+import 'package:provider_fireworks/src/fireworks_client.dart';
+import 'package:provider_fireworks/src/fireworks_settings.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 
 /// Fireworks AI, reached with the user's API key. It lists nothing until it
@@ -33,19 +34,19 @@ final class FireworksProvider implements Provider {
   @override
   ProviderConnection connect(ProviderCredentials credentials) =>
       switch (credentials) {
-        ApiKeyCredentials(:final apiKey) => FireworksConnection(
-          apiKey: apiKey,
-          client: _client,
-          managementUrl: managementUrl,
-          clock: clock,
-        ),
-        NoCredentials() => UnconfiguredConnection(
-          ProviderAuthFailed('No $displayName API key configured.'),
-        ),
+        ApiKeyCredentials(:final apiKey) =>
+          _connect()..configure(FireworksSettings(apiKey: apiKey)),
+        NoCredentials() => _connect(),
         EndpointCredentials() => throw ArgumentError.value(
           credentials,
           'credentials',
           '$displayName takes an API key',
         ),
       };
+
+  FireworksClient _connect() => FireworksClient(
+    client: _client,
+    managementUrl: managementUrl,
+    clock: clock,
+  );
 }

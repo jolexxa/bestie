@@ -1,13 +1,14 @@
 import 'package:bestie_platform_abstractions/bestie_platform_abstractions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:provider_local/provider_local.dart';
-import 'package:provider_local/src/models/local_server_connection.dart';
+import 'package:provider_local/src/models/built_in_server_connection.dart';
+import 'package:provider_local/src/models/model_load_options.dart';
 import 'package:provider_local/src/models/server_results.dart';
 import 'package:test/test.dart';
 
 void main() {
   test('launches a server for the bestie directory', () {
-    const launch = LocalServerLaunch(
+    const launch = BuiltInServerLaunch(
       command: ProgramCommand(executable: 'dart', arguments: ['run', 'server']),
       bestieDir: '/bestie',
       logFile: '/bestie/logs/server.log',
@@ -23,14 +24,23 @@ void main() {
     ]);
   });
 
+  test('compares load options by value', () {
+    const capped = ModelLoadOptions(contextCap: 4096);
+
+    expect(capped, const ModelLoadOptions(contextCap: 4096));
+    expect(capped.hashCode, const ModelLoadOptions(contextCap: 4096).hashCode);
+    expect(capped, isNot(ModelLoadOptions.defaults));
+    expect(capped.toString(), 'ModelLoadOptions(contextCap: 4096)');
+  });
+
   test('describes where this bestie stands with the server', () {
-    const connections = <LocalServerConnection>[
-      LocalServerDisconnected(reason: 'gone'),
-      LocalServerAttaching(),
-      LocalServerAttached(ownerToken: 'token', port: 4100),
-      LocalServerBusy(ownerPid: 12),
-      LocalServerVersionMismatch(protocolVersion: 2, serverVersion: '0.2.0'),
-      LocalServerSpawnFailed(reason: 'missing'),
+    const connections = <BuiltInServerConnection>[
+      BuiltInServerDisconnected(reason: 'gone'),
+      BuiltInServerAttaching(),
+      BuiltInServerAttached(ownerToken: 'token', port: 4100),
+      BuiltInServerBusy(ownerPid: 12),
+      BuiltInServerVersionMismatch(protocolVersion: 2, serverVersion: '0.2.0'),
+      BuiltInServerSpawnFailed(reason: 'missing'),
     ];
 
     expect(connections, hasLength(6));

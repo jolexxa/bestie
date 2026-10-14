@@ -8,8 +8,9 @@ import 'package:http/http.dart' as http;
 import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider_local/src/bestie_server_dialect.dart';
-import 'package:provider_local/src/local_connection.dart';
-import 'package:provider_local/src/models/local_server_connection.dart';
+import 'package:provider_local/src/built_in_server_client.dart';
+import 'package:provider_local/src/models/built_in_server_connection.dart';
+import 'package:provider_local/src/models/model_load_options.dart';
 import 'package:provider_local/src/server_api.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 import 'package:test/test.dart';
@@ -22,12 +23,7 @@ void main() {
     contextWindow: 40960,
     maxAgents: 3,
   );
-  const capped = ProviderModelLoadRequest(
-    modelId: 'qwen',
-    contextWindow: 40960,
-    maxAgents: 3,
-    contextCap: 16384,
-  );
+  const capped = ModelLoadOptions(contextCap: 16384);
   const primary = AgentIdentity(
     id: 'primary:1',
     kind: AgentIdentityKind.primary,
@@ -47,7 +43,7 @@ void main() {
       );
 
   late FakeServer server;
-  late LocalConnection connection;
+  late BuiltInServerClient connection;
 
   Future<ProviderModel> loaded([
     ProviderModelLoadRequest request = qwen,
@@ -82,13 +78,130 @@ void main() {
 
   setUp(() {
     server = FakeServer();
-    connection = server.connection();
+    connection = server.client();
   });
 
   tearDown(() => connection.close());
 
+  test('is named for the palette and always ready', () {
+    expect(connection.id, 'local');
+    expect(connection.displayName, 'Built-in server');
+    expect(connection.availability, const ProviderReady());
+  });
+
   test('has no credits', () async {
     expect(await connection.credits(), isA<CreditsUnsupported>());
+  });
+
+  group('configure', () {
+    test('reports each change, and only changes', () async {
+      final reported = <ProviderAvailability>[];
+      final listening = connection.reconfigured.listen(reported.add);
+
+      connection
+        ..configure(capped)
+        ..configure(capped)
+        ..configure(ModelLoadOptions.defaults);
+      await pumpEventQueue();
+
+      expect(reported, const [ProviderReady(), ProviderReady()]);
+      await listening.cancel();
+    });
+
+    test('caps every load from then on', () async {
+      await serving(await loaded());
+
+      connection.configure(capped);
+      await loaded();
+
+      expect(
+        [
+          for (final sent in server.requests)
+            if (sent.url.path == bestieModelPath && sent.method == 'POST')
+              ModelLoadRequestMapper.fromJson(sent.body).contextCap,
+        ],
+        [null, 16384],
+      );
+    });
+  });
+
+  group('attach', () {
+    Future<List<BuiltInServerConnection>> changesDuring(
+      Future<void> Function() act,
+    ) async {
+      final changes = <BuiltInServerConnection>[];
+      final listening = connection.connectionChanges.listen(changes.add);
+      await act();
+      await pumpEventQueue();
+      await listening.cancel();
+      return changes;
+    }
+
+    test('holds the owner session and tells where that left things', () async {
+      final changes = await changesDuring(() async {
+        expect(
+          await connection.attach(),
+          isA<BuiltInServerAttached>().having(
+            (attached) => attached.ownerToken,
+            'ownerToken',
+            'token-1',
+          ),
+        );
+      });
+
+      expect(changes, [
+        isA<BuiltInServerAttaching>(),
+        isA<BuiltInServerAttached>(),
+      ]);
+    });
+
+    test('reports a server another bestie holds', () async {
+      server.busyOwner = 12;
+
+      final changes = await changesDuring(() async {
+        expect(await connection.attach(), isA<BuiltInServerBusy>());
+      });
+
+      expect(changes, [
+        isA<BuiltInServerAttaching>(),
+        isA<BuiltInServerBusy>().having(
+          (busy) => busy.ownerPid,
+          'ownerPid',
+          12,
+        ),
+      ]);
+    });
+
+    test('reports the server ending the session', () async {
+      await connection.attach();
+
+      final changes = await changesDuring(server.endSession);
+
+      expect(changes, [isA<BuiltInServerDisconnected>()]);
+    });
+
+    test('reports a release and a close', () async {
+      await connection.attach();
+
+      final releasing = await changesDuring(connection.release);
+      await connection.attach();
+      final closing = await changesDuring(connection.close);
+
+      expect(releasing, [isA<BuiltInServerDisconnected>()]);
+      expect(closing, [isA<BuiltInServerDisconnected>()]);
+    });
+
+    test('streams the model status the session reports', () async {
+      await connection.attach();
+      final statuses = <ModelStatus>[];
+      final listening = connection.modelStatusChanges.listen(statuses.add);
+
+      server.emit(const ModelStatusEvent(status: ModelFitting(localId: 'q')));
+      await pumpEventQueue();
+      await listening.cancel();
+
+      expect(statuses, const [ModelFitting(localId: 'q')]);
+    });
   });
 
   group('models', () {
@@ -223,7 +336,8 @@ void main() {
         );
       };
 
-      final load = connection.load(capped);
+      connection.configure(capped);
+      final load = connection.load(qwen);
       final progress = load.progress.toList();
       final model = (await load.result as ProviderModelLoaded).model;
 
@@ -259,7 +373,7 @@ void main() {
     test('keeps the session it holds', () async {
       await loaded();
 
-      expect(ownerTokenOf(await loaded(capped)), 'token-1');
+      expect(ownerTokenOf(await loaded()), 'token-1');
       expect(server.sessions, hasLength(1));
     });
 
@@ -276,7 +390,7 @@ void main() {
       server.emit(const SessionOpened(ownerToken: 'other'));
       await pumpEventQueue();
 
-      expect(ownerTokenOf(await loaded(capped)), 'token-1');
+      expect(ownerTokenOf(await loaded()), 'token-1');
     });
 
     test('keeps a model that already serves the same request', () async {
@@ -290,32 +404,35 @@ void main() {
     test('reloads for a different request', () async {
       await serving(await loaded());
 
-      await loaded(capped);
+      await loaded(
+        const ProviderModelLoadRequest(
+          modelId: 'qwen',
+          contextWindow: 40960,
+          maxAgents: 1,
+        ),
+      );
 
       expect(server.callsTo(bestieModelPath), hasLength(2));
     });
 
-    test(
-      'fails when the model does not load, and lets go of the server',
-      () async {
-        server.loadAnswer = (_) => http.Response('', 500);
+    test('fails when the model does not load, keeping the server', () async {
+      server.loadAnswer = (_) => http.Response('', 500);
 
-        expect(
-          await failed(),
-          const ProviderServerFailed(
-            'The local model server answered HTTP 500.',
-          ),
-        );
-        expect(server.sessions.single.hasListener, isFalse);
-      },
-    );
+      expect(
+        await failed(),
+        const ProviderServerFailed(
+          'The local model server answered HTTP 500.',
+        ),
+      );
+      expect(server.sessions.single.hasListener, isTrue);
+    });
 
-    test('takes a new session after a failed load', () async {
+    test('loads on the same session after a failed load', () async {
       server.loadAnswer = (_) => http.Response('', 500);
       await failed();
       server.loadAnswer = null;
 
-      expect(ownerTokenOf(await loaded()), 'token-2');
+      expect(ownerTokenOf(await loaded()), 'token-1');
     });
 
     test('fails when another bestie owns the server', () async {
@@ -413,54 +530,68 @@ void main() {
       await expectLater(model.lost, completes);
     });
 
-    test('unloads the model and hangs up when released', () async {
+    test('unloads the model and keeps the server when released', () async {
       final model = await loaded();
-      final holder = Object();
-      await connection.openLease(holder, primary);
+      var lost = false;
+      unawaited(model.lost.then((_) => lost = true));
 
       await model.release();
 
       expect(server.callsTo(bestieModelPath).last, 'DELETE $bestieModelPath');
-      expect(server.sessions.single.hasListener, isFalse);
-      await expectLater(model.lost, completes);
-      await connection.closeLease(holder, primary.id);
-      expect(server.callsTo(primaryPath), ['POST $primaryPath']);
+      expect(server.sessions.single.hasListener, isTrue);
+      expect(lost, isFalse);
     });
 
-    test('leaves the server to a newer load when released', () async {
+    test('leaves the model to a newer load when released', () async {
       final first = await loaded();
-      final second = await loaded(capped);
+      final second = await loaded(
+        const ProviderModelLoadRequest(
+          modelId: 'qwen',
+          contextWindow: 40960,
+          maxAgents: 1,
+        ),
+      );
 
       await first.release();
 
       expect(server.callsTo(bestieModelPath), everyElement(startsWith('POST')));
-      expect(server.sessions.single.hasListener, isTrue);
       await second.release();
-      expect(server.sessions.single.hasListener, isFalse);
+      expect(server.callsTo(bestieModelPath).last, 'DELETE $bestieModelPath');
     });
 
-    test('is loaded again on a new session after a release', () async {
+    test('is loaded again on the same session after a release', () async {
+      await serving(await loaded());
       await (await loaded()).release();
 
-      expect(ownerTokenOf(await loaded()), 'token-2');
+      expect(ownerTokenOf(await loaded()), 'token-1');
       expect(server.callsTo(bestieModelPath), [
         'POST $bestieModelPath',
         'DELETE $bestieModelPath',
         'POST $bestieModelPath',
       ]);
     });
+
+    test('is unloaded without a request once the session ended', () async {
+      final model = await loaded();
+      await server.endSession();
+      await pumpEventQueue();
+
+      await model.release();
+
+      expect(server.callsTo(bestieModelPath), ['POST $bestieModelPath']);
+    });
   });
 
-  group('releasing a load', () {
-    test('does nothing before any load', () async {
-      await connection.releaseLoad(0);
+  group('releasing the server', () {
+    test('does nothing before any attach', () async {
+      await connection.release();
 
       expect(server.requests, isEmpty);
     });
 
     test('abandons an attach in flight and hangs up what it took', () async {
       final load = connection.load(qwen);
-      await connection.releaseLoad(1);
+      await connection.release();
 
       expect(await load.result, isA<ProviderModelLoadFailed>());
       expect(server.sessions.single.hasListener, isFalse);
@@ -468,7 +599,7 @@ void main() {
 
     test('lets a later load take a new session', () async {
       final first = connection.load(qwen);
-      final releasing = connection.releaseLoad(1);
+      final releasing = connection.release();
       final second = connection.load(qwen);
 
       expect(await first.result, isA<ProviderModelLoadFailed>());
@@ -482,9 +613,9 @@ void main() {
 
     test('drops loads asked for before a later release', () async {
       await loaded();
-      final releasing = connection.releaseLoad(1);
+      final releasing = connection.release();
       final dropped = connection.load(qwen);
-      final releasingAgain = connection.releaseLoad(2);
+      final releasingAgain = connection.release();
 
       expect(await dropped.result, isA<ProviderModelLoadFailed>());
       await Future.wait<void>([releasing, releasingAgain]);
@@ -683,7 +814,7 @@ void main() {
 
     test('waits for a release under way', () async {
       await loaded();
-      final releasing = connection.releaseLoad(1);
+      final releasing = connection.release();
 
       await connection.close();
       await releasing;
@@ -706,27 +837,27 @@ void main() {
 
       expect(
         await failed(),
-        LocalConnection.failureFor(
-          const LocalServerDisconnected(),
+        BuiltInServerClient.failureFor(
+          const BuiltInServerDisconnected(),
         ),
       );
-      await connection.releaseLoad(1);
+      await connection.release();
       expect(server.sessions, isEmpty);
     });
   });
 
   test('explains every connection loading cannot go on from', () {
-    String messageFor(LocalServerConnection connection) =>
-        LocalConnection.failureFor(connection).message;
+    String messageFor(BuiltInServerConnection connection) =>
+        BuiltInServerClient.failureFor(connection).message;
 
     expect(
-      messageFor(const LocalServerBusy(ownerPid: 12)),
+      messageFor(const BuiltInServerBusy(ownerPid: 12)),
       'Another bestie (pid 12) is using Bestie Server. '
       'Close it to use it here.',
     );
     expect(
       messageFor(
-        const LocalServerVersionMismatch(
+        const BuiltInServerVersionMismatch(
           protocolVersion: 2,
           serverVersion: '0.2.0',
         ),
@@ -736,14 +867,17 @@ void main() {
       'idle.',
     );
     expect(
-      messageFor(const LocalServerSpawnFailed(reason: 'missing')),
+      messageFor(const BuiltInServerSpawnFailed(reason: 'missing')),
       'Could not start the local model server: missing',
     );
-    expect(messageFor(const LocalServerDisconnected(reason: 'reset')), 'reset');
-    for (final unexplained in const <LocalServerConnection>[
-      LocalServerDisconnected(),
-      LocalServerAttaching(),
-      LocalServerAttached(ownerToken: 'token', port: 4100),
+    expect(
+      messageFor(const BuiltInServerDisconnected(reason: 'reset')),
+      'reset',
+    );
+    for (final unexplained in const <BuiltInServerConnection>[
+      BuiltInServerDisconnected(),
+      BuiltInServerAttaching(),
+      BuiltInServerAttached(ownerToken: 'token', port: 4100),
     ]) {
       expect(
         messageFor(unexplained),
@@ -751,21 +885,21 @@ void main() {
       );
     }
     expect(
-      LocalConnection.failureFor(const LocalServerAttaching()),
+      BuiltInServerClient.failureFor(const BuiltInServerAttaching()),
       isA<ProviderServerFailed>(),
     );
   });
 
   test('marks a server another bestie holds as occupied', () {
-    for (final held in const <LocalServerConnection>[
-      LocalServerBusy(ownerPid: 12),
-      LocalServerVersionMismatch(protocolVersion: 2, serverVersion: '0.2.0'),
+    for (final held in const <BuiltInServerConnection>[
+      BuiltInServerBusy(ownerPid: 12),
+      BuiltInServerVersionMismatch(protocolVersion: 2, serverVersion: '0.2.0'),
     ]) {
-      expect(LocalConnection.failureFor(held), isA<ProviderOccupied>());
+      expect(BuiltInServerClient.failureFor(held), isA<ProviderOccupied>());
     }
     expect(
-      LocalConnection.failureFor(
-        const LocalServerSpawnFailed(reason: 'missing'),
+      BuiltInServerClient.failureFor(
+        const BuiltInServerSpawnFailed(reason: 'missing'),
       ),
       isA<ProviderServerFailed>(),
     );

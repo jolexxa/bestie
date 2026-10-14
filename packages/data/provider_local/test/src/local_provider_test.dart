@@ -1,6 +1,5 @@
-import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:provider_local/provider_local.dart';
-import 'package:provider_local/src/local_connection.dart';
+import 'package:provider_local/src/built_in_server_client.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 import 'package:test/test.dart';
 
@@ -13,14 +12,14 @@ void main() {
 
   test('is the local server, needing no credentials', () {
     expect(provider.id, 'local');
-    expect(provider.displayName, bestieServerName);
+    expect(provider.displayName, 'Built-in server');
     expect(provider.credentialsKind, ProviderCredentialsKind.none);
   });
 
   test('connects to the local server', () async {
     final connection = provider.connect(const NoCredentials());
 
-    expect(connection, isA<LocalConnection>());
+    expect(connection, isA<BuiltInServerClient>());
     await connection.close();
   });
 

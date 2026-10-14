@@ -5,12 +5,12 @@ import 'dart:io' show HttpStatus;
 import 'package:http/http.dart' as http;
 import 'package:intentions/intentions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
-import 'package:provider_local/src/local_connection.dart';
+import 'package:provider_local/src/built_in_server_client.dart';
 import 'package:provider_local/src/server_api.dart';
 
 /// The owner session's event stream, held open on a client of its own so
 /// closing it hangs up at once and the server frees every lease.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class OwnerSession {
   OwnerSession._({
     required http.Client client,
@@ -138,12 +138,12 @@ final class OwnerSession {
 }
 
 /// How asking for the owner session went.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 sealed class OwnerSessionOpening {
   const OwnerSessionOpening();
 }
 
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class OwnerSessionOpened extends OwnerSessionOpening {
   const OwnerSessionOpened(this.session);
 
@@ -151,7 +151,7 @@ final class OwnerSessionOpened extends OwnerSessionOpening {
 }
 
 /// Another bestie holds the session.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class OwnerSessionRefused extends OwnerSessionOpening {
   const OwnerSessionRefused({required this.ownerPid});
 
@@ -160,14 +160,14 @@ final class OwnerSessionRefused extends OwnerSessionOpening {
 
 /// The server was gone or shutting down by the time the session was asked
 /// for, so another one has to be found or started.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class OwnerSessionServerGone extends OwnerSessionOpening {
   const OwnerSessionServerGone(this.reason);
 
   final String reason;
 }
 
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class OwnerSessionFailed extends OwnerSessionOpening {
   const OwnerSessionFailed(this.reason);
 

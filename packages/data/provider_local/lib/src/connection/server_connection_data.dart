@@ -2,13 +2,13 @@ import 'dart:async';
 
 import 'package:intentions/intentions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
-import 'package:provider_local/src/local_connection.dart';
-import 'package:provider_local/src/models/local_server_connection.dart';
+import 'package:provider_local/src/built_in_server_client.dart';
+import 'package:provider_local/src/models/built_in_server_connection.dart';
 import 'package:provider_local/src/server_attacher.dart';
 import 'package:provider_local/src/session_leases.dart';
 
 /// Mutable data shared by the server connection states.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class ServerConnectionData {
   /// The model's status, as the owner session last reported it.
   ModelStatus modelStatus = const ModelUnloaded();
@@ -18,7 +18,7 @@ final class ServerConnectionData {
   int attempt = 0;
 
   /// Callers waiting to learn how the next or current attempt went.
-  List<Completer<LocalServerConnection>> attachWaiters = [];
+  List<Completer<BuiltInServerConnection>> attachWaiters = [];
 
   /// Callers waiting for the server to be let go.
   List<Completer<void>> letGoWaiters = [];
@@ -41,7 +41,7 @@ final class ServerConnectionData {
   /// Completes once the client has let go of the server for good.
   Future<void> hungUp = Future.value();
 
-  static const _nothingHeld = AttachRefused(LocalServerDisconnected());
+  static const _nothingHeld = AttachRefused(BuiltInServerDisconnected());
 
   /// Forgets the session, which has been let go.
   void letGo() => held = Future.value(_nothingHeld);

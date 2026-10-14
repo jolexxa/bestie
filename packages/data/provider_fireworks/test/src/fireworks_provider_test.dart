@@ -16,10 +16,10 @@ void main() {
   });
 
   test('connects with the key', () {
-    expect(
-      provider.connect(const ApiKeyCredentials('fw-key')),
-      isA<FireworksConnection>(),
-    );
+    final connection = provider.connect(const ApiKeyCredentials('fw-key'));
+
+    expect(connection, isA<FireworksClient>());
+    expect((connection as FireworksClient).availability, const ProviderReady());
   });
 
   test('without a key, lists nothing and says a key is missing', () async {

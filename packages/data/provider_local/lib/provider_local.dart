@@ -3,4 +3,4 @@
 library;
 
 export 'src/local_provider.dart' show LocalProvider;
-export 'src/models/local_server_launch.dart' show LocalServerLaunch;
+export 'src/models/built_in_server_launch.dart' show BuiltInServerLaunch;

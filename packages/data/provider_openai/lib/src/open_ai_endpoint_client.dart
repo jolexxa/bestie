@@ -1,42 +1,59 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:agent_runtime/agent_runtime.dart';
 import 'package:completion_openai/completion_openai.dart';
 import 'package:http/http.dart' as http;
 import 'package:intentions/intentions.dart';
+import 'package:provider_openai/src/open_ai_endpoint_settings.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 
 /// An OpenAI-compatible server the user pointed bestie at: it lists models
-/// from `GET /models` and serves completions from the same base URL.
+/// from `GET /models` and serves completions from the same base URL. It
+/// lists nothing until it has an address.
 @dataSource
-final class OpenAiConnection implements ProviderConnection {
-  OpenAiConnection({
-    required Uri baseUrl,
-    required int fallbackContextWindow,
-    required http.Client client,
-    String? apiKey,
-  }) : _baseUrl = baseUrl,
-       _apiKey = apiKey,
-       _fallbackContextWindow = fallbackContextWindow,
-       _client = client;
+final class OpenAiEndpointClient implements ProviderClient, ProviderConnection {
+  OpenAiEndpointClient({required http.Client client}) : _client = client;
 
-  final Uri _baseUrl;
-  final String? _apiKey;
-  final int _fallbackContextWindow;
+  static const _noUrl = ProviderRejected('Custom endpoint URL is not set.');
+
   final http.Client _client;
+  final _reconfigured = StreamController<ProviderAvailability>.broadcast();
+  OpenAiEndpointSettings _settings = OpenAiEndpointSettings.unset;
+
+  @override
+  String get id => 'custom';
+
+  @override
+  String get displayName => 'Custom endpoint';
+
+  @override
+  ProviderAvailability get availability =>
+      _settings.isSet ? const ProviderReady() : const ProviderNotSetUp(_noUrl);
+
+  @override
+  Stream<ProviderAvailability> get reconfigured => _reconfigured.stream;
+
+  /// Reaches the server at [settings] from now on.
+  void configure(OpenAiEndpointSettings settings) {
+    if (settings == _settings) return;
+    _settings = settings;
+    _reconfigured.add(availability);
+  }
 
   @override
   Future<CreditsResult> credits() async => const CreditsUnsupported();
 
   @override
   ProviderModelLoad load(ProviderModelLoadRequest request) =>
-      ProviderModelLoad.settled(
-        ProviderModelLoaded(
+      ProviderModelLoad.settled(switch (_settings.baseUrl) {
+        null => const ProviderModelLoadFailed(_noUrl),
+        final baseUrl => ProviderModelLoaded(
           HostedProviderModel(
             runtime: CompletionAgentRuntime.perAgentWindow(
               client: OpenAiCompletionClient(
-                baseUrl: _baseUrl,
-                apiKey: _apiKey,
+                baseUrl: baseUrl,
+                apiKey: _settings.apiKey,
                 clientFactory: http.Client.new,
               ),
               options: AgentRuntimeOptions(
@@ -49,17 +66,19 @@ final class OpenAiConnection implements ProviderConnection {
             maxAgents: request.maxAgents,
           ),
         ),
-      );
+      });
 
   @override
   Future<void> close() async {}
 
   @override
   Future<ProviderModelsResult> models() async {
+    final baseUrl = _settings.baseUrl;
+    if (baseUrl == null) return const ProviderModelsListed([]);
     final http.Response response;
     try {
       response = await _client.get(
-        _modelsUrl,
+        _modelsUrl(baseUrl),
         headers: {'Authorization': ?_bearer},
       );
     } on http.ClientException catch (error) {
@@ -76,19 +95,19 @@ final class OpenAiConnection implements ProviderConnection {
     } on FormatException catch (error) {
       return ProviderModelsFailed(_malformed(error.message));
     }
-    final models = _parseModels(document, _fallbackContextWindow);
+    final models = _parseModels(document, _settings.contextWindow);
     return models == null
         ? ProviderModelsFailed(_malformed(_unexpectedShape))
         : ProviderModelsListed(models);
   }
 
-  String? get _bearer => switch (_apiKey) {
+  String? get _bearer => switch (_settings.apiKey) {
     null => null,
     final apiKey => 'Bearer $apiKey',
   };
 
-  Uri get _modelsUrl => _baseUrl.replace(
-    path: '${_baseUrl.path.replaceAll(RegExp(r'/+$'), '')}/models',
+  static Uri _modelsUrl(Uri baseUrl) => baseUrl.replace(
+    path: '${baseUrl.path.replaceAll(RegExp(r'/+$'), '')}/models',
   );
 
   static const _unexpectedShape = 'expected a "data" list of models with ids.';

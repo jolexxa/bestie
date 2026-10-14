@@ -8,7 +8,7 @@ import 'package:http/testing.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:provider_local/provider_local.dart';
-import 'package:provider_local/src/local_connection.dart';
+import 'package:provider_local/src/built_in_server_client.dart';
 import 'package:provider_local/src/models/server_results.dart';
 import 'package:provider_local/src/server_spawner.dart';
 
@@ -99,7 +99,7 @@ final class FakeServer {
     startTimeout: Duration.zero,
   );
 
-  LocalConnection connection() => LocalConnection(
+  BuiltInServerClient client() => BuiltInServerClient(
     client: MockClient(_answer),
     sessionClientFactory: _sessionClient,
     fileSystem: fileSystem,
@@ -111,7 +111,7 @@ final class FakeServer {
     startTimeout: Duration.zero,
   );
 
-  static const _launch = LocalServerLaunch(
+  static const _launch = BuiltInServerLaunch(
     command: ProgramCommand(executable: 'bestie_server'),
     bestieDir: '/bestie',
     logFile: '/bestie/logs/server.log',

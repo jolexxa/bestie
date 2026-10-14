@@ -2,5 +2,6 @@
 /// llama.cpp server.
 library;
 
-export 'src/open_ai_connection.dart' show OpenAiConnection;
+export 'src/open_ai_endpoint_client.dart' show OpenAiEndpointClient;
+export 'src/open_ai_endpoint_settings.dart' show OpenAiEndpointSettings;
 export 'src/open_ai_provider.dart' show OpenAiProvider;

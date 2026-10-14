@@ -1,6 +1,6 @@
 import 'package:intentions/intentions.dart';
-import 'package:openrouter_sdk/openrouter_sdk.dart' as openrouter;
-import 'package:provider_openrouter/src/open_router_connection.dart';
+import 'package:provider_openrouter/src/open_router_client.dart';
+import 'package:provider_openrouter/src/open_router_settings.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 
 /// OpenRouter, reached with the user's API key. Its model list is public, so
@@ -32,8 +32,9 @@ final class OpenRouterProvider implements Provider {
   @override
   ProviderConnection connect(ProviderCredentials credentials) =>
       switch (credentials) {
-        ApiKeyCredentials(:final apiKey) => _connection(apiKey),
-        NoCredentials() => _connection(null),
+        ApiKeyCredentials(:final apiKey) =>
+          _client()..configure(OpenRouterSettings(apiKey: apiKey)),
+        NoCredentials() => _client(),
         EndpointCredentials() => throw ArgumentError.value(
           credentials,
           'credentials',
@@ -41,19 +42,9 @@ final class OpenRouterProvider implements Provider {
         ),
       };
 
-  OpenRouterConnection _connection(String? apiKey) => OpenRouterConnection(
-    client: openrouter.OpenRouter(
-      apiKey: apiKey ?? '',
-      httpReferer: httpReferer,
-      appTitle: appTitle,
-      appCategories: appCategories.toSet(),
-    ),
-    apiKey: apiKey,
-    headers: {
-      'HTTP-Referer': ?httpReferer,
-      'X-OpenRouter-Title': ?appTitle,
-      if (appCategories.isNotEmpty)
-        'X-OpenRouter-Categories': appCategories.join(','),
-    },
+  OpenRouterClient _client() => OpenRouterClient(
+    appTitle: appTitle,
+    httpReferer: httpReferer,
+    appCategories: appCategories,
   );
 }

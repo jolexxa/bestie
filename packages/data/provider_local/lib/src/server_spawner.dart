@@ -1,11 +1,11 @@
 import 'dart:io';
 
 import 'package:intentions/intentions.dart';
-import 'package:provider_local/src/local_connection.dart';
+import 'package:provider_local/src/built_in_server_client.dart';
 import 'package:provider_local/src/models/server_results.dart';
 
 /// Starts server processes.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 // Tests replace the spawner, so it stays an interface.
 // ignore: one_member_abstracts
 abstract interface class ServerSpawner {
@@ -15,7 +15,7 @@ abstract interface class ServerSpawner {
 
 /// Starts the server detached from bestie: no pipes to fill, and nothing
 /// that ends it when bestie or its terminal goes away.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class DetachedServerSpawner implements ServerSpawner {
   const DetachedServerSpawner();
 

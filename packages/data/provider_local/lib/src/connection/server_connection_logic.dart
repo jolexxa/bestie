@@ -4,11 +4,11 @@ import 'package:completion_protocol/completion_protocol.dart';
 import 'package:intentions/intentions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:logic_blocks/logic_blocks.dart';
+import 'package:provider_local/src/built_in_server_client.dart';
 import 'package:provider_local/src/connection/server_connection_data.dart';
 import 'package:provider_local/src/connection/server_connection_input.dart';
 import 'package:provider_local/src/connection/server_connection_output.dart';
-import 'package:provider_local/src/local_connection.dart';
-import 'package:provider_local/src/models/local_server_connection.dart';
+import 'package:provider_local/src/models/built_in_server_connection.dart';
 import 'package:provider_local/src/models/server_results.dart';
 import 'package:provider_local/src/server_api.dart';
 import 'package:provider_local/src/server_attacher.dart';
@@ -18,12 +18,14 @@ import 'package:provider_local/src/session_leases.dart';
 /// to the owner session, holding it, letting it go, or done for good.
 /// Requests that arrive mid-way wait for the step under way, so a release
 /// always finishes before a later attach takes a new session.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 sealed class ServerConnectionState extends StateLogic<ServerConnectionState> {
   ServerConnectionState() {
     on<AttachRequested>(onAttach);
     on<ReleaseRequested>(onRelease);
     on<CloseRequested>(onClose);
+    on<UnloadRequested>(onUnload);
+    on<UnloadSettled>(onUnloadSettled);
     on<LoadRequested>(onLoad);
     on<LeaseOpenRequested>(onLeaseOpen);
     on<LeaseCloseRequested>(onLeaseClose);
@@ -48,6 +50,17 @@ sealed class ServerConnectionState extends StateLogic<ServerConnectionState> {
     return to<ClosedState>();
   }
 
+  /// Nothing is held, so nothing is loaded.
+  Transition onUnload(UnloadRequested input) {
+    input.reply.complete();
+    return toSelf();
+  }
+
+  Transition onUnloadSettled(UnloadSettled input) {
+    input.reply.complete();
+    return toSelf();
+  }
+
   Transition onLoad(LoadRequested input) {
     input.reply.complete(const ModelLoadFailed(notAttached));
     return toSelf();
@@ -69,7 +82,7 @@ sealed class ServerConnectionState extends StateLogic<ServerConnectionState> {
       data.attachWaiters.add(input.reply);
 
   /// Tells every caller waiting on an attempt how it went.
-  void answerAttaches(LocalServerConnection connection) {
+  void answerAttaches(BuiltInServerConnection connection) {
     for (final waiter in data.attachWaiters) {
       waiter.complete(connection);
     }
@@ -89,7 +102,7 @@ sealed class ServerConnectionState extends StateLogic<ServerConnectionState> {
 
 /// No session is held: none was asked for yet, it was let go, the server
 /// ended it, or asking for it failed.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class DisconnectedState extends ServerConnectionState {
   @override
   Transition onAttach(AttachRequested input) {
@@ -106,11 +119,12 @@ final class DisconnectedState extends ServerConnectionState {
 }
 
 /// Finding or starting the server and asking it for the owner session.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class AttachingState extends ServerConnectionState {
   AttachingState() {
     onEnter(() {
       final attempt = ++data.attempt;
+      output(const ConnectionChanged(BuiltInServerAttaching()));
       data.held = attacher.attach();
       async(data.held).input(
         (outcome) => AttachSettled(attempt: attempt, outcome: outcome),
@@ -125,9 +139,11 @@ final class AttachingState extends ServerConnectionState {
             ..holding = held
             ..leases = SessionLeases(api: api, owner: held.attached);
           output(SessionStarted(held.session));
+          output(ConnectionChanged(held.attached));
           answerAttaches(held.attached);
           return to<AttachedState>();
         case AttachRefused(:final connection):
+          output(ConnectionChanged(connection));
           answerAttaches(connection);
           return to<DisconnectedState>();
       }
@@ -136,7 +152,7 @@ final class AttachingState extends ServerConnectionState {
 }
 
 /// This bestie owns the server: it may lease agents and load models.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class AttachedState extends ServerConnectionState {
   AttachedState() {
     onEnter(() => data.detached = Completer<void>());
@@ -164,8 +180,15 @@ final class AttachedState extends ServerConnectionState {
       if (!identical(input.session, data.holding.session)) return toSelf();
       async(input.session.close());
       data.letGo();
+      output(const ConnectionChanged(BuiltInServerDisconnected()));
       return to<DisconnectedState>();
     });
+  }
+
+  @override
+  Transition onUnloadSettled(UnloadSettled input) {
+    if (identical(input.session, data.holding.session)) data.lastLoad = null;
+    return super.onUnloadSettled(input);
   }
 
   @override
@@ -194,6 +217,17 @@ final class AttachedState extends ServerConnectionState {
     return toSelf();
   }
 
+  /// Unloads whatever the server holds, which the next load then loads
+  /// afresh.
+  @override
+  Transition onUnload(UnloadRequested input) {
+    final session = data.holding.session;
+    async(api.unload(data.holding.attached)).input(
+      (_) => UnloadSettled(session: session, reply: input.reply),
+    );
+    return toSelf();
+  }
+
   @override
   Transition onLeaseOpen(LeaseOpenRequested input) {
     input.reply.complete(data.leases.open(input.holder, input.agent));
@@ -213,11 +247,11 @@ final class AttachedState extends ServerConnectionState {
 /// Unloading the model and hanging up, or abandoning the attempt under
 /// way. Attaches asked for meanwhile take a new session afterwards; a
 /// later release drops them.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class ReleasingState extends ServerConnectionState {
   ReleasingState() {
     onEnter(() {
-      answerAttaches(const LocalServerDisconnected());
+      answerAttaches(const BuiltInServerDisconnected());
       async(_letGo(data.held)).input((_) => const LetGo());
     });
 
@@ -227,15 +261,15 @@ final class ReleasingState extends ServerConnectionState {
         ..modelStatus = const ModelUnloaded();
       output(const ModelStatusChanged(ModelUnloaded()));
       answerLetGo();
-      return data.attachWaiters.isEmpty
-          ? to<DisconnectedState>()
-          : to<AttachingState>();
+      if (data.attachWaiters.isNotEmpty) return to<AttachingState>();
+      output(const ConnectionChanged(BuiltInServerDisconnected()));
+      return to<DisconnectedState>();
     });
   }
 
   @override
   Transition onRelease(ReleaseRequested input) {
-    answerAttaches(const LocalServerDisconnected());
+    answerAttaches(const BuiltInServerDisconnected());
     data.letGoWaiters.add(input.reply);
     return toSelf();
   }
@@ -250,11 +284,12 @@ final class ReleasingState extends ServerConnectionState {
 
 /// The client is spent: whatever was held is hung up, so the server frees
 /// every lease at once, and nothing is held again.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class ClosedState extends ServerConnectionState {
   ClosedState() {
     onEnter(() {
-      answerAttaches(const LocalServerDisconnected());
+      answerAttaches(const BuiltInServerDisconnected());
+      output(const ConnectionChanged(BuiltInServerDisconnected()));
       data.hungUp = _hangUp(data.held);
       async(data.hungUp).input((_) => const HungUp());
     });
@@ -267,7 +302,7 @@ final class ClosedState extends ServerConnectionState {
 
   @override
   Transition onAttach(AttachRequested input) {
-    input.reply.complete(const LocalServerDisconnected());
+    input.reply.complete(const BuiltInServerDisconnected());
     return toSelf();
   }
 
@@ -288,7 +323,7 @@ final class ClosedState extends ServerConnectionState {
   }
 }
 
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class ServerConnectionLogic extends LogicBlock<ServerConnectionState> {
   ServerConnectionLogic({
     required ServerAttacher attacher,

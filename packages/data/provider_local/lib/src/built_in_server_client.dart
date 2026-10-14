@@ -8,15 +8,16 @@ import 'package:intentions/intentions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:logic_blocks/logic_blocks.dart';
 import 'package:meta/meta.dart';
+import 'package:provider_local/src/built_in_server_link.dart';
+import 'package:provider_local/src/built_in_server_model.dart';
 import 'package:provider_local/src/connection/server_connection_data.dart';
 import 'package:provider_local/src/connection/server_connection_input.dart';
 import 'package:provider_local/src/connection/server_connection_logic.dart';
 import 'package:provider_local/src/connection/server_connection_output.dart';
-import 'package:provider_local/src/local_provider_model.dart';
-import 'package:provider_local/src/local_server_link.dart';
 import 'package:provider_local/src/model_index_file.dart';
-import 'package:provider_local/src/models/local_server_connection.dart';
-import 'package:provider_local/src/models/local_server_launch.dart';
+import 'package:provider_local/src/models/built_in_server_connection.dart';
+import 'package:provider_local/src/models/built_in_server_launch.dart';
+import 'package:provider_local/src/models/model_load_options.dart';
 import 'package:provider_local/src/models/server_results.dart';
 import 'package:provider_local/src/owner_session.dart';
 import 'package:provider_local/src/server_api.dart';
@@ -25,18 +26,19 @@ import 'package:provider_local/src/server_discovery.dart';
 import 'package:provider_local/src/server_spawner.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 
-/// This bestie's link to the local inference server: it lists the models in
-/// bestie's index, finds or starts the server, and holds the owner session
-/// that lets this bestie load a model and lease its agents.
+/// This bestie's link to the built-in inference server: it lists the models
+/// in bestie's index, finds or starts the server, and holds the owner
+/// session that lets this bestie load a model and lease its agents.
 @dataSource
-final class LocalConnection implements ProviderConnection, LocalServerLink {
-  LocalConnection({
+final class BuiltInServerClient
+    implements ProviderClient, ProviderConnection, BuiltInServerLink {
+  BuiltInServerClient({
     required http.Client client,
     required http.Client Function() sessionClientFactory,
     required FileSystem fileSystem,
     required String lockFile,
     required String indexFile,
-    required LocalServerLaunch launch,
+    required BuiltInServerLaunch launch,
     required int pid,
     ServerSpawner spawner = const DetachedServerSpawner(),
     Clock clock = const Clock(),
@@ -64,8 +66,13 @@ final class LocalConnection implements ProviderConnection, LocalServerLink {
       ..onOutput<ModelStatusChanged>(
         (changed) => _modelStatusChanges.add(changed.status),
       )
+      ..onOutput<ConnectionChanged>(
+        (changed) => _connectionChanges.add(changed.connection),
+      )
       ..onOutput<SessionStarted>((started) => _follow(started.session));
   }
+
+  static const _notConnected = 'The local model server is not connected.';
 
   final ModelIndexFile _index;
   late final ServerConnectionLogic _logic;
@@ -73,18 +80,59 @@ final class LocalConnection implements ProviderConnection, LocalServerLink {
   final _modelStatusChanges = StreamController<ModelStatus>.broadcast(
     sync: true,
   );
+  final _connectionChanges =
+      StreamController<BuiltInServerConnection>.broadcast(
+        sync: true,
+      );
   final _poolSnapshots = StreamController<PoolSnapshotEvent>.broadcast();
+  final _reconfigured = StreamController<ProviderAvailability>.broadcast();
   StreamSubscription<SessionEvent>? _following;
   Future<void>? _closing;
+  ModelLoadOptions _options = ModelLoadOptions.defaults;
   var _loads = 0;
 
   ServerConnectionData get _data => _logic.get<ServerConnectionData>();
+
+  @override
+  String get id => 'local';
+
+  @override
+  String get displayName => 'Built-in server';
+
+  /// The index is readable without the server, so the models are always
+  /// there to list; whether the server can be held shows up on a load.
+  @override
+  ProviderAvailability get availability => const ProviderReady();
+
+  @override
+  Stream<ProviderAvailability> get reconfigured => _reconfigured.stream;
+
+  /// Where this bestie stands with the server, as it changes.
+  Stream<BuiltInServerConnection> get connectionChanges =>
+      _connectionChanges.stream;
+
+  /// The model's status as the owner session reports it, as it changes.
+  Stream<ModelStatus> get modelStatusChanges => _modelStatusChanges.stream;
 
   @override
   Stream<PoolSnapshotEvent> get poolSnapshots => _poolSnapshots.stream;
 
   @override
   Future<void> untilDetached() => _data.detached.future;
+
+  /// Loads every model from now on the way [options] say.
+  void configure(ModelLoadOptions options) {
+    if (options == _options) return;
+    _options = options;
+    _reconfigured.add(availability);
+  }
+
+  /// Holds the owner session, finding or starting the server first.
+  Future<BuiltInServerConnection> attach() => _ask(AttachRequested.new);
+
+  /// Unloads the model and hangs up the owner session, so another bestie
+  /// can take the server; a server left with no connection then exits.
+  Future<void> release() => _ask(ReleaseRequested.new);
 
   /// The models in the index, read without starting the server.
   @override
@@ -115,8 +163,8 @@ final class LocalConnection implements ProviderConnection, LocalServerLink {
   }
 
   @override
-  Future<void> releaseLoad(int generation) =>
-      generation == _loads ? _ask(ReleaseRequested.new) : Future.value();
+  Future<void> unload(int generation) =>
+      generation == _loads ? _ask(UnloadRequested.new) : Future.value();
 
   /// Hangs up the owner session so the server frees every lease at once;
   /// a server left with no connection then exits. The connection is spent
@@ -150,8 +198,8 @@ final class LocalConnection implements ProviderConnection, LocalServerLink {
     int generation,
     StreamController<ProviderModelLoadProgress> progress,
   ) async {
-    final attached = await _ask(AttachRequested.new);
-    if (attached is! LocalServerAttached) {
+    final attached = await attach();
+    if (attached is! BuiltInServerAttached) {
       unawaited(progress.close());
       return ProviderModelLoadFailed(failureFor(attached));
     }
@@ -165,7 +213,7 @@ final class LocalConnection implements ProviderConnection, LocalServerLink {
         request: ModelLoadRequest(
           localId: request.modelId,
           maxAgents: request.maxAgents,
-          contextCap: request.contextCap,
+          contextCap: _options.contextCap,
         ),
         reply: reply,
       ),
@@ -175,7 +223,7 @@ final class LocalConnection implements ProviderConnection, LocalServerLink {
     switch (loaded) {
       case ModelLoaded(:final ready):
         return ProviderModelLoaded(
-          LocalProviderModel(
+          BuiltInServerModel(
             link: this,
             generation: generation,
             attached: attached,
@@ -184,7 +232,6 @@ final class LocalConnection implements ProviderConnection, LocalServerLink {
           ),
         );
       case ModelLoadFailed(:final reason):
-        await releaseLoad(generation);
         return ProviderModelLoadFailed(
           ProviderServerFailed(reason),
         );
@@ -206,7 +253,9 @@ final class LocalConnection implements ProviderConnection, LocalServerLink {
     await _following?.cancel();
     _binding.dispose();
     await _modelStatusChanges.close();
+    await _connectionChanges.close();
     await _poolSnapshots.close();
+    await _reconfigured.close();
   }
 
   /// Feeds the session's events to whoever follows them until it ends.
@@ -227,27 +276,25 @@ final class LocalConnection implements ProviderConnection, LocalServerLink {
   /// Why loading cannot go on while the server stands at [connection].
   @visibleForTesting
   static ProviderFailure failureFor(
-    LocalServerConnection connection,
+    BuiltInServerConnection connection,
   ) => switch (connection) {
-    LocalServerBusy(:final ownerPid) => ProviderOccupied(
+    BuiltInServerBusy(:final ownerPid) => ProviderOccupied(
       bestieServerBusyMessage(ownerPid),
     ),
-    LocalServerVersionMismatch(:final protocolVersion) => ProviderOccupied(
+    BuiltInServerVersionMismatch(:final protocolVersion) => ProviderOccupied(
       'The running local model server speaks protocol '
       '$protocolVersion; this bestie speaks $bestieProtocolVersion. '
       'It exits once its owner closes and it sits idle.',
     ),
-    LocalServerSpawnFailed(:final reason) => ProviderServerFailed(
+    BuiltInServerSpawnFailed(:final reason) => ProviderServerFailed(
       'Could not start the local model server: $reason',
     ),
-    LocalServerDisconnected(:final reason) => ProviderServerFailed(
+    BuiltInServerDisconnected(:final reason) => ProviderServerFailed(
       reason ?? _notConnected,
     ),
-    LocalServerAttaching() ||
-    LocalServerAttached() => const ProviderServerFailed(_notConnected),
+    BuiltInServerAttaching() ||
+    BuiltInServerAttached() => const ProviderServerFailed(_notConnected),
   };
-
-  static const _notConnected = 'The local model server is not connected.';
 
   static ProviderModelLoadProgress? _progressOf(
     ModelStatus status,

@@ -1,36 +1,70 @@
+import 'dart:async';
+
 import 'package:agent_runtime/agent_runtime.dart';
 import 'package:completion_openai/completion_openai.dart';
 import 'package:http/http.dart' as http;
 import 'package:intentions/intentions.dart';
 import 'package:openrouter_sdk/openrouter_sdk.dart' as openrouter;
 import 'package:provider_openrouter/src/open_router_dialect.dart';
+import 'package:provider_openrouter/src/open_router_settings.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 
 /// OpenRouter: an OpenAI-compatible inference endpoint plus the account and
-/// model APIs behind one API key. Without a key it still lists models.
+/// model APIs behind one API key. Its model list is public, so it lists
+/// models before the user gives a key.
 @dataSource
-final class OpenRouterConnection implements ProviderConnection {
-  OpenRouterConnection({
-    required openrouter.OpenRouter client,
-    String? apiKey,
-    Map<String, String> headers = const {},
-  }) : _client = client,
-       _apiKey = apiKey,
-       _headers = headers;
+final class OpenRouterClient implements ProviderClient, ProviderConnection {
+  OpenRouterClient({
+    this.appTitle,
+    this.httpReferer,
+    this.appCategories = const [],
+    openrouter.OpenRouter Function(String apiKey)? sdkFactory,
+  }) : _sdkFactory = sdkFactory {
+    _sdk = _sdkFor(_settings.apiKey);
+  }
 
   static final Uri _baseUrl = Uri.parse('https://openrouter.ai/api/v1');
 
   static const _noKey = ProviderAuthFailed('No OpenRouter API key configured.');
 
-  final openrouter.OpenRouter _client;
-  final String? _apiKey;
-  final Map<String, String> _headers;
+  /// How the app names itself to OpenRouter's attribution.
+  final String? appTitle;
+
+  final String? httpReferer;
+
+  final List<String> appCategories;
+
+  final openrouter.OpenRouter Function(String apiKey)? _sdkFactory;
+  final _reconfigured = StreamController<ProviderAvailability>.broadcast();
+  OpenRouterSettings _settings = OpenRouterSettings.unset;
+  late openrouter.OpenRouter _sdk;
+
+  @override
+  String get id => 'openrouter';
+
+  @override
+  String get displayName => 'OpenRouter';
+
+  @override
+  ProviderAvailability get availability =>
+      _settings.isSet ? const ProviderReady() : const ProviderNotSetUp(_noKey);
+
+  @override
+  Stream<ProviderAvailability> get reconfigured => _reconfigured.stream;
+
+  /// Reaches OpenRouter with [settings] from now on.
+  void configure(OpenRouterSettings settings) {
+    if (settings == _settings) return;
+    _settings = settings;
+    _sdk = _sdkFor(settings.apiKey);
+    _reconfigured.add(availability);
+  }
 
   @override
   Future<CreditsResult> credits() async {
-    if (_apiKey == null) return const CreditsFailed(_noKey);
+    if (!_settings.isSet) return const CreditsFailed(_noKey);
     try {
-      final credits = await _client.credits.getCredits();
+      final credits = await _sdk.credits.getCredits();
       return CreditsFetched(
         ProviderCredits(
           spent: credits.totalUsage,
@@ -45,29 +79,30 @@ final class OpenRouterConnection implements ProviderConnection {
 
   @override
   ProviderModelLoad load(ProviderModelLoadRequest request) =>
-      ProviderModelLoad.settled(switch (_apiKey) {
-        null => const ProviderModelLoadFailed(_noKey),
-        final apiKey => ProviderModelLoaded(
-          HostedProviderModel(
-            runtime: CompletionAgentRuntime.perAgentWindow(
-              client: OpenAiCompletionClient(
-                baseUrl: _baseUrl,
-                apiKey: apiKey,
-                headers: _headers,
-                dialect: const OpenRouterDialect(),
-                clientFactory: http.Client.new,
-              ),
-              options: AgentRuntimeOptions(
-                modelId: request.modelId,
-                contextWindow: request.contextWindow,
-                maxAgents: request.maxAgents,
-              ),
-            ),
-            contextWindow: request.contextWindow,
-            maxAgents: request.maxAgents,
-          ),
-        ),
-      });
+      ProviderModelLoad.settled(
+        _settings.isSet
+            ? ProviderModelLoaded(
+                HostedProviderModel(
+                  runtime: CompletionAgentRuntime.perAgentWindow(
+                    client: OpenAiCompletionClient(
+                      baseUrl: _baseUrl,
+                      apiKey: _settings.apiKey,
+                      headers: _headers,
+                      dialect: const OpenRouterDialect(),
+                      clientFactory: http.Client.new,
+                    ),
+                    options: AgentRuntimeOptions(
+                      modelId: request.modelId,
+                      contextWindow: request.contextWindow,
+                      maxAgents: request.maxAgents,
+                    ),
+                  ),
+                  contextWindow: request.contextWindow,
+                  maxAgents: request.maxAgents,
+                ),
+              )
+            : const ProviderModelLoadFailed(_noKey),
+      );
 
   @override
   Future<void> close() async {}
@@ -76,7 +111,7 @@ final class OpenRouterConnection implements ProviderConnection {
   @override
   Future<ProviderModelsResult> models() async {
     try {
-      final models = await _client.models.list(
+      final models = await _sdk.models.list(
         outputModalities: {openrouter.Modality.text},
       );
       return ProviderModelsListed([
@@ -86,6 +121,22 @@ final class OpenRouterConnection implements ProviderConnection {
       return ProviderModelsFailed(_failureFor(error));
     }
   }
+
+  Map<String, String> get _headers => {
+    'HTTP-Referer': ?httpReferer,
+    'X-OpenRouter-Title': ?appTitle,
+    if (appCategories.isNotEmpty)
+      'X-OpenRouter-Categories': appCategories.join(','),
+  };
+
+  openrouter.OpenRouter _sdkFor(String apiKey) =>
+      _sdkFactory?.call(apiKey) ??
+      openrouter.OpenRouter(
+        apiKey: apiKey,
+        httpReferer: httpReferer,
+        appTitle: appTitle,
+        appCategories: appCategories.toSet(),
+      );
 
   static ProviderModelInfo _toProviderModel(openrouter.Model model) {
     final parameters = model.supportedParameters;

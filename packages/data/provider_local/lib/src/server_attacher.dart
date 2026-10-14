@@ -1,12 +1,12 @@
 import 'package:http/http.dart' as http;
 import 'package:intentions/intentions.dart';
-import 'package:provider_local/src/local_connection.dart';
-import 'package:provider_local/src/models/local_server_connection.dart';
+import 'package:provider_local/src/built_in_server_client.dart';
+import 'package:provider_local/src/models/built_in_server_connection.dart';
 import 'package:provider_local/src/owner_session.dart';
 import 'package:provider_local/src/server_discovery.dart';
 
 /// Finds or starts the server, then asks it for the owner session.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class ServerAttacher {
   ServerAttacher({
     required ServerDiscovery discovery,
@@ -32,13 +32,13 @@ final class ServerAttacher {
       switch (await _discovery.find()) {
         case ServerSpeaksOtherProtocol(:final health):
           return AttachRefused(
-            LocalServerVersionMismatch(
+            BuiltInServerVersionMismatch(
               protocolVersion: health.protocolVersion,
               serverVersion: health.serverVersion,
             ),
           );
         case ServerNotStarted(:final reason):
-          return AttachRefused(LocalServerSpawnFailed(reason: reason));
+          return AttachRefused(BuiltInServerSpawnFailed(reason: reason));
         case ServerFound(:final port):
           switch (await OwnerSession.open(
             client: _sessionClientFactory(),
@@ -48,18 +48,18 @@ final class ServerAttacher {
             case OwnerSessionOpened(:final session):
               return AttachHeld(
                 session: session,
-                attached: LocalServerAttached(
+                attached: BuiltInServerAttached(
                   ownerToken: session.ownerToken,
                   port: port,
                 ),
               );
             case OwnerSessionRefused(:final ownerPid):
-              return AttachRefused(LocalServerBusy(ownerPid: ownerPid));
+              return AttachRefused(BuiltInServerBusy(ownerPid: ownerPid));
             case OwnerSessionServerGone() when attempt < _serverAttempts:
               continue;
             case OwnerSessionServerGone(:final reason) ||
                 OwnerSessionFailed(:final reason):
-              return AttachRefused(LocalServerDisconnected(reason: reason));
+              return AttachRefused(BuiltInServerDisconnected(reason: reason));
           }
       }
     }
@@ -67,25 +67,25 @@ final class ServerAttacher {
 }
 
 /// How asking for the owner session went.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 sealed class AttachOutcome {
   const AttachOutcome();
 }
 
 /// This bestie holds [session] on the server [attached] describes.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class AttachHeld extends AttachOutcome {
   const AttachHeld({required this.session, required this.attached});
 
   final OwnerSession session;
 
-  final LocalServerAttached attached;
+  final BuiltInServerAttached attached;
 }
 
 /// No session is held, for the reason [connection] gives.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class AttachRefused extends AttachOutcome {
   const AttachRefused(this.connection);
 
-  final LocalServerConnection connection;
+  final BuiltInServerConnection connection;
 }

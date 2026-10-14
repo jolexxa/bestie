@@ -1,11 +1,11 @@
 import 'package:file/file.dart';
 import 'package:intentions/intentions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
-import 'package:provider_local/src/local_connection.dart';
+import 'package:provider_local/src/built_in_server_client.dart';
 
 /// The model index the app keeps and the server loads models from. Reading
 /// it needs no server, so listing models never starts one.
-@PartOf(LocalConnection)
+@PartOf(BuiltInServerClient)
 final class ModelIndexFile {
   ModelIndexFile({required FileSystem fileSystem, required String path})
     : _fileSystem = fileSystem,
