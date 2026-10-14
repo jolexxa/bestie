@@ -4,11 +4,10 @@ import 'package:built_in_server_repository/built_in_server_repository.dart';
 import 'package:command_protocol/command_protocol.dart';
 import 'package:local_server_protocol/local_server_protocol.dart'
     show
-        ServerExitCode,
         ServerStopReason,
         bestieProtocolVersion,
-        bestieServerBusyMessage;
-import 'package:process_host/process_host.dart';
+        bestieServerBusyMessage,
+        bestieServerExitMessage;
 
 /// The line under the Installed pane's query that says what the built-in
 /// server is doing, offering [retry] when it is off or failed. [nameOf]
@@ -122,27 +121,11 @@ String? _lost(
     'Built-in server lost its engine · see $logFile',
   ServerStopping(:final reason) => 'Built-in server stopped (${reason.name})',
   ServerExited(:final exit, :final pid) =>
-    'Built-in server ${_exited(exit)} (pid $pid) · see $logFile',
+    'Built-in server ${bestieServerExitMessage(exit)} (pid $pid) · '
+        'see $logFile',
   ServerDisappeared(:final pid) =>
     'Built-in server went away without notice (pid $pid) · see $logFile',
   AttachFailed(:final reason) => 'Could not take the built-in server: $reason',
-};
-
-const _signals = {
-  2: 'was interrupted (SIGINT)',
-  6: 'aborted (SIGABRT)',
-  9: 'was killed (SIGKILL)',
-  11: 'crashed (SIGSEGV)',
-  15: 'was terminated (SIGTERM)',
-};
-
-String _exited(ProcessExit exit) => switch (exit) {
-  ProcessSignaled(:final signal) =>
-    _signals[signal] ?? 'ended by signal $signal',
-  ProcessExited(:final code) =>
-    ServerExitCode.of(code)?.meaning ?? 'exited with code $code',
-  ProcessUnknown() => 'ended in a way bestie could not read',
-  ProcessSupervisorLost() => 'ended without its exit being reported',
 };
 
 PaneStatus _failed(

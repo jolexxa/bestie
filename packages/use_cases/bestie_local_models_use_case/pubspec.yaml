@@ -32,8 +32,6 @@ dependencies:
     path: ../../infra/local_server_protocol
   platform_repository:
     path: ../../domain/platform_repository
-  process_host:
-    path: ../../infra/process_host
   provider_protocol:
     path: ../../infra/provider_protocol
   provider_repository:
@@ -48,5 +46,7 @@ dev_dependencies:
   coverage: ^1.15.0
   fake_async: ^1.3.2
   mocktail: ^1.0.4
+  process_host:
+    path: ../../infra/process_host
   test: ^1.26.3
   very_good_analysis: ^10.0.0

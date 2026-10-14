@@ -17,7 +17,8 @@ export 'src/bestie_routes.dart'
         bestieReturnProgressField,
         bestieSessionPath,
         bestieTimingsPerTokenField;
-export 'src/bestie_server.dart' show bestieServerBusyMessage, bestieServerName;
+export 'src/bestie_server.dart'
+    show bestieServerBusyMessage, bestieServerExitMessage, bestieServerName;
 export 'src/models/agent_lease.dart'
     show
         AgentInsufficientClaim,

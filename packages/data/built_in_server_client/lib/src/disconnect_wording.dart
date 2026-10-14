@@ -2,7 +2,6 @@ import 'package:built_in_server_client/src/built_in_server_client.dart';
 import 'package:built_in_server_client/src/models/disconnect_cause.dart';
 import 'package:intentions/intentions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
-import 'package:process_host/process_host.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 
 /// Says in words why the server is not held, for the status bar.
@@ -16,14 +15,6 @@ final class DisconnectWording {
   static const notConnected = 'The local model server is not connected.';
 
   static const _reconnect = 'Reconnect to start it again.';
-
-  static const _signals = {
-    2: 'was interrupted (SIGINT)',
-    6: 'aborted (SIGABRT)',
-    9: 'was killed (SIGKILL)',
-    11: 'crashed (SIGSEGV)',
-    15: 'was terminated (SIGTERM)',
-  };
 
   ProviderFailure failureFor(DisconnectCause cause) => switch (cause) {
     NotYetAttached() => const ProviderServerFailed(notConnected),
@@ -41,22 +32,13 @@ final class DisconnectWording {
       'Built-in server stopped (${reason.name}). $_reconnect',
     ),
     ServerExited(:final exit, :final pid) => ProviderServerFailed(
-      'Built-in server ${_exited(exit)} (pid $pid); see $logFile. '
-      '$_reconnect',
+      'Built-in server ${bestieServerExitMessage(exit)} (pid $pid); '
+      'see $logFile. $_reconnect',
     ),
     ServerDisappeared(:final pid) => ProviderServerFailed(
       'Built-in server went away without notice (pid $pid); see $logFile. '
       '$_reconnect',
     ),
     AttachFailed(:final reason) => ProviderServerFailed(reason),
-  };
-
-  static String _exited(ProcessExit exit) => switch (exit) {
-    ProcessSignaled(:final signal) =>
-      _signals[signal] ?? 'ended by signal $signal',
-    ProcessExited(:final code) =>
-      ServerExitCode.of(code)?.meaning ?? 'exited with code $code',
-    ProcessUnknown() => 'ended in a way bestie could not read',
-    ProcessSupervisorLost() => 'ended without its exit being reported',
   };
 }
