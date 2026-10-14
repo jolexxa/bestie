@@ -4,12 +4,12 @@ import 'dart:convert';
 import 'package:bestie_platform_abstractions/bestie_platform_abstractions.dart';
 import 'package:built_in_server_client/built_in_server_client.dart';
 import 'package:built_in_server_client/src/models/server_results.dart';
-import 'package:built_in_server_client/src/server_spawner.dart';
 import 'package:file/memory.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:process_host/process_host.dart';
 
 class MockServerSpawner extends Mock implements ServerSpawner {}
 
@@ -21,6 +21,20 @@ final class FakeServer {
     when(
       () => spawner.spawn(any(), any()),
     ).thenAnswer((_) async => const ServerSpawnRefused('not here'));
+  }
+
+  /// How the server this fake starts ends, once [spawns] has been called.
+  final spawnExit = Completer<ProcessExit>();
+
+  /// How long a client waits for the exit of a server it started.
+  static const lossGrace = Duration(milliseconds: 20);
+
+  /// Lets the next spawn start a server, publishing its lock as pid 42.
+  void spawns() {
+    when(() => spawner.spawn(any(), any())).thenAnswer((_) async {
+      lockOn(port);
+      return ServerSpawned(pid: 42, exit: spawnExit.future);
+    });
   }
 
   static const lockFile = '/bestie/run/server.lock';
@@ -96,7 +110,8 @@ final class FakeServer {
     launch: _launch,
     pid: 77,
     spawner: spawner,
-    startTimeout: Duration.zero,
+    startTimeout: const Duration(seconds: 2),
+    lossGrace: lossGrace,
   );
 
   static const _launch = BuiltInServerLaunch(

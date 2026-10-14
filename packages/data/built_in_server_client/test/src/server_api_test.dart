@@ -11,7 +11,7 @@ import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:test/test.dart';
 
 void main() {
-  const owner = BuiltInServerAttached(ownerToken: 'token', port: 4100);
+  const owner = BuiltInServerAttached(ownerToken: 'token', port: 4100, pid: 42);
   const ready = ModelReady(
     localId: 'qwen',
     contextSize: 8192,

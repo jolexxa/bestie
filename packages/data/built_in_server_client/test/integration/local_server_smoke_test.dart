@@ -4,6 +4,7 @@
 library;
 
 import 'dart:async';
+import 'dart:ffi' show Abi;
 import 'dart:io';
 
 import 'package:agent_runtime_protocol/agent_runtime_protocol.dart';
@@ -13,6 +14,7 @@ import 'package:file/local.dart';
 import 'package:http/http.dart' as http;
 import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:path/path.dart' as p;
+import 'package:process_host_posix/process_host_posix.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 import 'package:test/test.dart';
 
@@ -62,6 +64,20 @@ void main() {
           logFile: serverLogFileFor(bestieDir.path, p.context),
         ),
         pid: pid,
+        spawner: SupervisedServerSpawner(
+          host: PosixProcessHost(
+            spawnerBinaryPath: p.join(
+              repoRoot,
+              'packages/ffi/posix_spawner/assets/native',
+              Platform.operatingSystem,
+              Abi.current() == Abi.macosArm64 || Abi.current() == Abi.linuxArm64
+                  ? 'arm64'
+                  : 'x64',
+              'spawner',
+            ),
+          ),
+          environment: Platform.environment,
+        ),
       );
 
       final first = connectionFor(pid);

@@ -1,3 +1,4 @@
+import 'package:built_in_server_client/src/models/disconnect_cause.dart';
 import 'package:intentions/intentions.dart';
 
 /// Where this bestie stands with the local inference server.
@@ -6,14 +7,12 @@ sealed class BuiltInServerConnection {
   const BuiltInServerConnection();
 }
 
-/// No session is held: none was asked for yet, it was closed, or the server
-/// ended it.
+/// No session is held, for [cause].
 @model
 final class BuiltInServerDisconnected extends BuiltInServerConnection {
-  const BuiltInServerDisconnected({this.reason});
+  const BuiltInServerDisconnected({this.cause = const NotYetAttached()});
 
-  /// Why a session that was asked for is not held, if one was.
-  final String? reason;
+  final DisconnectCause cause;
 }
 
 /// Finding or starting the server and asking it for the owner session.
@@ -25,13 +24,20 @@ final class BuiltInServerAttaching extends BuiltInServerConnection {
 /// This bestie owns the server: it may lease agents and load models.
 @model
 final class BuiltInServerAttached extends BuiltInServerConnection {
-  const BuiltInServerAttached({required this.ownerToken, required this.port});
+  const BuiltInServerAttached({
+    required this.ownerToken,
+    required this.port,
+    required this.pid,
+  });
 
   /// Authorizes this bestie's lease, model, and agent completion requests.
   final String ownerToken;
 
   /// The loopback port the server listens on.
   final int port;
+
+  /// The server's process.
+  final int pid;
 }
 
 /// Another bestie owns the server.

@@ -5,6 +5,7 @@ import 'package:agent_runtime/agent_runtime.dart';
 import 'package:built_in_server_client/src/bestie_server_dialect.dart';
 import 'package:built_in_server_client/src/built_in_server_client.dart';
 import 'package:built_in_server_client/src/models/built_in_server_connection.dart';
+import 'package:built_in_server_client/src/models/disconnect_cause.dart';
 import 'package:built_in_server_client/src/models/model_load_options.dart';
 import 'package:built_in_server_client/src/server_api.dart';
 import 'package:completion_openai/completion_openai.dart';
@@ -12,6 +13,7 @@ import 'package:completion_protocol/completion_protocol.dart';
 import 'package:http/http.dart' as http;
 import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:process_host/process_host.dart';
 import 'package:provider_protocol/provider_protocol.dart';
 import 'package:test/test.dart';
 
@@ -172,12 +174,148 @@ void main() {
       ]);
     });
 
-    test('reports the server ending the session', () async {
+    test('reports a found server ending the session as disappeared', () async {
       await connection.attach();
 
       final changes = await changesDuring(server.endSession);
 
-      expect(changes, [isA<BuiltInServerDisconnected>()]);
+      expect(changes, [
+        isA<BuiltInServerDisconnected>().having(
+          (disconnected) => disconnected.cause,
+          'cause',
+          isA<ServerDisappeared>().having((gone) => gone.pid, 'pid', 42),
+        ),
+      ]);
+    });
+
+    test('reports the server stopping when it says so first', () async {
+      await connection.attach();
+
+      final changes = await changesDuring(() async {
+        server.emit(const SessionClosing(reason: ServerStopReason.requested));
+        await pumpEventQueue();
+        await server.endSession();
+      });
+
+      expect(changes, [
+        isA<BuiltInServerDisconnected>().having(
+          (disconnected) => disconnected.cause,
+          'cause',
+          isA<ServerStopping>().having(
+            (stopping) => stopping.reason,
+            'reason',
+            ServerStopReason.requested,
+          ),
+        ),
+      ]);
+    });
+
+    group('a server it started', () {
+      setUp(() {
+        server
+          ..removeLock()
+          ..spawns();
+      });
+
+      Matcher exited(ProcessExit exit) =>
+          isA<BuiltInServerDisconnected>().having(
+            (disconnected) => disconnected.cause,
+            'cause',
+            isA<ServerExited>()
+                .having((ended) => ended.exit, 'exit', exit)
+                .having((ended) => ended.pid, 'pid', 42),
+          );
+
+      test('is reported by how it exited when that is known first', () async {
+        await connection.attach();
+        server.spawnExit.complete(const ProcessSignaled(9));
+        await pumpEventQueue();
+
+        final changes = await changesDuring(server.endSession);
+
+        expect(changes, [exited(const ProcessSignaled(9))]);
+      });
+
+      test('is reported by how it exited when that follows shortly', () async {
+        await connection.attach();
+
+        final changes = await changesDuring(() async {
+          await server.endSession();
+          await pumpEventQueue();
+          server.spawnExit.complete(const ProcessSignaled(11));
+        });
+
+        expect(changes, [exited(const ProcessSignaled(11))]);
+      });
+
+      test('is reported as disappeared when its exit never comes', () async {
+        await connection.attach();
+
+        final changes = await changesDuring(() async {
+          await server.endSession();
+          await Future<void>.delayed(FakeServer.lossGrace * 2);
+        });
+
+        expect(changes, [
+          isA<BuiltInServerDisconnected>().having(
+            (disconnected) => disconnected.cause,
+            'cause',
+            isA<ServerDisappeared>(),
+          ),
+        ]);
+      });
+
+      test('is attached to again, still watched, after a release', () async {
+        await connection.attach();
+        await connection.release();
+        await connection.attach();
+        server.spawnExit.complete(const ProcessExited(70));
+        await pumpEventQueue();
+
+        final changes = await changesDuring(server.endSession);
+
+        expect(changes, [exited(const ProcessExited(70))]);
+        verify(() => server.spawner.spawn(any(), any())).called(1);
+      });
+
+      test('can be released or closed while its exit is waited for', () async {
+        await connection.attach();
+        await server.endSession();
+        await pumpEventQueue();
+
+        final changes = await changesDuring(connection.release);
+        await connection.attach();
+        await server.endSession();
+        await pumpEventQueue();
+        final closing = await changesDuring(connection.close);
+
+        expect(changes, [
+          isA<BuiltInServerDisconnected>().having(
+            (disconnected) => disconnected.cause,
+            'cause',
+            isA<SessionReleased>(),
+          ),
+        ]);
+        expect(closing, [
+          isA<BuiltInServerDisconnected>().having(
+            (disconnected) => disconnected.cause,
+            'cause',
+            isA<SessionReleased>(),
+          ),
+        ]);
+      });
+
+      test('takes a new session for an attach asked while losing', () async {
+        await connection.attach();
+        await server.endSession();
+        await pumpEventQueue();
+
+        final attaching = connection.attach();
+        server.spawnExit.complete(const ProcessSignaled(11));
+
+        expect(await attaching, isA<BuiltInServerAttached>());
+        expect(server.sessions, hasLength(2));
+      });
     });
 
     test('reports a release and a close', () async {
@@ -654,18 +792,22 @@ void main() {
       expect(server.callsTo(primaryPath), ['POST $primaryPath']);
     });
 
-    test('tells when this bestie stops holding the server', () async {
-      await expectLater(connection.untilDetached(), completes);
+    test('tells when and why this bestie stops holding the server', () async {
+      expect(await connection.untilDetached(), isA<NotYetAttached>());
 
       await loaded();
-      var detached = false;
-      unawaited(connection.untilDetached().then((_) => detached = true));
+      DisconnectCause? detached;
+      unawaited(connection.untilDetached().then((cause) => detached = cause));
       await pumpEventQueue();
-      expect(detached, isFalse);
+      expect(detached, isNull);
 
       await server.endSession();
       await pumpEventQueue();
-      expect(detached, isTrue);
+      expect(detached, isA<ServerDisappeared>());
+
+      await loaded();
+      await connection.release();
+      expect(await connection.untilDetached(), isA<SessionReleased>());
     });
   });
 
@@ -837,8 +979,8 @@ void main() {
 
       expect(
         await failed(),
-        BuiltInServerClient.failureFor(
-          const BuiltInServerDisconnected(),
+        connection.failureFor(
+          const BuiltInServerDisconnected(cause: SessionReleased()),
         ),
       );
       await connection.release();
@@ -847,8 +989,8 @@ void main() {
   });
 
   test('explains every connection loading cannot go on from', () {
-    String messageFor(BuiltInServerConnection connection) =>
-        BuiltInServerClient.failureFor(connection).message;
+    String messageFor(BuiltInServerConnection standing) =>
+        connection.failureFor(standing).message;
 
     expect(
       messageFor(const BuiltInServerBusy(ownerPid: 12)),
@@ -871,13 +1013,15 @@ void main() {
       'Could not start the local model server: missing',
     );
     expect(
-      messageFor(const BuiltInServerDisconnected(reason: 'reset')),
+      messageFor(
+        const BuiltInServerDisconnected(cause: AttachFailed('reset')),
+      ),
       'reset',
     );
     for (final unexplained in const <BuiltInServerConnection>[
       BuiltInServerDisconnected(),
       BuiltInServerAttaching(),
-      BuiltInServerAttached(ownerToken: 'token', port: 4100),
+      BuiltInServerAttached(ownerToken: 'token', port: 4100, pid: 42),
     ]) {
       expect(
         messageFor(unexplained),
@@ -885,9 +1029,66 @@ void main() {
       );
     }
     expect(
-      BuiltInServerClient.failureFor(const BuiltInServerAttaching()),
+      connection.failureFor(const BuiltInServerAttaching()),
       isA<ProviderServerFailed>(),
     );
+  });
+
+  test('explains every way the session can be lost', () {
+    String messageFor(DisconnectCause cause) =>
+        connection.failureFor(BuiltInServerDisconnected(cause: cause)).message;
+    const log = '/bestie/logs/server.log';
+
+    expect(
+      connection.failureFor(
+        const BuiltInServerDisconnected(cause: SessionReleased()),
+      ),
+      const ProviderCancelled(
+        'Built-in server was stopped. Reconnect to start it again.',
+      ),
+    );
+    expect(
+      messageFor(const ServerStopping(ServerStopReason.requested)),
+      'Built-in server was asked to stop. Reconnect to start it again.',
+    );
+    expect(
+      messageFor(const ServerStopping(ServerStopReason.engineLost)),
+      'Built-in server lost its engine; see $log. Reconnect to start it '
+      'again.',
+    );
+    expect(
+      messageFor(const ServerStopping(ServerStopReason.unclaimed)),
+      'Built-in server stopped (unclaimed). Reconnect to start it again.',
+    );
+    expect(
+      messageFor(const ServerDisappeared(pid: 42)),
+      'Built-in server went away without notice (pid 42); see $log. '
+      'Reconnect to start it again.',
+    );
+    final exits = <ProcessExit, String>{
+      const ProcessSignaled(2): 'was interrupted (SIGINT)',
+      const ProcessSignaled(6): 'aborted (SIGABRT)',
+      const ProcessSignaled(9): 'was killed (SIGKILL)',
+      const ProcessSignaled(11): 'crashed (SIGSEGV)',
+      const ProcessSignaled(15): 'was terminated (SIGTERM)',
+      const ProcessSignaled(31): 'ended by signal 31',
+      const ProcessExited(0): 'exited',
+      const ProcessExited(69): 'could not listen on loopback',
+      const ProcessExited(70): 'lost its engine',
+      const ProcessExited(72): 'could not find its llama.cpp libraries',
+      const ProcessExited(73): 'could not open its lock file',
+      const ProcessExited(75): 'found another server running',
+      const ProcessExited(1): 'exited with code 1',
+      const ProcessUnknown(): 'ended in a way bestie could not read',
+      const ProcessSupervisorLost(): 'ended without its exit being reported',
+    };
+    for (final MapEntry(key: exit, value: how) in exits.entries) {
+      expect(
+        messageFor(ServerExited(exit: exit, pid: 42)),
+        'Built-in server $how (pid 42); see $log. Reconnect to start it '
+        'again.',
+      );
+    }
   });
 
   test('marks a server another bestie holds as occupied', () {
@@ -895,10 +1096,10 @@ void main() {
       BuiltInServerBusy(ownerPid: 12),
       BuiltInServerVersionMismatch(protocolVersion: 2, serverVersion: '0.2.0'),
     ]) {
-      expect(BuiltInServerClient.failureFor(held), isA<ProviderOccupied>());
+      expect(connection.failureFor(held), isA<ProviderOccupied>());
     }
     expect(
-      BuiltInServerClient.failureFor(
+      connection.failureFor(
         const BuiltInServerSpawnFailed(reason: 'missing'),
       ),
       isA<ProviderServerFailed>(),

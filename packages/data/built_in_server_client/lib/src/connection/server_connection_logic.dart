@@ -5,6 +5,7 @@ import 'package:built_in_server_client/src/connection/server_connection_data.dar
 import 'package:built_in_server_client/src/connection/server_connection_input.dart';
 import 'package:built_in_server_client/src/connection/server_connection_output.dart';
 import 'package:built_in_server_client/src/models/built_in_server_connection.dart';
+import 'package:built_in_server_client/src/models/disconnect_cause.dart';
 import 'package:built_in_server_client/src/models/server_results.dart';
 import 'package:built_in_server_client/src/server_api.dart';
 import 'package:built_in_server_client/src/server_attacher.dart';
@@ -15,9 +16,10 @@ import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:logic_blocks/logic_blocks.dart';
 
 /// Where this bestie stands with the server: holding nothing, on its way
-/// to the owner session, holding it, letting it go, or done for good.
-/// Requests that arrive mid-way wait for the step under way, so a release
-/// always finishes before a later attach takes a new session.
+/// to the owner session, holding it, learning why it lost it, letting it
+/// go, or done for good. Requests that arrive mid-way wait for the step
+/// under way, so a release always finishes before a later attach takes a
+/// new session.
 @PartOf(BuiltInServerClient)
 sealed class ServerConnectionState extends StateLogic<ServerConnectionState> {
   ServerConnectionState() {
@@ -34,6 +36,9 @@ sealed class ServerConnectionState extends StateLogic<ServerConnectionState> {
   ServerConnectionData get data => get<ServerConnectionData>();
   ServerAttacher get attacher => get<ServerAttacher>();
   ServerApi get api => get<ServerApi>();
+
+  /// The process of the server whose session is or was held last.
+  int get pid => data.holding.attached.pid;
 
   Transition onAttach(AttachRequested input) {
     awaitAttempt(input);
@@ -97,6 +102,15 @@ sealed class ServerConnectionState extends StateLogic<ServerConnectionState> {
     data.letGoWaiters = [];
   }
 
+  /// Settles the lost session on [cause] and tells everyone who follows;
+  /// attaches asked for meanwhile take a new session next.
+  Transition disconnect(DisconnectCause cause) {
+    data.settleDetached(cause);
+    output(ConnectionChanged(BuiltInServerDisconnected(cause: cause)));
+    if (data.attachWaiters.isNotEmpty) return to<AttachingState>();
+    return to<DisconnectedState>();
+  }
+
   static const notAttached = 'This bestie does not hold the local server.';
 }
 
@@ -151,16 +165,18 @@ final class AttachingState extends ServerConnectionState {
   }
 }
 
-/// This bestie owns the server: it may lease agents and load models.
+/// This bestie owns the server: it may lease agents and load models. It
+/// keeps whatever the server says about stopping, so a session that ends
+/// can be explained.
 @PartOf(BuiltInServerClient)
 final class AttachedState extends ServerConnectionState {
   AttachedState() {
-    onEnter(() => data.detached = Completer<void>());
-    onExit(() {
+    onEnter(() {
       data
-        ..lastLoad = null
-        ..detached.complete();
+        ..closing = null
+        ..detached = Completer<DisconnectCause>();
     });
+    onExit(() => data.lastLoad = null);
 
     on<LoadSettled>((input) {
       if (identical(input.session, data.holding.session)) {
@@ -176,12 +192,22 @@ final class AttachedState extends ServerConnectionState {
       return toSelf();
     });
 
+    on<SessionClosingReported>((input) {
+      if (identical(input.session, data.holding.session)) {
+        data.closing = input.reason;
+      }
+      return toSelf();
+    });
+
     on<SessionEnded>((input) {
       if (!identical(input.session, data.holding.session)) return toSelf();
       async(input.session.close());
       data.letGo();
-      output(const ConnectionChanged(BuiltInServerDisconnected()));
-      return to<DisconnectedState>();
+      if (data.closing case final reason?) {
+        return disconnect(ServerStopping(reason));
+      }
+      if (data.holding.exit != null) return to<LosingState>();
+      return disconnect(ServerDisappeared(pid: pid));
     });
   }
 
@@ -244,6 +270,42 @@ final class AttachedState extends ServerConnectionState {
   }
 }
 
+/// The session ended without a word from a server this bestie started:
+/// its exit is waited for, briefly, to tell a crash from a server that
+/// merely went away. However this state is left, the server went away
+/// unless its exit said otherwise.
+@PartOf(BuiltInServerClient)
+final class LosingState extends ServerConnectionState {
+  LosingState({required this.grace}) {
+    onEnter(() {
+      final attempt = data.attempt;
+      final held = data.holding;
+      async(held.exit!).input(
+        (exit) => ProcessExitReported(session: held.session, exit: exit),
+      );
+      async(
+        Future<void>.delayed(grace),
+      ).input((_) => LossGraceExpired(attempt: attempt));
+    });
+    onExit(() => data.settleDetached(ServerDisappeared(pid: pid)));
+
+    on<ProcessExitReported>(
+      (input) => identical(input.session, data.holding.session)
+          ? disconnect(ServerExited(exit: input.exit, pid: pid))
+          : toSelf(),
+    );
+
+    on<LossGraceExpired>(
+      (input) => input.attempt == data.attempt
+          ? disconnect(ServerDisappeared(pid: pid))
+          : toSelf(),
+    );
+  }
+
+  /// How long the exit is waited for.
+  final Duration grace;
+}
+
 /// Unloading the model and hanging up, or abandoning the attempt under
 /// way. Attaches asked for meanwhile take a new session afterwards; a
 /// later release drops them.
@@ -251,7 +313,8 @@ final class AttachedState extends ServerConnectionState {
 final class ReleasingState extends ServerConnectionState {
   ReleasingState() {
     onEnter(() {
-      answerAttaches(const BuiltInServerDisconnected());
+      data.settleDetached(const SessionReleased());
+      answerAttaches(_released);
       async(_letGo(data.held)).input((_) => const LetGo());
     });
 
@@ -262,14 +325,14 @@ final class ReleasingState extends ServerConnectionState {
       output(const ModelStatusChanged(ModelUnloaded()));
       answerLetGo();
       if (data.attachWaiters.isNotEmpty) return to<AttachingState>();
-      output(const ConnectionChanged(BuiltInServerDisconnected()));
+      output(const ConnectionChanged(_released));
       return to<DisconnectedState>();
     });
   }
 
   @override
   Transition onRelease(ReleaseRequested input) {
-    answerAttaches(const BuiltInServerDisconnected());
+    answerAttaches(_released);
     data.letGoWaiters.add(input.reply);
     return toSelf();
   }
@@ -288,8 +351,9 @@ final class ReleasingState extends ServerConnectionState {
 final class ClosedState extends ServerConnectionState {
   ClosedState() {
     onEnter(() {
-      answerAttaches(const BuiltInServerDisconnected());
-      output(const ConnectionChanged(BuiltInServerDisconnected()));
+      data.settleDetached(const SessionReleased());
+      answerAttaches(_released);
+      output(const ConnectionChanged(_released));
       data.hungUp = _hangUp(data.held);
       async(data.hungUp).input((_) => const HungUp());
     });
@@ -302,7 +366,7 @@ final class ClosedState extends ServerConnectionState {
 
   @override
   Transition onAttach(AttachRequested input) {
-    input.reply.complete(const BuiltInServerDisconnected());
+    input.reply.complete(_released);
     return toSelf();
   }
 
@@ -323,11 +387,14 @@ final class ClosedState extends ServerConnectionState {
   }
 }
 
+const _released = BuiltInServerDisconnected(cause: SessionReleased());
+
 @PartOf(BuiltInServerClient)
 final class ServerConnectionLogic extends LogicBlock<ServerConnectionState> {
   ServerConnectionLogic({
     required ServerAttacher attacher,
     required ServerApi api,
+    required Duration lossGrace,
   }) {
     set(ServerConnectionData());
     set(attacher);
@@ -336,6 +403,7 @@ final class ServerConnectionLogic extends LogicBlock<ServerConnectionState> {
     set(DisconnectedState());
     set(AttachingState());
     set(AttachedState());
+    set(LosingState(grace: lossGrace));
     set(ReleasingState());
     set(ClosedState());
   }

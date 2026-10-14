@@ -6,9 +6,11 @@ import 'package:built_in_server_client/src/connection/server_connection_data.dar
 import 'package:built_in_server_client/src/connection/server_connection_input.dart';
 import 'package:built_in_server_client/src/connection/server_connection_logic.dart';
 import 'package:built_in_server_client/src/connection/server_connection_output.dart';
+import 'package:built_in_server_client/src/disconnect_wording.dart';
 import 'package:built_in_server_client/src/model_index_file.dart';
 import 'package:built_in_server_client/src/models/built_in_server_connection.dart';
 import 'package:built_in_server_client/src/models/built_in_server_launch.dart';
+import 'package:built_in_server_client/src/models/disconnect_cause.dart';
 import 'package:built_in_server_client/src/models/model_load_options.dart';
 import 'package:built_in_server_client/src/models/server_results.dart';
 import 'package:built_in_server_client/src/owner_session.dart';
@@ -39,11 +41,13 @@ class BuiltInServerClient implements ProviderClient, BuiltInServerLink {
     required String indexFile,
     required BuiltInServerLaunch launch,
     required int pid,
-    ServerSpawner spawner = const DetachedServerSpawner(),
+    required ServerSpawner spawner,
     Clock clock = const Clock(),
     Duration startTimeout = const Duration(seconds: 90),
     Duration healthTimeout = const Duration(seconds: 5),
-  }) : _index = ModelIndexFile(fileSystem: fileSystem, path: indexFile) {
+    Duration lossGrace = const Duration(seconds: 1),
+  }) : _index = ModelIndexFile(fileSystem: fileSystem, path: indexFile),
+       _wording = DisconnectWording(logFile: launch.logFile) {
     final api = ServerApi(client: client, healthTimeout: healthTimeout);
     _logic = ServerConnectionLogic(
       attacher: ServerAttacher(
@@ -60,6 +64,7 @@ class BuiltInServerClient implements ProviderClient, BuiltInServerLink {
         pid: pid,
       ),
       api: api,
+      lossGrace: lossGrace,
     )..start();
     _binding = _logic.bind()
       ..onOutput<ModelStatusChanged>(
@@ -71,9 +76,8 @@ class BuiltInServerClient implements ProviderClient, BuiltInServerLink {
       ..onOutput<SessionStarted>((started) => _follow(started.session));
   }
 
-  static const _notConnected = 'The local model server is not connected.';
-
   final ModelIndexFile _index;
+  final DisconnectWording _wording;
   late final ServerConnectionLogic _logic;
   late final LogicBlockBinding<ServerConnectionState> _binding;
   final _modelStatusChanges = StreamController<ModelStatus>.broadcast(
@@ -117,7 +121,7 @@ class BuiltInServerClient implements ProviderClient, BuiltInServerLink {
   Stream<PoolSnapshotEvent> get poolSnapshots => _poolSnapshots.stream;
 
   @override
-  Future<void> untilDetached() => _data.detached.future;
+  Future<DisconnectCause> untilDetached() => _data.detached.future;
 
   /// Loads every model from now on the way [options] say.
   void configure(ModelLoadOptions options) {
@@ -265,7 +269,10 @@ class BuiltInServerClient implements ProviderClient, BuiltInServerLink {
           ModelStatusReported(session: session, status: status),
         ),
         final PoolSnapshotEvent snapshot => _poolSnapshots.add(snapshot),
-        SessionOpened() || SessionClosing() => null,
+        SessionClosing(:final reason) => _logic.input(
+          SessionClosingReported(session: session, reason: reason),
+        ),
+        SessionOpened() => null,
       },
       onDone: () => _logic.input(SessionEnded(session)),
     );
@@ -273,26 +280,24 @@ class BuiltInServerClient implements ProviderClient, BuiltInServerLink {
 
   /// Why loading cannot go on while the server stands at [connection].
   @visibleForTesting
-  static ProviderFailure failureFor(
-    BuiltInServerConnection connection,
-  ) => switch (connection) {
-    BuiltInServerBusy(:final ownerPid) => ProviderOccupied(
-      bestieServerBusyMessage(ownerPid),
-    ),
-    BuiltInServerVersionMismatch(:final protocolVersion) => ProviderOccupied(
-      'The running local model server speaks protocol '
-      '$protocolVersion; this bestie speaks $bestieProtocolVersion. '
-      'It exits once its owner closes and it sits idle.',
-    ),
-    BuiltInServerSpawnFailed(:final reason) => ProviderServerFailed(
-      'Could not start the local model server: $reason',
-    ),
-    BuiltInServerDisconnected(:final reason) => ProviderServerFailed(
-      reason ?? _notConnected,
-    ),
-    BuiltInServerAttaching() ||
-    BuiltInServerAttached() => const ProviderServerFailed(_notConnected),
-  };
+  ProviderFailure failureFor(BuiltInServerConnection connection) =>
+      switch (connection) {
+        BuiltInServerBusy(:final ownerPid) => ProviderOccupied(
+          bestieServerBusyMessage(ownerPid),
+        ),
+        BuiltInServerVersionMismatch(:final protocolVersion) =>
+          ProviderOccupied(
+            'The running local model server speaks protocol '
+            '$protocolVersion; this bestie speaks $bestieProtocolVersion. '
+            'It exits once its owner closes and it sits idle.',
+          ),
+        BuiltInServerSpawnFailed(:final reason) => ProviderServerFailed(
+          'Could not start the local model server: $reason',
+        ),
+        BuiltInServerDisconnected(:final cause) => _wording.failureFor(cause),
+        BuiltInServerAttaching() || BuiltInServerAttached() =>
+          const ProviderServerFailed(DisconnectWording.notConnected),
+      };
 
   static ProviderModelLoadProgress? _progressOf(
     ModelStatus status,

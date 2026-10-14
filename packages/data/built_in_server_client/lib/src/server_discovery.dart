@@ -10,6 +10,7 @@ import 'package:clock/clock.dart';
 import 'package:file/file.dart';
 import 'package:intentions/intentions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
+import 'package:process_host/process_host.dart';
 
 /// Finds the server the lock file names, starting one when none answers.
 @PartOf(BuiltInServerClient)
@@ -45,6 +46,7 @@ final class ServerDiscovery {
   final Clock _clock;
   final Duration _startTimeout;
   Future<ServerDiscoveryResult>? _finding;
+  ServerSpawned? _spawned;
 
   /// The running server, or a new one. A server shutting down answers no
   /// handshake, so it counts as gone; the one started in its place waits
@@ -60,7 +62,8 @@ final class ServerDiscovery {
     switch (await _spawner.spawn(command.executable, _launch.arguments)) {
       case ServerSpawnRefused(:final reason):
         return ServerNotStarted(reason);
-      case ServerSpawned():
+      case final ServerSpawned spawned:
+        _spawned = spawned;
         return _awaitStart();
     }
   }
@@ -85,16 +88,24 @@ final class ServerDiscovery {
     );
   }
 
-  /// The server the lock file names, or null when none answers.
+  /// The server the lock file names, or null when none answers. A server
+  /// this discovery started is handed over with its exit, so its end can
+  /// be told from a server that was merely found.
   Future<ServerDiscoveryResult?> _probe({required int attempts}) async {
     final port = _lockedPort();
     if (port == null) return null;
     for (var attempt = 0; attempt < attempts; attempt++) {
       final health = await _api.health(port);
       if (health == null) continue;
-      return health.protocolVersion == bestieProtocolVersion
-          ? ServerFound(port: port, health: health)
-          : ServerSpeaksOtherProtocol(health);
+      if (health.protocolVersion != bestieProtocolVersion) {
+        return ServerSpeaksOtherProtocol(health);
+      }
+      final spawned = _spawned;
+      return ServerFound(
+        port: port,
+        health: health,
+        exit: spawned?.pid == health.pid ? spawned?.exit : null,
+      );
     }
     return null;
   }
@@ -126,11 +137,14 @@ sealed class ServerDiscoveryResult {
 
 @model
 final class ServerFound extends ServerDiscoveryResult {
-  const ServerFound({required this.port, required this.health});
+  const ServerFound({required this.port, required this.health, this.exit});
 
   final int port;
 
   final HealthResponse health;
+
+  /// How the server process ends, when this bestie started it.
+  final Future<ProcessExit>? exit;
 }
 
 /// A server runs, but it speaks another protocol version.

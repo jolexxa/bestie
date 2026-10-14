@@ -13,4 +13,14 @@ export 'src/models/built_in_server_connection.dart'
         BuiltInServerSpawnFailed,
         BuiltInServerVersionMismatch;
 export 'src/models/built_in_server_launch.dart' show BuiltInServerLaunch;
+export 'src/models/disconnect_cause.dart'
+    show
+        AttachFailed,
+        DisconnectCause,
+        NotYetAttached,
+        ServerDisappeared,
+        ServerExited,
+        ServerStopping,
+        SessionReleased;
 export 'src/models/model_load_options.dart' show ModelLoadOptions;
+export 'src/server_spawner.dart' show ServerSpawner, SupervisedServerSpawner;

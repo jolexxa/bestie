@@ -25,6 +25,8 @@ package "bestie" {
     BuiltInServerClient +-- BuiltInServerLink
     class BuiltInServerModel << dataSource >>
     BuiltInServerClient +-- BuiltInServerModel
+    class DisconnectWording << dataSource >>
+    BuiltInServerClient +-- DisconnectWording
     class ModelIndexFile << dataSource >>
     BuiltInServerClient +-- ModelIndexFile
     class ServerApi << dataSource >>
@@ -222,6 +224,7 @@ package "bestie" {
   ArxivTools --> ArxivSearchClient
   ArxivTools --> FilesDataSource
   BuiltInAgentSessions --> BuiltInServerLink
+  BuiltInServerClient --> DisconnectWording
   BuiltInServerClient --> ModelIndexFile
   BuiltInServerClient --> ServerConnectionData
   BuiltInServerClient --> ServerConnectionLogic

@@ -5,13 +5,13 @@ import 'package:built_in_server_client/built_in_server_client.dart';
 import 'package:built_in_server_client/src/models/server_results.dart';
 import 'package:built_in_server_client/src/server_api.dart';
 import 'package:built_in_server_client/src/server_discovery.dart';
-import 'package:built_in_server_client/src/server_spawner.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:file/memory.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:process_host/process_host.dart';
 import 'package:test/test.dart';
 
 class _MockServerSpawner extends Mock implements ServerSpawner {}
@@ -32,6 +32,7 @@ void main() {
 
   late MemoryFileSystem fileSystem;
   late _MockServerSpawner spawner;
+  late Completer<ProcessExit> spawnExit;
   late List<Duration> handshakes;
   late http.Response Function() healthAnswer;
 
@@ -69,9 +70,10 @@ void main() {
     spawner = _MockServerSpawner();
     handshakes = [];
     healthAnswer = () => http.Response(handshake.toJson(), 200);
-    when(
-      () => spawner.spawn(any(), any()),
-    ).thenAnswer((_) async => const ServerSpawned(pid: 42));
+    spawnExit = Completer<ProcessExit>();
+    when(() => spawner.spawn(any(), any())).thenAnswer(
+      (_) async => ServerSpawned(pid: 42, exit: spawnExit.future),
+    );
   });
 
   test('finds the server the lock file names', () {
@@ -166,6 +168,46 @@ void main() {
       async.elapse(const Duration(milliseconds: 400));
 
       expect((found! as ServerFound).port, 4100);
+    });
+  });
+
+  test('hands over the exit of the server it started', () {
+    fakeAsync((async) {
+      ServerDiscoveryResult? found;
+      final discovery = discoveryIn(async);
+
+      unawaited(discovery.find().then((result) => found = result));
+      async.flushMicrotasks();
+      lockPort(4100);
+      async.elapse(const Duration(seconds: 1));
+      final started = found! as ServerFound;
+
+      found = null;
+      unawaited(discovery.find().then((result) => found = result));
+      async.flushMicrotasks();
+      final foundAgain = found! as ServerFound;
+
+      expect(started.exit, isNotNull);
+      expect(foundAgain.exit, same(started.exit));
+    });
+  });
+
+  test('hands over no exit for a server another process started', () {
+    fakeAsync((async) {
+      ServerDiscoveryResult? found;
+      final discovery = discoveryIn(async);
+
+      unawaited(discovery.find().then((result) => found = result));
+      async.flushMicrotasks();
+      lockPort(4100);
+      async.elapse(const Duration(seconds: 1));
+      healthAnswer = () =>
+          http.Response(handshake.copyWith(pid: 43).toJson(), 200);
+      found = null;
+      unawaited(discovery.find().then((result) => found = result));
+      async.flushMicrotasks();
+
+      expect((found! as ServerFound).exit, isNull);
     });
   });
 

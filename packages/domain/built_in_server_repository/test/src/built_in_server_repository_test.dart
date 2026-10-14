@@ -9,7 +9,11 @@ import 'package:test/test.dart';
 final class _MockBuiltInServerClient extends Mock
     implements BuiltInServerClient {}
 
-const _attached = BuiltInServerAttached(ownerToken: 'token', port: 4242);
+const _attached = BuiltInServerAttached(
+  ownerToken: 'token',
+  port: 4242,
+  pid: 42,
+);
 
 const _ready = ModelReady(
   localId: 'qwen3-8b',
@@ -75,7 +79,11 @@ void main() {
       connections
         ..add(const BuiltInServerAttaching())
         ..add(_attached)
-        ..add(const BuiltInServerDisconnected(reason: 'server went away'));
+        ..add(
+          const BuiltInServerDisconnected(
+            cause: AttachFailed('server went away'),
+          ),
+        );
       await pumpEventQueue();
       await subscription.cancel();
 

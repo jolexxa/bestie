@@ -450,6 +450,10 @@ class AppContext {
           logFile: platform.serverLogFile,
         ),
         pid: pid,
+        spawner: SupervisedServerSpawner(
+          host: processHost,
+          environment: hostEnvironment,
+        ),
         clock: clock,
       ),
       httpClient: httpClient,

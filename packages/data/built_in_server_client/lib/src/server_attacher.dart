@@ -1,9 +1,11 @@
 import 'package:built_in_server_client/src/built_in_server_client.dart';
 import 'package:built_in_server_client/src/models/built_in_server_connection.dart';
+import 'package:built_in_server_client/src/models/disconnect_cause.dart';
 import 'package:built_in_server_client/src/owner_session.dart';
 import 'package:built_in_server_client/src/server_discovery.dart';
 import 'package:http/http.dart' as http;
 import 'package:intentions/intentions.dart';
+import 'package:process_host/process_host.dart';
 
 /// Finds or starts the server, then asks it for the owner session.
 @PartOf(BuiltInServerClient)
@@ -39,7 +41,7 @@ final class ServerAttacher {
           );
         case ServerNotStarted(:final reason):
           return AttachRefused(BuiltInServerSpawnFailed(reason: reason));
-        case ServerFound(:final port):
+        case ServerFound(:final port, :final health, :final exit):
           switch (await OwnerSession.open(
             client: _sessionClientFactory(),
             port: port,
@@ -51,7 +53,9 @@ final class ServerAttacher {
                 attached: BuiltInServerAttached(
                   ownerToken: session.ownerToken,
                   port: port,
+                  pid: health.pid,
                 ),
+                exit: exit,
               );
             case OwnerSessionRefused(:final ownerPid):
               return AttachRefused(BuiltInServerBusy(ownerPid: ownerPid));
@@ -59,7 +63,9 @@ final class ServerAttacher {
               continue;
             case OwnerSessionServerGone(:final reason) ||
                 OwnerSessionFailed(:final reason):
-              return AttachRefused(BuiltInServerDisconnected(reason: reason));
+              return AttachRefused(
+                BuiltInServerDisconnected(cause: AttachFailed(reason)),
+              );
           }
       }
     }
@@ -75,11 +81,18 @@ sealed class AttachOutcome {
 /// This bestie holds [session] on the server [attached] describes.
 @model
 final class AttachHeld extends AttachOutcome {
-  const AttachHeld({required this.session, required this.attached});
+  const AttachHeld({
+    required this.session,
+    required this.attached,
+    this.exit,
+  });
 
   final OwnerSession session;
 
   final BuiltInServerAttached attached;
+
+  /// How the server process ends, when this bestie started it.
+  final Future<ProcessExit>? exit;
 }
 
 /// No session is held, for the reason [connection] gives.

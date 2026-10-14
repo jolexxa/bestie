@@ -15,7 +15,12 @@ sealed class BuiltInServerStatus {
     ModelStatus model,
     PoolSnapshotEvent? pool,
   ) => switch (connection) {
-    BuiltInServerDisconnected(:final reason) => ServerOffline(reason: reason),
+    BuiltInServerDisconnected(:final cause) => ServerOffline(
+      reason: switch (cause) {
+        AttachFailed(:final reason) => reason,
+        _ => null,
+      },
+    ),
     BuiltInServerAttaching() => const ServerStarting(),
     BuiltInServerBusy(:final ownerPid) => ServerTaken(ownerPid: ownerPid),
     BuiltInServerVersionMismatch(

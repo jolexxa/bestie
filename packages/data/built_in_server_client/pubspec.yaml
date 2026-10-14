@@ -31,6 +31,8 @@ dependencies:
   logic_blocks: ^1.0.0
   meta: ^1.15.0
   path: ^1.9.1
+  process_host:
+    path: ../../infra/process_host
   provider_protocol:
     path: ../../infra/provider_protocol
 
@@ -38,5 +40,7 @@ dev_dependencies:
   coverage: ^1.15.0
   fake_async: ^1.3.2
   mocktail: ^1.0.4
+  process_host_posix:
+    path: ../../infra/process_host_posix
   test: ^1.26.3
   very_good_analysis: ^10.0.0

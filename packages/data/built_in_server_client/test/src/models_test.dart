@@ -2,6 +2,7 @@ import 'package:bestie_platform_abstractions/bestie_platform_abstractions.dart';
 import 'package:built_in_server_client/built_in_server_client.dart';
 import 'package:built_in_server_client/src/models/server_results.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
+import 'package:process_host/process_host.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -33,15 +34,28 @@ void main() {
 
   test('describes where this bestie stands with the server', () {
     const connections = <BuiltInServerConnection>[
-      BuiltInServerDisconnected(reason: 'gone'),
+      BuiltInServerDisconnected(cause: AttachFailed('gone')),
       BuiltInServerAttaching(),
-      BuiltInServerAttached(ownerToken: 'token', port: 4100),
+      BuiltInServerAttached(ownerToken: 'token', port: 4100, pid: 42),
       BuiltInServerBusy(ownerPid: 12),
       BuiltInServerVersionMismatch(protocolVersion: 2, serverVersion: '0.2.0'),
       BuiltInServerSpawnFailed(reason: 'missing'),
     ];
 
     expect(connections, hasLength(6));
+  });
+
+  test('says why no session is held', () {
+    const causes = <DisconnectCause>[
+      NotYetAttached(),
+      SessionReleased(),
+      ServerStopping(ServerStopReason.requested),
+      ServerExited(exit: ProcessSignaled(11), pid: 42),
+      ServerDisappeared(pid: 42),
+      AttachFailed('reset'),
+    ];
+
+    expect(causes, hasLength(6));
   });
 
   test('carries what each server request found', () {
@@ -51,13 +65,13 @@ void main() {
       maxAgents: 3,
       deviceBytes: 1,
     );
-    const results = <Object>[
-      ModelLoaded(ready),
-      ModelLoadFailed('oom'),
-      ModelUnloadSucceeded(),
-      ModelUnloadFailed('down'),
-      ServerSpawned(pid: 42),
-      ServerSpawnRefused('missing'),
+    final results = <Object>[
+      const ModelLoaded(ready),
+      const ModelLoadFailed('oom'),
+      const ModelUnloadSucceeded(),
+      const ModelUnloadFailed('down'),
+      ServerSpawned(pid: 42, exit: Future.value(const ProcessExited(0))),
+      const ServerSpawnRefused('missing'),
     ];
 
     expect(results, hasLength(6));

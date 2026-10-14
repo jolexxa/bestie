@@ -1,4 +1,5 @@
 import 'package:built_in_server_client/src/built_in_server_client.dart';
+import 'package:built_in_server_client/src/models/disconnect_cause.dart';
 import 'package:completion_protocol/completion_protocol.dart';
 import 'package:intentions/intentions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
@@ -7,10 +8,10 @@ import 'package:local_server_protocol/local_server_protocol.dart';
 /// server.
 @PartOf(BuiltInServerClient)
 abstract interface class BuiltInServerLink {
-  /// Completes once this bestie stops holding the session it holds now,
-  /// whether it let go, the server ended the session, or the connection
-  /// closed; at once when it holds none.
-  Future<void> untilDetached();
+  /// Completes with why once this bestie stops holding the session it
+  /// holds now, whether it let go, the server ended the session, or the
+  /// connection closed; at once when it holds none.
+  Future<DisconnectCause> untilDetached();
 
   Stream<PoolSnapshotEvent> get poolSnapshots;
 

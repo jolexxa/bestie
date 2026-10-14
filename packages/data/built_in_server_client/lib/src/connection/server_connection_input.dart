@@ -7,6 +7,7 @@ import 'package:built_in_server_client/src/server_attacher.dart';
 import 'package:completion_protocol/completion_protocol.dart';
 import 'package:intentions/intentions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
+import 'package:process_host/process_host.dart';
 
 @model
 sealed class ServerConnectionInput {
@@ -149,10 +150,39 @@ final class ModelStatusReported extends ServerConnectionInput {
   final ModelStatus status;
 }
 
+/// [session] heard the server is stopping for [reason].
+@model
+final class SessionClosingReported extends ServerConnectionInput {
+  const SessionClosingReported({required this.session, required this.reason});
+
+  final OwnerSession session;
+
+  final ServerStopReason reason;
+}
+
 /// The server ended [session].
 @model
 final class SessionEnded extends ServerConnectionInput {
   const SessionEnded(this.session);
 
   final OwnerSession session;
+}
+
+/// The process serving [session] ended with [exit].
+@model
+final class ProcessExitReported extends ServerConnectionInput {
+  const ProcessExitReported({required this.session, required this.exit});
+
+  final OwnerSession session;
+
+  final ProcessExit exit;
+}
+
+/// The wait for the exit of the process that served the session numbered
+/// [attempt] is over.
+@model
+final class LossGraceExpired extends ServerConnectionInput {
+  const LossGraceExpired({required this.attempt});
+
+  final int attempt;
 }

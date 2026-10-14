@@ -1,5 +1,6 @@
 import 'package:intentions/intentions.dart';
 import 'package:local_server_protocol/local_server_protocol.dart';
+import 'package:process_host/process_host.dart';
 
 /// How asking the server to load a model went.
 @model
@@ -46,11 +47,14 @@ sealed class ServerSpawnResult {
   const ServerSpawnResult();
 }
 
+/// The server process runs; [exit] tells how it ends.
 @model
 final class ServerSpawned extends ServerSpawnResult {
-  const ServerSpawned({required this.pid});
+  const ServerSpawned({required this.pid, required this.exit});
 
   final int pid;
+
+  final Future<ProcessExit> exit;
 }
 
 @model
